@@ -17,7 +17,8 @@ except ImportError, e:
 
 
 class LinProgException(Exception):
-	pass
+	def __init__(self, x = None, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = None, b_eq = None):
+		pass
 
 class InfeasibleConstraints(LinProgException):
 	pass
@@ -58,25 +59,30 @@ def check_linprog_solution(x, A_ub = None, b_ub = None, lb = None, ub = None, A_
 	if A_ub is not None and b_ub is not None:
 		err = np.dot(A_ub, x) - b_ub
 		if not np.all(err < tol):
+			print "Inequalitites failed", err
 			return False
 
 	if A_eq is not None and b_eq is not None:
 		err = np.abs(np.dot(A_eq, x) - b_eq)
 		if not np.all(err < tol):
+			print "Equalities failed", err
 			return False
 
 	if lb is not None:
 		if not np.all( x >= lb - tol):
+			print "Lower bound failed", x - lb + tol
 			return False
 	 
 	if ub is not None:
 		if not np.all( x <= ub + tol):
+			print "Upper bound failed", ub + tol - x
 			return False
 
 	return True
 
 
-def linprog_gurobi(c, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = None, b_eq = None):
+def linprog_gurobi(c, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = None, b_eq = None,
+	feastol = 1e-8, opttol = 1e-8):
 
 	# Clean up posing
 	if b_eq is not None:
@@ -85,6 +91,10 @@ def linprog_gurobi(c, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = Non
 	model = gpy.Model()
 	model.setParam('OutputFlag', 0)		# Disable logging
 	model.setParam('NumericFocus', 3)	# improve handeling of numerical instabilities
+	
+	# Increase convergence tolerances
+	model.setParam('FeasibilityTol', feastol)
+	model.setParam('OptimalityTol', opttol)
 	
 	n = c.shape[0]	
 

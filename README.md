@@ -1,5 +1,5 @@
-Dimension Reduction Toolbox
-===========================
+Parameter Space Dimension Reduction Toolbox
+===========================================
 Author: Jeffrey M. Hokanson (jeffrey@hokanson.us)
 Date: 21 Feb 2018
 

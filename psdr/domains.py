@@ -182,13 +182,16 @@ class Domain(object):
 		""" 
 		if isinstance(self, ComboDomain):
 			if all([isinstance(dom, LinIneqDomain) for dom in self.domains]):
-				return projected_closest_point(A, b, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
+				x = projected_closest_point(A, b, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
 			else:
 				raise NotImplementedError
 		elif isinstance(self, LinIneqDomain):
-			return projected_closest_point(A, b, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
+			x = projected_closest_point(A, b, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
 		else:
 			raise NotImplementedError
+		
+		assert self.isinside(x), "projected closest point not inside domain"
+		return x
 	
 	def closest_point(self, x0, L = None):
 		""" Find the closest point in the domain to x0
@@ -394,7 +397,10 @@ class LinIneqDomain(Domain):
 			b_eq = self.b_eq
 		else:
 			raise ValueError("Both A_eq and b_eq must be defined")
-		
+	
+		#if center is None:
+		#	center = closest_point(self.center, A_ub = A, b_ub = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq) 
+	
 		return LinIneqDomain(A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, center = center)	
  
 	def _chebyshev_center(self):
@@ -827,7 +833,7 @@ class ComboDomain(Domain):
 
 	@property
 	def center(self):
-		return np.hstack([dom.center for dom in self.domains])
+		return np.hstack([dom.center.flatten() for dom in self.domains])
 
 
 	def _corner(self, p):
@@ -950,7 +956,6 @@ class NormalDomain(BoxDomain):
 			else:
 				normalization = 'linear'
 
-
 		assert normalization in ['linear', 'nonlinear'], "normalization must be one of either 'linear' or 'nonlinear'"
 		self.normalization = normalization
 
@@ -982,14 +987,18 @@ class NormalDomain(BoxDomain):
 	def _unnormalize_nonlinear(self, X_norm):
 		return (self.mean.reshape(-1,1) + np.dot(np.diag(np.sqrt(self.ew)), np.dot(self.ev.T, X_norm.T))).T
 	
-	def _normalized_domain(self):
-		# Linear domain transform
-		assert self.clip is not None, "to generate normalized domain with a linear transform, clip must not be none"
-		mean_norm = np.zeros(len(self))
-		D = np.diag(2./(self.ub - self.lb))
-		cov_norm = np.dot(D, np.dot(self.cov, D))
-		return NormalDomain(mean_norm, cov_norm, clip = self.clip, normalization = self.normalization) 
+	#def _normalized_domain(self):
+	#	# Linear domain transform
+	#	assert self.clip is not None, "to generate normalized domain with a linear transform, clip must not be none"
+	#	mean_norm = np.zeros(len(self))
+	#	D = np.diag(2./(self.ub - self.lb))
+	#	cov_norm = np.dot(D, np.dot(self.cov, D))
+	#	return NormalDomain(mean_norm, cov_norm, clip = self.clip, normalization = self.normalization) 
 	
+	def _normalized_domain(self):
+		assert self.normalization == 'linear'
+		return BoxDomain(-1*np.ones(self.lb.shape),np.ones(self.ub.shape))
+
 	def _normalized_domain_nonlinear(self):
 		return NormalDomain(np.zeros(len(self)), np.eye(len(self)), clip = self.clip, normalization = self.normalization)
 
@@ -1021,6 +1030,7 @@ class NormalDomain(BoxDomain):
 		return self.mean.shape[0]
  
 	def _isinside(self, X):
+		print "called isinside"
 		if self.clip is None:
 			return np.ones(X.shape[0], dtype = np.bool)
 		else:
@@ -1035,8 +1045,10 @@ class NormalDomain(BoxDomain):
 			# If there is only one coordinate, we can simply check against the bounds
 			return self._extent_bounds(x, p)
 		else:
+			print "called extent"
 			dist_from_boundary = lambda alpha: np.linalg.norm(self._normalize_nonlinear(x + alpha*p), 2) - self.clip
-			return auto_root(dist_from_boundary) 	
+			alpha = auto_root(dist_from_boundary) 	
+			return alpha
 
 	def _corner(self, p):
 		if self.clip is None:
@@ -1050,6 +1062,7 @@ class NormalDomain(BoxDomain):
 			# the conclusion is quadprog is probably the best bet: https://github.com/rmcgibbo/quadprog
 			raise NotImplementedError
 
+# TODO: Ensure sampling is still correct (IMPORTANT FOR DUU Solution)
 class LogNormalDomain(NormalDomain):
 	""" A domain imbued with a log normal sampling measure
 
@@ -1099,22 +1112,25 @@ class LogNormalDomain(NormalDomain):
 			return (self.offset + self.scaling.reshape(-1) * np.exp(NormalDomain.ub.fget(self))).reshape(-1)
 	
 	def _normalize_nonlinear(self, X):
+		if np.any(X/self.scaling <= 0):
+			print "invalid value", X/self.scaling
 		return NormalDomain._normalize_nonlinear(self, np.log(X/self.scaling))
 
 	def _unnormalize_nonlinear(self, X_norm):
 		return self.scaling * np.exp(NormalDomain._unnormalize_nonlinear(self, X_norm))
 
-	def _normalized_domain(self):
-		assert self.clip is not None, "to generate normalized domain with a linear transform, clip must not be none"
-		lb = NormalDomain.lb.fget(self)
-		ub = NormalDomain.ub.fget(self)
+# 	TODO: How can we make this code work such that we preserve density after normalization
+#	def _normalized_domain(self):
+#		assert self.clip is not None, "to generate normalized domain with a linear transform, clip must not be none"
+#		lb = NormalDomain.lb.fget(self)
+#		ub = NormalDomain.ub.fget(self)
+#
+#		scaling_norm = ( 2.0/(np.exp(ub) - np.exp(lb) ))
+#		scaling_norm = scaling_norm.reshape(-1,1)
+#		offset_norm = -np.ones(len(self)) - np.exp(lb)*scaling_norm
+#
+#		return LogNormalDomain(self.mean, self.cov, offset = offset_norm, scaling = scaling_norm, normalization = self.normalization, clip = self.clip)
 
-		scaling_norm = ( 2.0/(np.exp(ub) - np.exp(lb) ))
-		scaling_norm = scaling_norm.reshape(-1,1)
-		offset_norm = -np.ones(len(self)) - np.exp(lb)*scaling_norm
-
-		return LogNormalDomain(self.mean, self.cov, offset = offset_norm, scaling = scaling_norm, normalization = self.normalization, clip = self.clip)
-	
 	def _normalized_domain_nonlinear(self):
 		return NormalDomain(np.zeros(len(self)), np.eye(len(self)), clip = self.clip, normalization = self.normalization)
 	
@@ -1125,6 +1141,7 @@ class LogNormalDomain(NormalDomain):
 			NormalDomain._extent(self, x, p)
 			
 	def _isinside(self, X):
+		print "called LogNormalDomain isinside"
 		if self.clip is None:
 			return np.min(X>0, axis = 1)
 		else:
