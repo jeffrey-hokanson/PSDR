@@ -2,7 +2,7 @@
 import numpy as np
 from .. import BoxDomain
 
-__all__ = ['build_otl_circuit_domain', 'otl_circult']
+__all__ = ['build_otl_circuit_domain', 'otl_circuit']
 
 def build_otl_circuit_domain():
 	# Parameters

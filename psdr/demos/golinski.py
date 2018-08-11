@@ -19,9 +19,12 @@ __all__ = ['golinski_volume',
 	
 
 def expand_variables(x):
+	try:
+		if len(x.shape) == 1:
+			x = x.reshape(1,-1)
+	except AttributeError:
+		pass
 
-	if len(x.shape) == 1:
-		x = x.reshape(1,-1)
 	x = x.T
 
 	x1 = x[0]
