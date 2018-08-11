@@ -338,9 +338,6 @@ class LinIneqDomain(Domain):
 				if alpha_max - alpha_min > 1e-7:
 					self._can_sample = True
 					break
-			
-					
-
 
 		# Now construct finite lower/upper bounds for normalization purposes
 		for i in range(len(self)):
@@ -379,10 +376,12 @@ class LinIneqDomain(Domain):
 		# Bound constraints
 		if lb is not None:
 			assert lb.shape[0] == len(self), "lb must have the same dimension as the current domain"
+			lb = np.maximum(self.lb, lb)
 		else:
 			lb = self.lb
 		if ub is not None:
 			assert ub.shape[0] == len(self), "lb must have the same dimension as the current domain"
+			ub = np.minimum(self.lb, lb)
 		else:
 			ub = self.ub
 		
@@ -400,7 +399,6 @@ class LinIneqDomain(Domain):
 	
 		#if center is None:
 		#	center = closest_point(self.center, A_ub = A, b_ub = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq) 
-	
 		return LinIneqDomain(A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, center = center)	
  
 	def _chebyshev_center(self):
@@ -432,38 +430,19 @@ class LinIneqDomain(Domain):
 
 		A = np.vstack(A)
 		b = np.hstack(b)
+		
+		# See p.4-19 https://see.stanford.edu/materials/lsocoee364a/04ConvexOptimizationProblems.pdf
+		# 
+		normA = np.sqrt( np.sum( np.power(A, 2), axis=1 ) ).reshape((A.shape[0], 1))
+		AA = np.hstack(( A, normA ))
+		c = np.zeros((A.shape[1]+1,))
+		c[-1] = -1.0
+		A_eq = np.hstack([self.A_eq, np.zeros( (self.A_eq.shape[0],1))])
+		zc = linprog(c, A_ub = AA, b_ub = b, A_eq = A_eq, b_eq = self.b_eq )
 
-		if self.A_eq.shape[0] == 0:
-			normA = np.sqrt( np.sum( np.power(A, 2), axis=1 ) ).reshape((A.shape[0], 1))
-			AA = np.hstack(( A, normA ))
-			c = np.zeros((A.shape[1]+1,))
-			c[-1] = -1.0
-			zc = linprog(c, A_ub = AA, b_ub = b)
-
-			center = zc[:-1].reshape((n,))
-			radius = zc[-1]
-		else:
-			# Rotate onto the coordinates orthogonal to the equality constraint
-			Q, R = np.linalg.qr(self.A_eq.T, mode = 'complete')
-			Q1 = Q[:,:self.A_eq.shape[0]]
-			Q2 = Q[:,self.A_eq.shape[0]:]
-			b -= np.dot(A, np.dot(self.A_eq.T, self.b_eq))
-			A = np.dot(A, Q2)
-
-			# Compute the coefficient for the center
-			normA = np.sqrt( np.sum( np.power(A, 2), axis=1 ) ).reshape((A.shape[0], 1))
-			AA = np.hstack(( A, normA ))
-			
-			c = np.zeros((A.shape[1]+1,))
-			c[-1] = -1.0
-
-			# Solve the linear program				
-			zc = linprog(c, A_ub = AA, b_ub = b)
-			radius = zc[-1]
-			center = zc[:-1].reshape((A.shape[1],))
-			
-			# Convert back to the normal coorindates and add term to account for offset
-			center = np.dot(Q2, center) + np.linalg.lstsq(self.A_eq, self.b_eq, rcond = -1)[0]
+		center = zc[:-1].reshape((n,))
+		radius = zc[-1]
+		
 		self._radius = radius
 
 		return center, radius
