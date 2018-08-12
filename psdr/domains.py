@@ -860,7 +860,7 @@ class BoxDomain(LinIneqDomain):
 		return x_sample
 
 	def _extent(self, x, p):
-		return self._extent_ineq(x, p)
+		return self._extent_bounds(x, p)
 
 	def _isinside(self, X):
 		return self._isinside_bounds(X)
