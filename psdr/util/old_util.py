@@ -144,7 +144,8 @@ def projected_closest_point_guroibi(A, b, A_ub = None, b_ub = None, A_eq = None,
 	for j in range(A.shape[0]):
 		expr = gpy.LinExpr()
 		for k in range(A.shape[1]):
-			expr += A[j,k]*x[k] - b[j]
+			expr += A[j,k]*x[k] 
+		expr -= b[j]
 		obj += expr*expr
 	
 	model.setObjective(obj)
