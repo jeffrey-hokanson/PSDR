@@ -12,7 +12,7 @@ def build_otl_circuit_domain():
 
 	return BoxDomain(lb, ub)
 
-def otl_circuit(x):
+def otl_circuit(x, return_grad = False):
 	x = x.reshape(-1,6)
 	Rb1 = x[:,0]
 	Rb2 = x[:,1]
@@ -23,4 +23,13 @@ def otl_circuit(x):
 
 	Vb1 = 12*Rb2/(Rb1 + Rb2)
 	Vm = (Vb1 + 0.74)*beta*(Rc2 + 9)/(beta*(Rc2 + 9)+Rf) + 11.35*Rf/(beta*(Rc2 + 9) + Rf) + 0.74*Rf*beta*(Rc2 + 9)/( (beta*(Rc2 + 9) + Rf)*Rc1)
-	return Vm
+	if not return_grad: return Vm
+	grad = np.vstack([
+			-12*Rb2*beta*(Rc2 + 9)/((Rb1 + Rb2)**2*(Rf + beta*(Rc2 + 9))),
+			12*Rb1*beta*(Rc2 + 9)/((Rb1 + Rb2)**2*(Rf + beta*(Rc2 + 9))),
+			(-11.35*Rc1*Rf*(Rb1 + Rb2) - Rc1*beta*(0.74*Rb1 + 12.74*Rb2)*(Rc2 + 9) + 11.35*Rc1*(Rb1 + Rb2)*(Rf + beta*(Rc2 + 9)) - 0.74*Rf*beta*(Rb1 + Rb2)*(Rc2 + 9) + 0.74*beta*(Rb1 + Rb2)*(Rc2 + 9)*(Rf + beta*(Rc2 + 9)))/(Rc1*(Rb1 + Rb2)*(Rf + beta*(Rc2 + 9))**2),
+			-0.74*Rf*beta*(Rc2 + 9)/(Rc1**2*(Rf + beta*(Rc2 + 9))),
+			beta*(-11.35*Rc1*Rf*(Rb1 + Rb2) - Rc1*beta*(0.74*Rb1 + 12.74*Rb2)*(Rc2 + 9) + Rc1*(0.74*Rb1 + 12.74*Rb2)*(Rf + beta*(Rc2 + 9)) - 0.74*Rf*beta*(Rb1 + Rb2)*(Rc2 + 9) + 0.74*Rf*(Rb1 + Rb2)*(Rf + beta*(Rc2 + 9)))/(Rc1*(Rb1 + Rb2)*(Rf + beta*(Rc2 + 9))**2),
+			(Rc2 + 9)*(-11.35*Rc1*Rf*(Rb1 + Rb2) - Rc1*beta*(0.74*Rb1 + 12.74*Rb2)*(Rc2 + 9) + Rc1*(0.74*Rb1 + 12.74*Rb2)*(Rf + beta*(Rc2 + 9)) - 0.74*Rf*beta*(Rb1 + Rb2)*(Rc2 + 9) + 0.74*Rf*(Rb1 + Rb2)*(Rf + beta*(Rc2 + 9)))/(Rc1*(Rb1 + Rb2)*(Rf + beta*(Rc2 + 9))**2),
+		]).T
+	return Vm, grad
