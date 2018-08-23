@@ -612,6 +612,19 @@ class LinIneqDomain(Domain):
 		# The remainder should still be zero
 		return X_norm
 
+	def normalize_grad(self):
+		""" Gradient of normalization
+		"""
+		D = np.diag(2.0/(self.ub - self.lb))
+		return D
+	
+	def unnormalize_grad(self):
+		""" Gradient of normalization
+		"""
+		D = np.diag((self.ub - self.lb)/2.0)
+		return D
+
+
 	def _unnormalize(self, X_norm, **kwargs):
 		# reshape so numpy's broadcasting works correctly
 		lb = self.lb.reshape(1, -1)
