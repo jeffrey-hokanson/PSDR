@@ -42,5 +42,23 @@ def test_jacobian():
 	err = check_gradient(res, U, J)
 	assert err < 1e-6
 
+def test_DV():
+	M = 10
+	n = 2
+	p = 3
+	Y = np.random.uniform(-1,1, size = (M,n))
+		
+	basis = LegendreTensorBasis(n,p)
+	V = basis.V(Y)
+	N = V.shape[1]
+	DV = basis.DV(Y)
+	DVtrue = np.zeros((M, N, M, n))
+	for k in range(M):
+		DVtrue[k,:,k,:] = DV[k,:,:]
+	
+	err = check_gradient(lambda Y: basis.V(Y), Y, DVtrue, verbose = False)
+	assert err < 1e-7
+
 if __name__ == '__main__':
-	test_jacobian()
+	#test_jacobian()
+	test_DV()
