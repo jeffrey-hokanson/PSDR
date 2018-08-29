@@ -1,3 +1,5 @@
+from check_gradient import check_gradient
+
 
 # This should always load: Scipy is a manditory dependency
 from wrapper_scipy import *
