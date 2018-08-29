@@ -341,7 +341,7 @@ def build_J(U, X, fX, basis, scale = True):
 	return J
 
 
-
+# TODO: Move disp to verbose to match rest of code
 def grassmann_gauss_newton(U0, X, fX, basis, disp = False, 
 	xtol = 1e-7, ftol = 1e-7, gtol = 1e-10, beta = 1e-8, shrink = 0.5, maxiter = 100, reorth = False,
 	step0 = 1., history = False, gauss_newton = True, rtol = 0, scale = True):
