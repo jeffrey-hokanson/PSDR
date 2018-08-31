@@ -8,7 +8,7 @@ from scipy.optimize import nnls, minimize
 from scipy.linalg import orth
 from scipy.spatial import ConvexHull
 
-from util import *
+from opt import *
 
 #__all__ = ['Domain', 'ComboDomain', 'BoxDomain', 'UniformDomain', 'NormalDomain', 'LogNormalDomain', 'LinIneqDomain', 'ConvexHullDomain'] 
 

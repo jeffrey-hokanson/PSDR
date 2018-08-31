@@ -3,7 +3,7 @@
 
 """
 import numpy as np
-from util import linprog, LinProgException 
+from opt import linprog, LinProgException 
 from scipy.spatial import Voronoi
 from scipy.spatial.distance import cdist
 from scipy.linalg import orth

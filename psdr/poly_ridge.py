@@ -20,8 +20,7 @@ from numpy.polynomial.laguerre import lagvander, lagder
 from parallel import pmap
 from sample import build_ridge_domain
 from pgf import PGF
-from opt import minimax 
-from util import linprog
+from opt import minimax, linprog 
 
 ################################################################################
 # Two types of custom errors raised by PolynomialRidgeApproximation
@@ -356,7 +355,8 @@ def build_J(U, X, fX, basis, scale = True):
 	return J
 
 
-
+# Switch disp to verbose
+# OR better: replace this call with 
 def grassmann_gauss_newton(U0, X, fX, basis, disp = False, 
 	xtol = 1e-7, ftol = 1e-7, gtol = 1e-10, beta = 1e-8, shrink = 0.5, maxiter = 100, reorth = False,
 	step0 = 1., history = False, gauss_newton = True, rtol = 0, scale = True):
