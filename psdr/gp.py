@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import cdist, pdist, squareform
 import scipy.linalg
 from scipy.linalg import eigh, expm, logm
 from scipy.optimize import fmin_l_bfgs_b
@@ -9,10 +9,8 @@ from poly_ridge import LegendreTensorBasis
 
 __all__ = [ 'fit_gp', 'GaussianProcess']
 
-
-
 def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None, Lfixed = None,
-		_check_gradient = False):
+		_check_gradient = False, verbose = False):
 	""" Fit a Gaussian Process by maximizing the marginal likelihood
 
 	This code fits a model 
@@ -84,6 +82,8 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 	assert structure in ['tril', 'diag', 'const', 'scalar_mult'], 'invalid structure parameter'
 
 	if structure is not 'tril': assert rank is None, "Cannot specify rank unless structure='tril'"
+	if rank is not None:
+		print "Low rank estimates currently have numerical instability in gradient; please avoid"
 
 	if structure == 'tril':
 		if rank is None: rank = X.shape[1]
@@ -154,8 +154,7 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 		# Covariance matrix
 		K = np.exp(-0.5*squareform(dij))
 		ew, ev = eigh(K)
-		if return_grad:
-			print "ew", ew
+		
 		# This is so we don't have trouble computing the objective function
 		ew = np.maximum(ew, 5*np.finfo(float).eps)
 
@@ -166,7 +165,8 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 
 		# As A can be singular, we use an eigendecomposition based inverse
 		ewA, evA = eigh(A)
-		I = (np.abs(ewA) > 5*np.sqrt(np.finfo(float).eps))
+		I = (np.abs(ewA) > 5*np.finfo(float).eps)
+		#I = (ewA > 0)
 		x = np.dot(evA[:,I],(1./ewA[I])*np.dot(evA[:,I].T,b))
 
 		alpha = x[:M]
@@ -200,9 +200,9 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 				for i in range(M):
 					# Evaluate the dot product
 					# dK[i,j,idx] -= np.dot(Y[i] - Y[j], dY[i] - dY[j])
-					dK[i,:,idx] -= K[i,:]*np.sum((Y[i] - Y)*(dY[i] - dY), axis = 1)
-			#for idx in range(len(tril_ij)):
-			#	dK[:,:,idx] *= K
+					dK[i,:,idx] -= np.sum((Y[i] - Y)*(dY[i] - dY), axis = 1)
+			for idx in range(len(tril_ij)):
+				dK[:,:,idx] *= K
 	
 		elif structure == 'diag':
 			dK = np.zeros((M,M, len(ell)))
@@ -219,13 +219,14 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 			# which we have already computed
 			dK = -(squareform(dij)*K).reshape(M,M,1)
 				
-
 		# Now compute the gradient
 		grad = np.zeros(len(ell))
-		print "alpha", alpha
+	
 		for k in range(len(ell)):
 			#Kinv_dK = np.dot(ev, np.dot(np.diag(1./(ew+tikh)),np.dot(ev.T,dK[:,:,k])))
-			Kinv_dK = np.dot(ev, (np.dot(ev.T,dK[:,:,k]).T/ew).T)
+			#I = (ew > 0.1*np.sqrt(np.finfo(float).eps))
+			I = (ew>5*np.finfo(float).eps)
+			Kinv_dK = np.dot(ev[:,I], (np.dot(ev[:,I].T,dK[:,:,k]).T/ew[I]).T)
 			# Note flipped signs from RW06 eq. 5.9
 			grad[k] = 0.5*np.trace(Kinv_dK)
 			grad[k] -= 0.5*np.dot(alpha, np.dot(alpha, dK[:,:,k]))
@@ -237,13 +238,12 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 
 
 	if _check_gradient:
-		print make_L(ell0)
 		grad = log_marginal_likelihood(ell0, return_grad = True, return_obj = False)
 		err = check_gradient(log_marginal_likelihood, ell0, grad, verbose = True)
 		return err
 
 	grad = lambda x: log_marginal_likelihood(x, return_obj = False, return_grad = True)
-	ell, obj, d = fmin_l_bfgs_b(log_marginal_likelihood, ell0, fprime = grad, disp = True)
+	ell, obj, d = fmin_l_bfgs_b(log_marginal_likelihood, ell0, fprime = grad, disp = verbose)
 	L = make_L(ell)
 	alpha, beta = log_marginal_likelihood(ell, return_alpha_beta = True)
 
@@ -251,40 +251,74 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 	
 	
 class GaussianProcess(object):
-	def __init__(self, rank = None):
+	def __init__(self, structure = 'const', n_init = 1, rank = None, poly_degree = None, **kwargs):
+		self.structure = structure
 		self.rank = rank
+		self.kwargs = kwargs
+		self.n_init = n_init
+		self.poly_degree = poly_degree
+
+		self._best_score = np.inf
 
 	def fit(self, X, y):
 		""" Fit a Gaussian process model
 
 		"""
+		self.X = np.copy(X)
+		self.y = np.copy(y)
+		self.refine(X, y, 	n_init = self.n_init)	
+
+	def refine(self, X, y, n_init = 1, L0s = None):
+		if L0s is None:
+			L0s = [ np.random.randn(X.shape[1], X.shape[1]) for i in range(n_init)]
 		
-		fit_gp(X, y, rank = self.rank)
-		pass		
+		res = [ fit_gp(X, y, rank = self.rank, structure = self.structure, L0 = L0, poly_degree = self.poly_degree, **self.kwargs) for L0 in L0s ]
+		k = np.argmin([res_i[-1] for res_i in res])
+		if res[k][-1] < self._best_score:
+			self.L = res[k][0]
+			self.alpha = res[k][1]
+			self.beta = res[k][2]
+			self._best_score = res[k][3]
 
+	def predict(self, Xnew, return_cov = False):
+		Y = np.dot(self.L, X.T).T
+		Ynew = np.dot(self.L, Xnew.T).T
+		dij = cdist(Ynew, Y, 'sqeuclidean')	
+		K = np.exp(-0.5*dij)
+		if self.poly_degree is not None:
+			basis = LegendreTensorBasis(self.X.shape[1], self.poly_degree)
+			V = basis.V(Xnew)
+		else:
+			V = np.zeros((Xnew.shape[0],0))
 
+		fXnew = np.dot(K, self.alpha) + np.dot(V, self.beta)
+		if return_cov:
+			KK = np.exp(-0.5*squareform(pdist(Y, 'sqeuclidean')))
+			ew, ev = eigh(KK)	
+			I = (ew > 500*np.finfo(float).eps)
+			z = ev[:,I].dot( np.diag(1./ew[I]).dot(ev[:,I].T.dot(K.T)))
+			#z = np.dot(ev[:,I], np.dot(np.diag(1./ew[I]).dot(ev[:,I].T.dot( K.T)) ))
+			cov = np.array([ 1 - np.dot(K[i,:], z[:,i]) for i in range(Xnew.shape[0])])
+			cov[cov< 0] = 0.
+			return fXnew, cov
+		else:
+			return fXnew
 
 if __name__ == '__main__':
-	m = 3
+	m = 2
 	#np.random.seed(0)
-	X = np.random.randn(50,m)
-	a = np.ones(m)
-	y = np.dot(a.T, X.T).T + 1
-	A = np.random.randn(m,m)
-	Q, R = np.linalg.qr(A)
-	Lfixed = R.T
-	#L0 = 5e-1*Lfixed
-	L0 = np.zeros((m,m))
-	L0[-1,:] = np.random.randn(m)
-	print scipy.linalg.expm(L0)
-	X = np.dot(L0, L0)
-	for i in range(10):
-		print X
-		X = np.dot(L0, X)
-	#L, alpha, beta, obj = fit_gp(X, y, structure = 'tril', L0 = L0, rank = 1)
-	#print L
-	#print alpha
-	#print beta
-	#print obj
+	X = np.random.randn(100,m)
+	#Xnew = np.linspace(-1,1,100).reshape(-1,1)
+	Xnew = np.random.randn(10,m)
+	a = 2*np.ones(m)
+	y = np.dot(a.T, X.T).T**2 + 1
 
-	
+	gp = GaussianProcess(poly_degree = None, n_init = 10, structure = 'const')
+	gp.fit(X, y)
+	yhat, cov = gp.predict(Xnew, return_cov = True)
+	print y
+	print yhat
+	print cov
+	#print y - gp.predict(X)
+	#print gp.beta
+	#print gp.L	
