@@ -55,30 +55,6 @@ def gauss_hermite(n):
 	return np.polynomial.hermite.hermgauss(n)
 
 
-def check_linprog_solution(x, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = None, b_eq = None, tol = 1e-7):
-	if A_ub is not None and b_ub is not None:
-		err = np.dot(A_ub, x) - b_ub
-		if not np.all(err < tol):
-			print "Inequalitites failed", err
-			return False
-
-	if A_eq is not None and b_eq is not None:
-		err = np.abs(np.dot(A_eq, x) - b_eq)
-		if not np.all(err < tol):
-			print "Equalities failed", err
-			return False
-
-	if lb is not None:
-		if not np.all( x >= lb - tol):
-			print "Lower bound failed", x - lb + tol
-			return False
-	 
-	if ub is not None:
-		if not np.all( x <= ub + tol):
-			print "Upper bound failed", ub + tol - x
-			return False
-
-	return True
 
 
 
