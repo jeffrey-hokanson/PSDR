@@ -17,7 +17,8 @@ def check_gradient(f, x, grad, verbose = False):
 			grad_est_best = grad_est
 
 	if verbose:
+		print "index, grad, grad est., ratio"
 		for i in np.ndindex(grad.shape):
 			print i, "%+5.2e %+5.2e  %+5.2e" %(grad[i], grad_est_best[i], grad[i]/grad_est_best[i])
 
-	return np.max(np.abs(grad - grad_est_best))
+	return np.max(np.abs( (grad - grad_est_best)/grad ))
