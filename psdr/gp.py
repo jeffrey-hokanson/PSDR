@@ -246,7 +246,7 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 	ell, obj, d = fmin_l_bfgs_b(log_marginal_likelihood, ell0, fprime = grad, disp = verbose)
 	L = make_L(ell)
 	alpha, beta = log_marginal_likelihood(ell, return_alpha_beta = True)
-
+	# TODO: Sometimes this returns outrageously large, negative results, indicative of a bug
 	return L, alpha, beta, obj
 	
 	
@@ -273,6 +273,10 @@ class GaussianProcess(object):
 			L0s = [ np.random.randn(X.shape[1], X.shape[1]) for i in range(n_init)]
 		
 		res = [ fit_gp(X, y, rank = self.rank, structure = self.structure, L0 = L0, poly_degree = self.poly_degree, **self.kwargs) for L0 in L0s ]
+		# Remove excessively small solutions
+		res = [res_i for res_i in res if np.max(np.abs(res_i[0])) > 1e-10]
+		#print [res_i[-1] for res_i in res]
+		#print [res_i[0] for res_i in res]
 		k = np.argmin([res_i[-1] for res_i in res])
 		if res[k][-1] < self._best_score:
 			self.L = res[k][0]
@@ -281,7 +285,7 @@ class GaussianProcess(object):
 			self._best_score = res[k][3]
 
 	def predict(self, Xnew, return_cov = False):
-		Y = np.dot(self.L, X.T).T
+		Y = np.dot(self.L, self.X.T).T
 		Ynew = np.dot(self.L, Xnew.T).T
 		dij = cdist(Ynew, Y, 'sqeuclidean')	
 		K = np.exp(-0.5*dij)
