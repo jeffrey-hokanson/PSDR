@@ -18,7 +18,6 @@ from numpy.polynomial.laguerre import lagvander, lagder
 
 # Parallel computation
 from parallel import pmap
-from sample import build_ridge_domain
 from pgf import PGF
 from opt import minimax, linprog 
 
@@ -105,6 +104,41 @@ class MultiIndex:
 
 	def __len__(self):
 		return int(comb(self.degree + self.dimension, self.degree, exact = True))
+
+# TODO place this function in a better location,
+# and update to use more recent calls
+def build_ridge_domain(dom, U):
+	if len(U.shape) == 1:
+		U = U.reshape(-1,1)
+	dim = U.shape[1]
+
+	if dim == 1:
+		# One dimensional ridge approximation
+		c = U.flatten()
+		xp = linprog(c, A_ub = dom.A, b_ub = dom.b, lb = dom.lb, ub = dom.ub, A_eq = dom.A_eq, b_eq = dom.b_eq)
+		xn = linprog(-c, A_ub = dom.A, b_ub = dom.b, lb = dom.lb, ub = dom.ub, A_eq = dom.A_eq, b_eq = dom.b_eq)
+		ymin = np.dot(c.T, xp)
+		ymax = np.dot(c.T, xn)
+		ymin, ymax = min(ymin, ymax), max(ymin, ymax)
+		zonotope = BoxDomain(ymin, ymax)
+	else:
+		# In two or more dimensions we resort to Mitchell's best candidate to obtain uniform samples
+
+		# First we constuct an interior approximation of the zonotope
+		# Sample points on sphere in dim dimensions
+		Z = sample_sphere(dim, 5*10**dim)
+		# Construct points on the boundary 
+		#inputs = [ ( (dom, U, z), {}) for z in Z]
+		#zonotope_points = pmap(extent, inputs, desc = 'zonotope sample')
+		zonotope_points = []
+		for z in Z:
+			x = dom.corner(np.dot(U,z))
+			zonotope_points.append(np.dot(U.T, x))
+		zonotope_points = np.vstack(zonotope_points)
+		# Sample the projected space using Mitchell's best candidate
+		zonotope = ConvexHullDomain(zonotope_points) 
+
+	return zonotope
 
 
 ################################################################################

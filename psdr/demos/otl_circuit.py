@@ -1,6 +1,6 @@
 # An example from https://www.sfu.ca/~ssurjano/otlcircuit.html
 import numpy as np
-from .. import BoxDomain
+from domains import BoxDomain
 
 __all__ = ['build_otl_circuit_domain', 'otl_circuit']
 

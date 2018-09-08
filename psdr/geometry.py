@@ -2,7 +2,7 @@
 """
 import numpy as np
 from scipy.spatial import Voronoi 
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cdist, pdist, squareform
 from domains import EmptyDomain
 
 def sample_sphere(dim, n, k = 100):
@@ -71,6 +71,9 @@ def voronoi_vertices(X):
 	if len(X.shape) == 1:
 		X = X.reshape(-1,1)
 
+	if len(X) == 1:
+		return np.zeros((0, X.shape[1]))
+
 	if len(X.shape) == 1 or X.shape[1] == 1:
 		# Q-hull doesn't handle the 1d case because it is straightfoward
 		xhat = np.sort(X.flatten())
@@ -81,15 +84,58 @@ def voronoi_vertices(X):
 		vertices = vor.vertices
 	return vertices 
 
-def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10):
-	""" Generate points which have the potential to be the furthest from others in the domain 
+def candidate_furthest_points(X, domain, L = None, nboundary = 100, nsamp = 50, ninterior = None):
+	""" Generate points which have the potential to be the furthest from others in the domain
+
+	In both initializing Lipschitz based optimization and maximin sampling,
+	it is necessary to construct points that are local maximizers of the distance
+	between points X in the domain. This algorithm does so deterministically on the interior,
+	using the Voronoi vertices to construct these points and samples the boundary randomly.
+	(Sampling the right coordinates of the boundary in high-dimensions seems to be an unsolved problem,
+	although in 2D it is straightfoward.) 
+
+
+	TODO 
+	----
+	* Implement exact boundary sampling in low dimensional spaces (namely 2-D where it is easy)
+
+	Parameters
+	----------
+	X: np.ndarray
+ 
 	"""
+	tol = 1e-7
+	if len(X.shape) == 1:
+		X = X.reshape(1,-1)
+
+	assert X.shape[0] > 1, "Need at least two samples to find furthest point"
+
 	if L is None:
 		Y = np.copy(X)
 	else:
 		Y = np.dot(L, X.T).T
+
+	# Perform PCA on the points to ensure they are sufficiently dimensional to 
+	# construct the Voronoi vertices
+	Y_centered = Y - np.mean(Y, axis = 0)
+	U, s, VT = np.linalg.svd(Y_centered)
+	
+	# If the space isn't sufficiently dimensional, restrict
+	# to that subspace
+	if np.min(s) < tol:
+		if L is None:
+			L = np.eye(len(domain))
+		I = np.argwhere(s >= tol).flatten()
+
+		# NB: Since we redefine L if the samples are low-rank
+		# this also affects how we sample the boundaries
+		# feature-not-bug
+		L = VT[I,:].dot(L)
+		Y = np.dot(L, X.T).T
+	
+	if L is not None:
 		U, s, VT = np.linalg.svd(L)
-		
+
 	# First we construct samples on the interior of the domain
 	Yinterior = voronoi_vertices(Y)
 	if L is None:
@@ -97,6 +143,16 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 		Xinterior = Yinterior[domain.isinside(Yinterior)]
 	elif Y.shape[1] < X.shape[1]:
 		# If there is dimension reduction, 
+		if ninterior is not None:
+			# If we only need so many samples from the interior,
+			# sort Yinterior and return the largest ninterior min distances
+	
+			# TODO: This step is quadratic in number of interior samples
+			# In low dimensional spaces, we might use a KD-Tree to reduce the cost of this step
+			dist = np.min(squareform(pdist(Yinterior)), axis = 0)
+			I = np.argsort(-dist)
+			Yinterior = Yinterior[I] 
+
 		Xinterior = []
 		for yint in Yinterior:
 			try:
@@ -105,7 +161,7 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 				dom_eq = domain.add_constraint(A_eq = L, b_eq = yint)
 
 				# Randomly sample the unconstrained dimensions
-				Xcan = dom_eq.sample(n_samp)
+				Xcan = dom_eq.sample(nsamp)
 
 				# Pick the sample furthest from existing samples
 				dist = np.min(cdist(Xcan, X), axis = 1)
@@ -114,6 +170,10 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 			
 			except EmptyDomain, InfeasibleConstraints:
 				pass
+
+			if ninterior is not None and len(Xinterior) >= ninterior:
+				# Stop if we've sampled enough points
+				break
 		Xinterior = np.array(Xinterior)
 	else:
 		# Without dimension reduction, we simply compute the inverse to 
@@ -147,10 +207,10 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 
 		if L is not None:
 			# If an L is provided, we sample only the directions in the range of L
-			I = np.argwhere(s> 1e-10).flatten()
+			I = np.argwhere(s> tol).flatten()
 			Q = Q.dot(Q.T.dot(VT[I,:].T))
 			Q2, s2, _ = np.linalg.svd(Q, full_matrices = False)
-			Q = Q2[:,np.argwhere(s2> 1e-10).flatten()]
+			Q = Q2[:,np.argwhere(s2> tol).flatten()]
 		
 		Z = sample_sphere(Q.shape[1], nboundary)
 		QZ = np.dot(Q, Z.T).T
@@ -163,9 +223,12 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 if __name__ == '__main__':
 	from domains import BoxDomain
 	dom = BoxDomain([-1,-1,-1],[1,1,1])
-	L = np.random.randn(len(dom)-2,len(dom))
+	#L = np.random.randn(len(dom),len(dom))
 	#L = np.eye(len(dom))
-	X = dom.sample(10)
-	Xhat = candidate_furthest_points(X, dom, L = L, nboundary = 0)
-	print np.sort(cdist(np.dot(L,Xhat.T).T, np.dot(L,X.T).T), axis =1)
+	L = np.eye(len(dom))
+	X = dom.sample(2)
+	Xhat = candidate_furthest_points(X, dom, L = L, nboundary = 2)
 	print Xhat
+	print X
+	print np.sort(cdist(np.dot(L,Xhat.T).T, np.dot(L,X.T).T), axis =1)
+	#print Xhat

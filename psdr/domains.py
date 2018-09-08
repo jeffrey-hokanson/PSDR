@@ -123,6 +123,10 @@ class Domain(object):
 		X: np.ndarray((M,m))
 			points in the domain to normalize
 		"""
+		try:
+			X.shape
+		except AttributeError:
+			X = np.array(X)
 		if len(X.shape) == 1:
 			X = X.reshape(-1, len(self)) 
 			return self._normalize(X).flatten()

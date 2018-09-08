@@ -1,5 +1,6 @@
 import numpy as np
 import time
+import scipy.linalg
 from scipy.linalg import solve, svd
 import scipy.spatial.qhull
 
@@ -7,10 +8,11 @@ from pool import SequentialPool
 from opt import projected_closest_point
 
 from scipy.spatial.distance import cdist, pdist, squareform
-from geometry import sample_sphere, voronoi_vertices 
+from geometry import sample_sphere, voronoi_vertices, candidate_furthest_points 
+from poly_ridge import UnderdeterminedException, IllposedException
 
 
-def maximin_sample(X, domain, L, nboundary = 500, ncorner = 100):
+def maximin_sample(X, domain, L, nboundary = 500):
 	"""Sequential maximin sampling using a given metric
 	
 	This sampling approach tries to find a new sample x 
@@ -35,80 +37,18 @@ def maximin_sample(X, domain, L, nboundary = 500, ncorner = 100):
 		Sample solving optimization problem
 	"""
 
-	# See if L reduces the dimension
-	U, s, VT = svd(L)
-	V = VT.T
-	s = s/s[0]
-	L_norm = L/s[0]
-	I = (s>1e-14)	
-	sVT = np.dot(np.diag(s[I]), VT[I,:])
-	Y = np.dot(sVT, X.T).T	
+	# Construct a low-rank L if possible
+	U, s, VT = scipy.linalg.svd(L)
+	I = np.argwhere(s> 1e-10).flatten()
+	Lhat = np.diag(s[I]/s[0]).dot(VT[I,:])
 
-	# Attempt to sample the interior, reducing dimension if necessary
-	while True:
-		try:
-			# Compute interior points
-			# TODO: also switch to random sampling if dimension is too large
-			Yinterior = voronoi_vertices(Y)	
-			break
-		except scipy.spatial.qhull.QhullError:
-			# If we don't have enough points, we need to reduce the effective dimension of Y
-			I[np.sum(I)-1] = False
-			sVT = np.dot(np.diag(s[I]), VT[I,:])
-			Y = np.dot(sVT, X.T).T	
+	# Sample from the boundary and the largest point on the interior		
+	Xcan = candidate_furthest_points(X, domain, L = Lhat, nboundary = nboundary, ninterior = 1)
 
-	n = Y.shape[1]
-						
-	# Sample on the boundary
-	if n == 1:
-		# If we are one-dimensional, we only need to probe the corners
-		# TODO: Check this direction is right
-		Xbndry = [domain.corner(V[:,0]), domain.corner(-V[:,0])]
-	else:
-		center = domain.center
-		Z = sample_sphere(len(domain), nboundary)
-		# TODO: are these the right directions to sample?
-		#ZZ = [np.dot(V ,np.dot(np.diag(s), np.dot(U[I,:].T, z))) for z in Z]
-		#ZZ = [np.dot(L_norm.T, z) for z in Z]
-		Xbndry = [center + zz*domain.extent(center, zz) for zz in Z]
-		#print [domain.extent(center, z) for z in VZ]
-		#print domain.isinside(np.array(Xbndry))
-		Z = sample_sphere(len(domain), ncorner)
-		#ZZ = [np.dot(V ,np.dot(np.diag(s), np.dot(U[I,:].T, z))) for z in Z]
-		#ZZ = [np.dot(L_norm.T, z) for z in Z]
-		Xbndry += [domain.corner(zz) for zz in Z]
-
-	Xbndry = np.array(Xbndry)
-	Ybndry = np.dot( sVT, Xbndry.T).T
-	
-	# Now compute distance from our candidates to the existing points
-	Yall = np.vstack([Yinterior, Ybndry])
-	D = cdist(Yall, Y)
-	min_dist = np.min(D,axis = 1)
-
-	while np.max(min_dist) > 0:
-		k = np.argmax(min_dist)
-		#print "distance %5.2e" % (min_dist[k],)
-		if k < len(Yinterior):
-			y = Yinterior[k]
-			try:
-				dom_con = domain.add_constraint(A_eq = sVT, b_eq = y)
-			except InfeasibleConstraints:
-				#print "infeasible"
-				min_dist[k] = -1
-			else:
-				Xnew = np.array([dom_con.corner(np.random.randn(len(dom_con))) for it in range(10)])
-				k2 = np.argmin(np.min(cdist(Xnew,X), axis = 1)) 
-				x = Xnew[k2]
-				break
-		else:
-			# Othwerise we've sampled on the boundary
-			k -= len(Yinterior)
-			x = Xbndry[k]
-			break
-	#print "distance of furthest point", np.min(cdist( x.reshape(1,-1), X) ), np.min(cdist( np.dot(sVT,x).reshape(1,-1), Y) )
-	return x
-
+	# Determine which point is best
+	dist = np.min(squareform(pdist(np.dot(L, Xcan.T).T)))
+	k = np.argmin(dist)
+	return Xcan[k]
 
 def fill_distance(X, domain, L = None, **kwargs):
 	""" Computes the fill distance of a set of points
@@ -183,7 +123,20 @@ class Sampler(object):
 	def _draw_sample(self, Xrunning):
 		raise NotImplementedError
 
-	def sample(self, draw = 1, dt = 0.1):
+	def sample(self, draw = 1):
+		""" 
+		"""
+		for k in range(draw):
+			Xrunning = np.zeros((0, len(self.domain))) 
+			xnew = self._draw_sample([Xrunning,])
+			job = self.pool.apply(self.f, args = [xnew,])
+			fxnew = job.output
+			self.X  += [xnew]
+			self.fX += [float(fxnew)]
+			
+
+	def parallel_sample(self, draw = 1, dt = 0.1):
+		# TODO: Add assertion about pool support async 
 		njobs = 0
 		jobs = []
 	
@@ -209,7 +162,7 @@ class Sampler(object):
 				
 				# Draw a sample and enqueue it
 				x = self._draw_sample(Xrunning)
-				jobs.append(self.pool.apply(self.f, args = [x,]))
+				jobs.append(self.pool.apply_async(self.f, args = [x,]))
 				njobs += 1	
 			else:
 				time.sleep(dt)
@@ -247,70 +200,53 @@ class UniformSampler(Sampler):
 		xnew = self.domain.unnormalize(xnew_norm)
 		return xnew
 
-class LipschitzSampler(Sampler):
-	def __init__(self, f, domain, L_norm, pool = None, X0 = None, fX0 = None):
-		Sampler.__init__(self, f, domain, pool = pool, X0 = X0, fX0 = fX0) 		
-		self.L_norm = L_norm
+class RidgeSampler(Sampler):
+	"""
+	Parameters
+	----------
+	pra: Instance of PolynomialRidgeApproximation
+	"""
+	def __init__(self, f, domain, pra, **kwargs):
+		Sampler.__init__(self, f, domain, **kwargs)
 		self.domain_norm = self.domain.normalized_domain()
+		self.pra = pra
+		self.U = None
+		self.fill_dist = np.inf
 
 	def _draw_sample(self, Xrunning):
-		Xall = np.array(self.X + Xrunning)
+		if len(self.fX) <= len(self.domain)+1:
+			return self.domain.sample()
+
+		# Build ridge approximation
+		X_norm = self.domain.normalize(self.X)
+		fX = np.array(self.fX)
+		I = np.isfinite(fX)
+		try:
+			self.pra.fit(X_norm[I], fX[I])
+		except (UnderdeterminedException, IllposedException):
+			 return self.domain.sample()		
+
+		Xall = np.vstack(self.X + Xrunning)
 		Xall_norm = self.domain.normalize(Xall)
-		xnew_norm = maximin_sample(Xall_norm, self.domain_norm, self.L_norm)
+		self.U = self.pra.U
+		xnew_norm = maximin_sample(Xall_norm, self.domain_norm, L = self.U.T)
+		self.fill_dist = np.min(cdist(self.U.T.dot(xnew_norm).reshape(1,-1), self.U.T.dot(Xall_norm.T).T))
 		xnew = self.domain.unnormalize(xnew_norm)
 		return xnew
-
-class SequentialLipschitzSampler(Sampler):
-	""" Sequential Lipschitz Sampling
-
-	Samples points uniformly based on Lipschitz matrix,
-	updating this Lipschitz matrix based on the samples.
-
-	"""
-
-	def __init__(self, *args, **kwargs):
-		Sampler.__init__(self, *args, **kwargs)
-		self.L_norm = np.zeros((len(self.domain), len(self.domain)))
-		self.domain_norm = self.domain.normalized_domain()
-
-	def _draw_sample(self, Xrunning):
-
-		# determine if we need to update the Lipschitz matrix
-		X = np.array(self.X)
-		X_norm = self.domain.normalize(X)
-		fX = np.array(self.fX)
-		if len(X) > 2:
-			if check_lipschitz(self.L_norm, X = X_norm, fX = fX) < 0:
-				self.L_norm = multivariate_lipschitz(X = X_norm, fX = fX)	
-			Xall = np.array(self.X + Xrunning)
-			Xall_norm = self.domain.normalize(Xall)
-			xnew_norm = maximin_sample(Xall_norm, self.domain_norm, self.L_norm)
-			xnew = self.domain.unnormalize(xnew_norm)
-		else:
-			xnew = self.domain.sample()
-
-		return xnew	
-
 					
 if __name__ == '__main__':
-	from psdr.demos import golinski_volume, build_golinski_design_domain
+	from demos import golinski_volume, build_golinski_design_domain
+	from poly_ridge import PolynomialRidgeApproximation
 	dom = build_golinski_design_domain()
-	
+		
 	f = golinski_volume
 	
 	np.random.seed(0)
 
-	samp = LipschitzSampler(f, dom)
+	pra = PolynomialRidgeApproximation(degree = 5, subspace_dimension = 1)
+	samp = RidgeSampler(f, dom, pra)
 	samp.sample(2)
-	for k in range(2,20):
-		print "==========  %3d =============" % (k,)
+	for k in range(2,1000):
 		samp.sample()
-		print samp.L
-		#print samp.X
-		#print samp.fX
-	#X = np.copy(samp.X)
-	#L = samp.L
-	#for k in range(10):
-	#	xnew = maximin_sample(X, dom, L, nboundary = 1000)
-	#	X = np.vstack([X, xnew.reshape(1,-1)])
+		print "%3d %5.2e" % (k, samp.fill_dist)
 		 

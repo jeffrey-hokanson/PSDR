@@ -1,5 +1,5 @@
 import numpy as np
-from .. import BoxDomain
+from domains import BoxDomain
 
 __all__ = ['build_wing_weight_domain' ,'wing_weight']
 

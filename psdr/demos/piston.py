@@ -1,6 +1,6 @@
 # Piston function from https://www.sfu.ca/~ssurjano/piston.html
 import numpy as np
-from .. import BoxDomain
+from domains import BoxDomain
 
 __all__ = ['build_piston_domain', 'piston']
 

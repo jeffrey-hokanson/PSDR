@@ -1,5 +1,5 @@
 import numpy as np
-from .. import BoxDomain, NormalDomain, ComboDomain
+from domains import BoxDomain, NormalDomain, ComboDomain
 
 __all__ = ['golinski_volume', 
 	'golinski_constraint1',
