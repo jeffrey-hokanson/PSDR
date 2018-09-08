@@ -309,20 +309,21 @@ class GaussianProcess(object):
 			return fXnew
 
 if __name__ == '__main__':
-	m = 2
+	m = 7
 	#np.random.seed(0)
 	X = np.random.randn(100,m)
 	#Xnew = np.linspace(-1,1,100).reshape(-1,1)
-	Xnew = np.random.randn(10,m)
 	a = 2*np.ones(m)
 	y = np.dot(a.T, X.T).T**2 + 1
 
-	gp = GaussianProcess(poly_degree = None, n_init = 10, structure = 'const')
+	gp = GaussianProcess(poly_degree = 1, n_init = 10, structure = 'const')
 	gp.fit(X, y)
-	yhat, cov = gp.predict(Xnew, return_cov = True)
-	print y
-	print yhat
-	print cov
+	Xnew = np.random.randn(int(1e5),m)
+	gp.predict(Xnew)
+	#yhat, cov = gp.predict(Xnew, return_cov = True)
+	#print y
+	#print yhat
+	#print cov
 	#print y - gp.predict(X)
 	#print gp.beta
 	#print gp.L	
