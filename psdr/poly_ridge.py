@@ -1073,15 +1073,24 @@ class PolynomialRidgeApproximation:
 
 		return axes
 
-	def plot_pgf(self, base_name, X = None, y = None):
+	def plot_pgf(self, base_name, X = None, y = None, ridge_range = None):
+		"""
+		Paramters
+		---------
+		ridge_range: None or np.ndarray(2,)
+			Range on which to sample the ridge approximation
+		"""
 		if X is None or y is None:
 			X = self.X
 			y = self.y
 
 		if self.subspace_dimension == 1:
 			Y = np.dot(self.U.T, X.T).flatten()
-			lb = np.min(Y)
-			ub = np.max(Y)
+			if ridge_range is None:
+				lb = np.min(Y)
+				ub = np.max(Y)
+			else:
+				lb, ub = ridge_range
 		
 			pgf = PGF()
 			pgf.add('Ux', Y.flatten())
@@ -1094,6 +1103,8 @@ class PolynomialRidgeApproximation:
 			pgf.add('Ux', xx)
 			pgf.add('predict', self.predict(XX))
 			pgf.write('%s_fit.dat' % base_name)
+		else:
+			raise NotImplementedError
 
 	def box_domain(self):
 		""" Return the lower and upper bounds on the active domain

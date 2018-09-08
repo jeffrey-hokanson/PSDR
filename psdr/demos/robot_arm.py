@@ -33,12 +33,12 @@ def robot_arm(X, return_grad = False):
 	if not return_grad: return f
 	grad = np.vstack([
 			0*th1,
-			-L1*(L2*sin(th2) + L3*sin(th2 + th3) + L4*sin(th2 + th3 + th4))/sqrt(L1**2 + 2*L1*L2*cos(th2) + 2*L1*L3*cos(th2 + th3) + 2*L1*L4*cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*cos(th3) + 2*L2*L4*cos(th3 + th4) + L3**2 + 2*L3*L4*cos(th4) + L4**2),
-			-(L1*L3*sin(th2 + th3) + L1*L4*sin(th2 + th3 + th4) + L2*L3*sin(th3) + L2*L4*sin(th3 + th4))/sqrt(L1**2 + 2*L1*L2*cos(th2) + 2*L1*L3*cos(th2 + th3) + 2*L1*L4*cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*cos(th3) + 2*L2*L4*cos(th3 + th4) + L3**2 + 2*L3*L4*cos(th4) + L4**2),
-			-L4*(L1*sin(th2 + th3 + th4) + L2*sin(th3 + th4) + L3*sin(th4))/sqrt(L1**2 + 2*L1*L2*cos(th2) + 2*L1*L3*cos(th2 + th3) + 2*L1*L4*cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*cos(th3) + 2*L2*L4*cos(th3 + th4) + L3**2 + 2*L3*L4*cos(th4) + L4**2),
-			(L1 + L2*cos(th2) + L3*cos(th2 + th3) + L4*cos(th2 + th3 + th4))/sqrt(L1**2 + 2*L1*L2*cos(th2) + 2*L1*L3*cos(th2 + th3) + 2*L1*L4*cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*cos(th3) + 2*L2*L4*cos(th3 + th4) + L3**2 + 2*L3*L4*cos(th4) + L4**2),
-			(L1*cos(th2) + L2 + L3*cos(th3) + L4*cos(th3 + th4))/sqrt(L1**2 + 2*L1*L2*cos(th2) + 2*L1*L3*cos(th2 + th3) + 2*L1*L4*cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*cos(th3) + 2*L2*L4*cos(th3 + th4) + L3**2 + 2*L3*L4*cos(th4) + L4**2),
-			(L1*cos(th2 + th3) + L2*cos(th3) + L3 + L4*cos(th4))/sqrt(L1**2 + 2*L1*L2*cos(th2) + 2*L1*L3*cos(th2 + th3) + 2*L1*L4*cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*cos(th3) + 2*L2*L4*cos(th3 + th4) + L3**2 + 2*L3*L4*cos(th4) + L4**2),
-			(L1*cos(th2 + th3 + th4) + L2*cos(th3 + th4) + L3*cos(th4) + L4)/sqrt(L1**2 + 2*L1*L2*cos(th2) + 2*L1*L3*cos(th2 + th3) + 2*L1*L4*cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*cos(th3) + 2*L2*L4*cos(th3 + th4) + L3**2 + 2*L3*L4*cos(th4) + L4**2),
+			-L1*(L2*np.sin(th2) + L3*np.sin(th2 + th3) + L4*np.sin(th2 + th3 + th4))/np.sqrt(L1**2 + 2*L1*L2*np.cos(th2) + 2*L1*L3*np.cos(th2 + th3) + 2*L1*L4*np.cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*np.cos(th3) + 2*L2*L4*np.cos(th3 + th4) + L3**2 + 2*L3*L4*np.cos(th4) + L4**2),
+			-(L1*L3*np.sin(th2 + th3) + L1*L4*np.sin(th2 + th3 + th4) + L2*L3*np.sin(th3) + L2*L4*np.sin(th3 + th4))/np.sqrt(L1**2 + 2*L1*L2*np.cos(th2) + 2*L1*L3*np.cos(th2 + th3) + 2*L1*L4*np.cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*np.cos(th3) + 2*L2*L4*np.cos(th3 + th4) + L3**2 + 2*L3*L4*np.cos(th4) + L4**2),
+			-L4*(L1*np.sin(th2 + th3 + th4) + L2*np.sin(th3 + th4) + L3*np.sin(th4))/np.sqrt(L1**2 + 2*L1*L2*np.cos(th2) + 2*L1*L3*np.cos(th2 + th3) + 2*L1*L4*np.cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*np.cos(th3) + 2*L2*L4*np.cos(th3 + th4) + L3**2 + 2*L3*L4*np.cos(th4) + L4**2),
+			(L1 + L2*np.cos(th2) + L3*np.cos(th2 + th3) + L4*np.cos(th2 + th3 + th4))/np.sqrt(L1**2 + 2*L1*L2*np.cos(th2) + 2*L1*L3*np.cos(th2 + th3) + 2*L1*L4*np.cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*np.cos(th3) + 2*L2*L4*np.cos(th3 + th4) + L3**2 + 2*L3*L4*np.cos(th4) + L4**2),
+			(L1*np.cos(th2) + L2 + L3*np.cos(th3) + L4*np.cos(th3 + th4))/np.sqrt(L1**2 + 2*L1*L2*np.cos(th2) + 2*L1*L3*np.cos(th2 + th3) + 2*L1*L4*np.cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*np.cos(th3) + 2*L2*L4*np.cos(th3 + th4) + L3**2 + 2*L3*L4*np.cos(th4) + L4**2),
+			(L1*np.cos(th2 + th3) + L2*np.cos(th3) + L3 + L4*np.cos(th4))/np.sqrt(L1**2 + 2*L1*L2*np.cos(th2) + 2*L1*L3*np.cos(th2 + th3) + 2*L1*L4*np.cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*np.cos(th3) + 2*L2*L4*np.cos(th3 + th4) + L3**2 + 2*L3*L4*np.cos(th4) + L4**2),
+			(L1*np.cos(th2 + th3 + th4) + L2*np.cos(th3 + th4) + L3*np.cos(th4) + L4)/np.sqrt(L1**2 + 2*L1*L2*np.cos(th2) + 2*L1*L3*np.cos(th2 + th3) + 2*L1*L4*np.cos(th2 + th3 + th4) + L2**2 + 2*L2*L3*np.cos(th3) + 2*L2*L4*np.cos(th3 + th4) + L3**2 + 2*L3*L4*np.cos(th4) + L4**2),
 		]).T
 	return f, grad

@@ -612,17 +612,30 @@ class LinIneqDomain(Domain):
 		# The remainder should still be zero
 		return X_norm
 
-	def normalize_grad(self):
-		""" Gradient of normalization
+
+	def D_normalize(self):
+		""" Derivative of normalization 
 		"""
 		D = np.diag(2.0/(self.ub - self.lb))
 		return D
 	
-	def unnormalize_grad(self):
-		""" Gradient of normalization
+	def D_unnormalize(self):
+		""" Derivative of unnormalization
 		"""
 		D = np.diag((self.ub - self.lb)/2.0)
 		return D
+
+	def normalize_grad(self, grads):
+		""" Gradient of normalization
+		"""
+		D = self.D_unnormalize()
+		return np.dot(grads, D)
+	
+	def unnormalize_grad(self, grads):
+		""" Gradient of normalization
+		"""
+		Dinv = self.D_normalize()
+		return np.dot(grads, Dinv)
 
 
 	def _unnormalize(self, X_norm, **kwargs):
