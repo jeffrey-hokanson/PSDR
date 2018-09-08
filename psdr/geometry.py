@@ -89,13 +89,14 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 	else:
 		Y = np.dot(L, X.T).T
 		U, s, VT = np.linalg.svd(L)
-
+		
 	# First we construct samples on the interior of the domain
 	Yinterior = voronoi_vertices(Y)
 	if L is None:
 		# Restrict to those samples inside the domain
 		Xinterior = Yinterior[domain.isinside(Yinterior)]
 	elif Y.shape[1] < X.shape[1]:
+		# If there is dimension reduction, 
 		Xinterior = []
 		for yint in Yinterior:
 			try:
@@ -111,13 +112,18 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 				k = np.argmax(dist)
 				Xinterior.append(Xcan[k])	
 			
-			except EmptyDomain:
+			except EmptyDomain, InfeasibleConstraints:
 				pass
 		Xinterior = np.array(Xinterior)
 	else:
+		# Without dimension reduction, we simply compute the inverse to 
+		# map samples of L*x back to x.
 		Xinterior = VT.T.dot(np.diag(1./s).dot(U.T.dot(Yinterior.T))).T
 		I = domain.isinside(Xinterior)
 		Xinterior = Xinterior[I]
+
+	if nboundary == 0:
+		return Xinterior
 
 	# Now we sample the boundary
 	if len(domain) == 1:
@@ -134,13 +140,18 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 		# Generate directions in which we can sample
 		if domain.A_eq.shape[0] > 0: 
 			Q, _ = np.linalg.qr(domain.A_eq.T, mode = 'complete')
+			# Dimension m x (m - # of constraints)
 			Q = Q[:,domain.A_eq.shape[0]:]
 		else:
 			Q = np.eye(len(domain))
 
 		if L is not None:
-			pass	
-
+			# If an L is provided, we sample only the directions in the range of L
+			I = np.argwhere(s> 1e-10).flatten()
+			Q = Q.dot(Q.T.dot(VT[I,:].T))
+			Q2, s2, _ = np.linalg.svd(Q, full_matrices = False)
+			Q = Q2[:,np.argwhere(s2> 1e-10).flatten()]
+		
 		Z = sample_sphere(Q.shape[1], nboundary)
 		QZ = np.dot(Q, Z.T).T
 		center = domain.center
@@ -152,9 +163,9 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10)
 if __name__ == '__main__':
 	from domains import BoxDomain
 	dom = BoxDomain([-1,-1,-1],[1,1,1])
-	L = np.random.randn(len(dom),len(dom))
-	L = np.eye(len(dom))
-	X = dom.sample(5)
-	Xhat = candidate_furthest_points(X, dom, L = L)
+	L = np.random.randn(len(dom)-2,len(dom))
+	#L = np.eye(len(dom))
+	X = dom.sample(10)
+	Xhat = candidate_furthest_points(X, dom, L = L, nboundary = 0)
 	print np.sort(cdist(np.dot(L,Xhat.T).T, np.dot(L,X.T).T), axis =1)
 	print Xhat
