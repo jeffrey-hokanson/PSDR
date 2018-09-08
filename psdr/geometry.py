@@ -2,7 +2,8 @@
 """
 import numpy as np
 from scipy.spatial import Voronoi 
-
+from scipy.spatial.distance import cdist
+from domains import EmptyDomain
 
 def sample_sphere(dim, n, k = 100):
 	""" Sample points on a high-dimensional sphere 
@@ -44,7 +45,7 @@ def sample_sphere(dim, n, k = 100):
 	return X
 
 
-def voronoi_vertices(X, domain = None, check_samples = False):
+def voronoi_vertices(X):
 	""" Compute all the Voronoi vertices  
 
 	This function provides a uniform access to the Voronoi vertices,
@@ -52,8 +53,6 @@ def voronoi_vertices(X, domain = None, check_samples = False):
 	This is necessary since QHull, and consequently scipy.spartial.Voronoi
 	only can handle 2-dimensional and higher.
 
-	If a domain is provided, this function restricts vertices to that domain
-	and also returns intersection of the Voronoi edges with the boundary. 
 
 	Parameters
 	----------
@@ -72,37 +71,90 @@ def voronoi_vertices(X, domain = None, check_samples = False):
 	if len(X.shape) == 1:
 		X = X.reshape(-1,1)
 
-	if domain is not None:
-		assert len(domain) == X.shape[1], "Dimension of domain doesn't match the samples"
-		if check_samples:
-			assert np.all(domain.isinside(X)), "Not all points inside domain"
-
 	if len(X.shape) == 1 or X.shape[1] == 1:
 		# Q-hull doesn't handle the 1d case because it is straightfoward
-		yhat = np.sort(Y.flatten())
-		vertices = 0.5*(yhat[1:] + yhat[:-1]).reshape(-1,1)
-		if domain is not None:
-			# If we have a domain, also include the boundaries
-			c1 = domain.corner(np.ones(1))		
-			c2 = domain.corner(-np.ones(1))	
-			c1, c2 = min(c1, c2), max(c1,c2)
-			vertices = np.hstack([c1, vor, c2])
+		xhat = np.sort(X.flatten())
+		vertices = 0.5*(xhat[1:] + xhat[:-1]).reshape(-1,1)
 		vertices = vertices.reshape(-1,1)
 	else:
 		vor = Voronoi(X)
-		if domain is None:
-			vertices = vor.vertices
-		else:
-			I = domain.isinside(vor.vertices)
-			print I
-			vertices = vor.vertices[I]
-			print vor.ridge_vertices	
+		vertices = vor.vertices
 	return vertices 
 
+def candidate_furthest_points(X, domain, L = None, nboundary = 100, n_samp = 10):
+	""" Generate points which have the potential to be the furthest from others in the domain 
+	"""
+	if L is None:
+		Y = np.copy(X)
+	else:
+		Y = np.dot(L, X.T).T
+		U, s, VT = np.linalg.svd(L)
+
+	# First we construct samples on the interior of the domain
+	Yinterior = voronoi_vertices(Y)
+	if L is None:
+		# Restrict to those samples inside the domain
+		Xinterior = Yinterior[domain.isinside(Yinterior)]
+	elif Y.shape[1] < X.shape[1]:
+		Xinterior = []
+		for yint in Yinterior:
+			try:
+				# To find the corresponding point in the untransformed space, 
+				# setup an equality constrainted problem
+				dom_eq = domain.add_constraint(A_eq = L, b_eq = yint)
+
+				# Randomly sample the unconstrained dimensions
+				Xcan = dom_eq.sample(n_samp)
+
+				# Pick the sample furthest from existing samples
+				dist = np.min(cdist(Xcan, X), axis = 1)
+				k = np.argmax(dist)
+				Xinterior.append(Xcan[k])	
+			
+			except EmptyDomain:
+				pass
+		Xinterior = np.array(Xinterior)
+	else:
+		Xinterior = VT.T.dot(np.diag(1./s).dot(U.T.dot(Yinterior.T))).T
+		I = domain.isinside(Xinterior)
+		Xinterior = Xinterior[I]
+
+	# Now we sample the boundary
+	if len(domain) == 1:
+		# Add the corners of the domain
+		b1 = domain.corner(np.ones(1))
+		b2 = domain.corner(-np.ones(1))
+		Xbndry = np.vstack([b1, b2])
+	elif Y.shape[1] == 1:
+		b1 = domain.corner(L.flatten())
+		b2 = domain.corner(-L.flatten())
+		Xbndry = np.vstack([b1, b2])
+	else:
+		# Sample the boundary randomly
+		# Generate directions in which we can sample
+		if domain.A_eq.shape[0] > 0: 
+			Q, _ = np.linalg.qr(domain.A_eq.T, mode = 'complete')
+			Q = Q[:,domain.A_eq.shape[0]:]
+		else:
+			Q = np.eye(len(domain))
+
+		if L is not None:
+			pass	
+
+		Z = sample_sphere(Q.shape[1], nboundary)
+		QZ = np.dot(Q, Z.T).T
+		center = domain.center
+		Xbndry = np.array([center + qz*domain.extent(center, qz) for qz in QZ])
+
+	return np.vstack([Xinterior, Xbndry])
+	
 
 if __name__ == '__main__':
 	from domains import BoxDomain
 	dom = BoxDomain([-1,-1,-1],[1,1,1])
-	X = dom.sample(10)
-	vert = voronoi_vertices(X, domain = dom)	
-	print vert
+	L = np.random.randn(len(dom),len(dom))
+	L = np.eye(len(dom))
+	X = dom.sample(5)
+	Xhat = candidate_furthest_points(X, dom, L = L)
+	print np.sort(cdist(np.dot(L,Xhat.T).T, np.dot(L,X.T).T), axis =1)
+	print Xhat
