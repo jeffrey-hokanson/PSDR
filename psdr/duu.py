@@ -3,6 +3,28 @@ from domains import EmptyDomain
 from sklearn.neighbors import KernelDensity
 from pgf import PGF
 
+
+def forward_propagation_cdf(random_domain, pra_rand_norm, Nsamp = int(1e4), npoints = 100):
+	Xrand = random_domain.sample(Nsamp)
+	Xrand_norm = random_domain.normalize(Xrand)
+	y_rand = pra_rand_norm.predict(Xrand_norm)
+	
+	p0, p25, p75, p100 = np.percentile(y_rand, [0,25,75,100])
+	rng = p75 - p25
+	kde = KernelDensity(kernel = 'linear', bandwidth = rng/10.)
+	kde.fit(y_rand.reshape(-1,1))
+	
+	xx = np.linspace(p0, p100, npoints)
+	yy = np.exp(kde.score_samples(xx.reshape(-1,1)))
+	return xx, yy
+
+def plot_pgf_forward_propagation_cdf(fname, random_domain, pra_rand_norm, **kwargs):	
+	xx, yy = forward_propagation_cdf(random_domain, pra_rand_norm, **kwargs)
+	pgf = PGF()
+	pgf.add('x', xx)
+	pgf.add('y', yy)
+	pgf.write(fname)
+
 class RidgeChanceConstraint(object):
 	"""
 
@@ -73,5 +95,4 @@ class RidgeChanceConstraint(object):
 		pgf.add('x', xx)
 		pgf.add('y', yy)
 		pgf.write(fname)
-
 
