@@ -146,12 +146,9 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, nsamp = 50, 
 		if ninterior is not None:
 			# If we only need so many samples from the interior,
 			# sort Yinterior and return the largest ninterior min distances
-	
-			# TODO: This step is quadratic in number of interior samples
-			# In low dimensional spaces, we might use a KD-Tree to reduce the cost of this step
-			dist = np.min(squareform(pdist(Yinterior)), axis = 0)
+			dist = np.min(cdist(Yinterior, Y), axis = 1)
 			I = np.argsort(-dist)
-			Yinterior = Yinterior[I] 
+			Yinterior = Yinterior[I[0:ninterior]] 
 
 		Xinterior = []
 		for yint in Yinterior:

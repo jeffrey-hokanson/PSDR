@@ -45,9 +45,11 @@ def maximin_sample(X, domain, L, nboundary = 500):
 	# Sample from the boundary and the largest point on the interior		
 	Xcan = candidate_furthest_points(X, domain, L = Lhat, nboundary = nboundary, ninterior = 1)
 
-	# Determine which point is best
-	dist = np.min(squareform(pdist(np.dot(L, Xcan.T).T)))
-	k = np.argmin(dist)
+	# Determine which point is actually furthest away from current points
+	Ycan = np.dot(Lhat, Xcan.T).T
+	Y = np.dot(Lhat, X.T).T
+	dist = np.min(cdist(Ycan, Y), axis = 1)
+	k = np.argmax(dist)
 	return Xcan[k]
 
 def fill_distance(X, domain, L = None, **kwargs):
@@ -202,6 +204,9 @@ class UniformSampler(Sampler):
 
 class RidgeSampler(Sampler):
 	"""
+
+	Note: the ridge approximation is always formed on the normalized domain
+
 	Parameters
 	----------
 	pra: Instance of PolynomialRidgeApproximation
@@ -224,7 +229,8 @@ class RidgeSampler(Sampler):
 		try:
 			self.pra.fit(X_norm[I], fX[I])
 		except (UnderdeterminedException, IllposedException):
-			 return self.domain.sample()		
+			# If we can't yet solve the problem, sample randomly
+			return self.domain.sample()		
 
 		Xall = np.vstack(self.X + Xrunning)
 		Xall_norm = self.domain.normalize(Xall)
