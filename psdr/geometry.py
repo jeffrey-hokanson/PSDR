@@ -84,6 +84,35 @@ def voronoi_vertices(X):
 		vertices = vor.vertices
 	return vertices 
 
+
+def sample_boundary(domain, n = 500, L = None, tol = 1e-8):
+	"""Sample points on the boundary of a domain
+	"""
+	if n == 0:
+		return np.zeros((0, len(domain)))
+	# Sample the boundary randomly
+	# Generate directions in which we can sample
+	if domain.A_eq.shape[0] > 0: 
+		Q, _ = np.linalg.qr(domain.A_eq.T, mode = 'complete')
+		# Dimension m x (m - # of constraints)
+		Q = Q[:,domain.A_eq.shape[0]:]
+	else:
+		Q = np.eye(len(domain))
+
+	if L is not None:
+		# If an L is provided, we sample only the directions in the range of L
+		U, s, VT = np.linalg.svd(L)
+		I = np.argwhere(s> tol).flatten()
+		Q = Q.dot(Q.T.dot(VT[I,:].T))
+		Q2, s2, _ = np.linalg.svd(Q, full_matrices = False)
+		Q = Q2[:,np.argwhere(s2> tol).flatten()]
+	
+	Z = sample_sphere(Q.shape[1], nboundary)
+	QZ = np.dot(Q, Z.T).T
+	center = domain.center
+	Xbndry = np.array([center + qz*domain.extent(center, qz) for qz in QZ])
+	return Xbndry
+
 def candidate_furthest_points(X, domain, L = None, nboundary = 100, nsamp = 50, ninterior = None):
 	""" Generate points which have the potential to be the furthest from others in the domain
 
@@ -192,27 +221,8 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, nsamp = 50, 
 		b1 = domain.corner(L.flatten())
 		b2 = domain.corner(-L.flatten())
 		Xbndry = np.vstack([b1, b2])
-	else:
-		# Sample the boundary randomly
-		# Generate directions in which we can sample
-		if domain.A_eq.shape[0] > 0: 
-			Q, _ = np.linalg.qr(domain.A_eq.T, mode = 'complete')
-			# Dimension m x (m - # of constraints)
-			Q = Q[:,domain.A_eq.shape[0]:]
-		else:
-			Q = np.eye(len(domain))
-
-		if L is not None:
-			# If an L is provided, we sample only the directions in the range of L
-			I = np.argwhere(s> tol).flatten()
-			Q = Q.dot(Q.T.dot(VT[I,:].T))
-			Q2, s2, _ = np.linalg.svd(Q, full_matrices = False)
-			Q = Q2[:,np.argwhere(s2> tol).flatten()]
-		
-		Z = sample_sphere(Q.shape[1], nboundary)
-		QZ = np.dot(Q, Z.T).T
-		center = domain.center
-		Xbndry = np.array([center + qz*domain.extent(center, qz) for qz in QZ])
+	else:	
+		Xbndry = sample_boundary(domain, n = nboundary, tol = tol)
 
 	return np.vstack([Xinterior, Xbndry])
 	

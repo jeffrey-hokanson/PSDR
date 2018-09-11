@@ -8,7 +8,7 @@ from pool import SequentialPool
 from opt import projected_closest_point
 
 from scipy.spatial.distance import cdist, pdist, squareform
-from geometry import sample_sphere, voronoi_vertices, candidate_furthest_points 
+from geometry import sample_sphere, voronoi_vertices, candidate_furthest_points, sample_boundary 
 from poly_ridge import UnderdeterminedException, IllposedException
 
 
@@ -98,6 +98,32 @@ def fill_distance(X, domain, L = None, **kwargs):
 	fill_dist = np.min(cdist(Lx_new, LX))
 	return fill_dist	
 	
+
+def multiobjective_maximin_sample(X, domain, Ls, nboundary = 500):
+	""" Similar to maximin_sample, but choses based on largest distance
+
+	"""
+
+	if max( [L.shape[0] > 1 for L in Ls]):
+		# If at least one L is not one dimensional, sample the boundary only once
+		Xbndry = sample_boundary(nboundary)
+		Xinterior = [maximin_sample(X, domain, L, nboundary = 0) for L in Ls] 
+		Xcan = np.vstack([Xinterior, Xbndry])
+	else:
+		Xcan = [maximin_sample(X, domain, L, nboundary = nboundary) for L in Ls]
+
+	ibest = []
+	dist_best = []
+	for k, L in enumerate(Ls):
+		Y = np.dot(L, X.T).T
+		Ycan = np.dot(L, Xcan.T).T
+		dist = np.min(cdist(Ycan,Y), axis = 1)
+		ibest.append(np.argmax(dist))
+		dist_best.append(dist[ibest[-1]])
+
+	k = np.argmax(dist_best)
+	i = ibest[k] 
+	return Xcan[i]
 
 
 
