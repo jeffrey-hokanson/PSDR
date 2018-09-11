@@ -1075,6 +1075,10 @@ class PolynomialRidgeApproximation:
 			if domain is not None:
 				ridge_domain = build_ridge_domain(domain, self.U)
 				axes.axvspan(ridge_domain.lb[0], ridge_domain.ub[0], color = 'b', alpha = 0.15)
+			
+			axes.set_xlabel('ridge coordinate $U^* x$')
+			axes.set_ylabel('$f(x)$')
+
 
 		elif self.subspace_dimension == 2:
 			Y = np.dot(self.U.T, X.T).T

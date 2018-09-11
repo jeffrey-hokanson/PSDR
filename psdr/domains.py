@@ -364,6 +364,10 @@ class LinIneqDomain(Domain):
 		whereas the bound constraints (lb, ub) are replaced.
 		"""
 
+		# TODO: Add these checks to a common, shared function
+		# TODO: Normalize inputs so that scalars (non-numpy) can be taken as b_eq/b
+		# TODO: 
+
 		# Inequality constraints
 		if A is not None and b is not None:
 			assert A.shape[0] == b.shape[0], "both A and b must have the same number of rows"

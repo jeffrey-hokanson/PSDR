@@ -7,9 +7,9 @@ This borrows code by Rick Fenrich
 import numpy as np
 from _multif_domains3d import buildDesignDomain, buildRandomDomain
 
-def build_multif_domain():
+def build_multif_domain(clip = None):
 	design_domain = buildDesignDomain(output = 'none')
-	random_domain = buildRandomDomain()
+	random_domain = buildRandomDomain(clip = clip)
 	return design_domain + random_domain
 
 def build_multif_design_domain(output = 'none'):
@@ -20,7 +20,7 @@ def build_multif_random_domain():
 
 
 def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None, 
-	keep_data = False):
+	keep_data = False, verbose = False):
 	"""
 
 
@@ -73,11 +73,14 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	np.savetxt(workdir + '/general-3d.in', x.reshape(-1,1), fmt = '%.15e')
 	
 	# Now call multif
-	call = "docker run -it --rm --mount src=%s,target=/workdir,type=bind jeffreyhokanson/multif:%s" % (workdir, version)
+	call = "docker run -it --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/multif:%s" % (workdir, version)
 	call += " -f general-3d.cfg -l %d" % (level,)
-	
-	with open(workdir + '/output.log', 'a') as output:
-		return_code = subprocess.call(call, shell = True, stdout = output, stderr = output)
+	print call
+	if verbose:		
+		return_code = subprocess.call(call, shell = True)
+	else:
+		with open(workdir + '/output.log', 'a') as output:
+			return_code = subprocess.call(call, shell = True, stdout = output, stderr = output)
 
 	# Now read output
 	with open(workdir + '/results.out') as f:

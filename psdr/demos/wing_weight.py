@@ -1,5 +1,11 @@
 import numpy as np
-from domains import BoxDomain
+
+# Hack to import domain
+# https://stackoverflow.com/questions/6323860/sibling-package-imports
+import sys, os
+sys.path.insert(0, os.path.abspath('../../'))
+from psdr import BoxDomain
+
 
 __all__ = ['build_wing_weight_domain' ,'wing_weight']
 
