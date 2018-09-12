@@ -4,6 +4,7 @@ https://github.com/vmenier/MULTIF/tree/feature_elliptical
 
 This borrows code by Rick Fenrich 
 """
+from __future__ import print_function
 import numpy as np
 from _multif_domains3d import buildDesignDomain, buildRandomDomain
 
@@ -50,9 +51,9 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	"""
 	# If we use this inside the RedisPool, we need to load the modules
 	# internal to this file
-	import shutil, subprocess, os, tempfile
+	import shutil, subprocess, os, tempfile, shlex
 	import numpy as np
-	
+	from subprocess import Popen, PIPE, STDOUT
 
 	if workdir is None:
 		workdir = tempfile.mkdtemp()
@@ -73,14 +74,34 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	np.savetxt(workdir + '/general-3d.in', x.reshape(-1,1), fmt = '%.15e')
 	
 	# Now call multif
-	call = "docker run -it --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/multif:%s" % (workdir, version)
+	call = "docker run -t --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/multif:%s" % (workdir, version)
 	call += " -f general-3d.cfg -l %d" % (level,)
-	print call
-	if verbose:		
-		return_code = subprocess.call(call, shell = True)
-	else:
-		with open(workdir + '/output.log', 'a') as output:
-			return_code = subprocess.call(call, shell = True, stdout = output, stderr = output)
+
+	# In order to run from inside jupyter, we need to call using Popen
+	# following https://github.com/takluyver/rt2-workshop-jupyter/blob/e7fde6565e28adf31a0f9003094db70c3766bd6d/Subprocess%20output.ipynb
+
+	args = shlex.split(call)
+	with open(workdir + '/output.log', 'a') as log:
+		p = Popen(args, stdout = PIPE, stderr = STDOUT)
+		while True:
+			# Read output from pipe
+			output = p.stdout.read(1024).decode('utf-8')
+			log.write(output)
+
+			if verbose:
+				print(output, end='')
+
+			# Check for termination
+			if p.poll() is not None:
+				break
+		if p.returncode != 0:
+			print("exited with error code %d" % p.returncode)
+
+	#if verbose:		
+	#	return_code = subprocess.call(call, shell = True)
+	#else:
+	#	with open(workdir + '/output.log', 'a') as output:
+	#		return_code = subprocess.call(call, shell = True, stdout = output, stderr = output)
 
 	# Now read output
 	with open(workdir + '/results.out') as f:
@@ -92,7 +113,7 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 
 	# delete the output if we're not keeping it 
 	if not keep_data:
-		shutil.rmtree() 
+		shutil.rmtree(workdir) 
 
 	return fx
 
