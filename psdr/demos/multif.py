@@ -16,8 +16,8 @@ def build_multif_domain(clip = None):
 def build_multif_design_domain(output = 'none'):
 	return buildDesignDomain(output = output)
 
-def build_multif_random_domain():
-	return buildRandomDomain()
+def build_multif_random_domain(clip = None):
+	return buildRandomDomain(clip = clip)
 
 
 def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None, 
@@ -59,6 +59,7 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 		workdir = tempfile.mkdtemp()
 		assert keep_data == False, "In order to keep the run, specify a path for a directory"
 	else:
+		workdir = os.path.abspath(workdir)
 		os.makedirs(workdir)
 		
 	# Copy the configuration file	
@@ -85,6 +86,7 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
 		while True:
 			# Read output from pipe
+			# TODO: this should buffer to end of line rather than fixed size
 			output = p.stdout.read(1024).decode('utf-8')
 			log.write(output)
 
