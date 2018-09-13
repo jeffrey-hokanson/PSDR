@@ -4,7 +4,7 @@ from sklearn.neighbors import KernelDensity
 from pgf import PGF
 
 
-def forward_propagation_cdf(random_domain, pra_rand_norm, Nsamp = int(1e4), npoints = 100):
+def forward_propagation_pdf(random_domain, pra_rand_norm, Nsamp = int(1e4), npoints = 100):
 	Xrand = random_domain.sample(Nsamp)
 	Xrand_norm = random_domain.normalize(Xrand)
 	y_rand = pra_rand_norm.predict(Xrand_norm)
@@ -18,8 +18,8 @@ def forward_propagation_cdf(random_domain, pra_rand_norm, Nsamp = int(1e4), npoi
 	yy = np.exp(kde.score_samples(xx.reshape(-1,1)))
 	return xx, yy
 
-def plot_pgf_forward_propagation_cdf(fname, random_domain, pra_rand_norm, **kwargs):	
-	xx, yy = forward_propagation_cdf(random_domain, pra_rand_norm, **kwargs)
+def plot_pgf_forward_propagation_pdf(fname, random_domain, pra_rand_norm, **kwargs):	
+	xx, yy = forward_propagation_pdf(random_domain, pra_rand_norm, **kwargs)
 	pgf = PGF()
 	pgf.add('x', xx)
 	pgf.add('y', yy)
@@ -45,6 +45,8 @@ class RidgeChanceConstraint(object):
 		self.prob = prob
 
 	def deterministic_failure_points_1d(self):
+		""" Compute the input where ridge function crosses the failure boundary
+		""" 
 		assert self.pra_norm.U.shape[1] == 1, "Only works for 1-d problems"
 		roots = self.pra_norm.roots(val = self.threshold)
 		# return only those roots inside the domain
@@ -76,7 +78,7 @@ class RidgeChanceConstraint(object):
 		else:
 			return float(np.percentile(y_rand.flatten(), 100.*self.prob))
 		
-	def random_ridge_cdf(self, npoints = 100, **kwargs):
+	def random_ridge_pdf(self, npoints = 100, **kwargs):
 		assert self.pra_norm.U.shape[1] == 1, "Only works for 1-d problems"
 		y_rand = self.sample_random_ridge(**kwargs)
 		
@@ -89,8 +91,8 @@ class RidgeChanceConstraint(object):
 		yy = np.exp(kde.score_samples(xx.reshape(-1,1)))
 		return xx, yy
 
-	def plot_pgf_random_ridge_cdf(self, fname, **kwargs):
-		xx , yy = self.random_ridge_cdf(**kwargs)
+	def plot_pgf_random_ridge_pdf(self, fname, **kwargs):
+		xx , yy = self.random_ridge_pdf(**kwargs)
 		pgf = PGF()
 		pgf.add('x', xx)
 		pgf.add('y', yy)
