@@ -21,7 +21,7 @@ def build_multif_random_domain():
 
 
 def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None, 
-	keep_data = False, verbose = False):
+	keep_data = False, verbose = False, cores = 1):
 	"""
 
 
@@ -75,7 +75,7 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	
 	# Now call multif
 	call = "docker run -t --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/multif:%s" % (workdir, version)
-	call += " -f general-3d.cfg -l %d" % (level,)
+	call += " -f general-3d.cfg -l %d -c %d" % (level,cores)
 
 	# In order to run from inside jupyter, we need to call using Popen
 	# following https://github.com/takluyver/rt2-workshop-jupyter/blob/e7fde6565e28adf31a0f9003094db70c3766bd6d/Subprocess%20output.ipynb
