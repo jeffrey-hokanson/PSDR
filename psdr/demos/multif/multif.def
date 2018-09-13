@@ -1,0 +1,19 @@
+BootStrap: docker
+From: jeffreyhokanson/multif:v25
+
+%runscript
+        export SU2_RUN=/usr/local/SU2/bin
+        export SU2_HOME=/opt/local/build/SU2/
+        export MULTIF=/opt/local/MULTIF/
+        export PYTHONPATH=$PYTHONPATH:$SU2_RUN:$MULTIF
+		export PATH=$PATH:/curc/slurm/blanca/current/bin:$SU2_RUN
+		export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+
+        python /opt/local/MULTIF/runModel.py "$@"
+%post
+        mkdir -p /projects/jeho8774
+		mkdir -p /rc_scratch/jeho8774
+		mkdir -p /curc/sw
+		mkdir -p /work
+		mkdir -p /local/scratch
+		mkdir -p /curc/slurm/blanca/current/bin
