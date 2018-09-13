@@ -51,12 +51,18 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	"""
 	# If we use this inside the RedisPool, we need to load the modules
 	# internal to this file
-	import shutil, subprocess, os, tempfile, shlex
+	import shutil, subprocess, os, tempfile, shlex, platform
 	import numpy as np
 	from subprocess import Popen, PIPE, STDOUT
 
 	if workdir is None:
-		workdir = tempfile.mkdtemp()
+		# Docker cannot access /var by default, so we move the temporary file to
+		# /tmp on MacOS
+		if platform.system() == 'Darwin':
+			workdir = tempfile.mkdtemp(dir = '/tmp')
+		else:
+			workdir = tempfile.mkdtemp()
+
 		assert keep_data == False, "In order to keep the run, specify a path for a directory"
 	else:
 		workdir = os.path.abspath(workdir)
