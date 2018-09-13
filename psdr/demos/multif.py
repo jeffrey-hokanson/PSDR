@@ -21,7 +21,7 @@ def build_multif_random_domain(clip = None):
 
 
 def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None, 
-	keep_data = False, verbose = False, cores = 1):
+	keep_data = False, verbose = False, cores = None):
 	"""
 
 
@@ -76,22 +76,25 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	
 	# Now call multif
 	call = "docker run -t --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/multif:%s" % (workdir, version)
-	call += " -f general-3d.cfg -l %d -c %d" % (level,cores)
+	call += " -f general-3d.cfg -l %d " % (level,)
+	if cores is not None:
+		# This seems to work on Linux
+		#raise NotImplementedError("Haven't figured out how to run docker in parallel")
+		call += ' -c %d ' % (cores,)
 
 	# In order to run from inside jupyter, we need to call using Popen
 	# following https://github.com/takluyver/rt2-workshop-jupyter/blob/e7fde6565e28adf31a0f9003094db70c3766bd6d/Subprocess%20output.ipynb
-
 	args = shlex.split(call)
 	with open(workdir + '/output.log', 'a') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
 		while True:
 			# Read output from pipe
 			# TODO: this should buffer to end of line rather than fixed size
-			output = p.stdout.read(1024).decode('utf-8')
+			output = p.stdout.readline()
 			log.write(output)
 
 			if verbose:
-				print(output, end='')
+				print(output, end ='')
 
 			# Check for termination
 			if p.poll() is not None:
