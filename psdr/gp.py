@@ -251,12 +251,13 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 	
 	
 class GaussianProcess(object):
-	def __init__(self, structure = 'const', n_init = 1, rank = None, poly_degree = None, **kwargs):
+	def __init__(self, structure = 'const', n_init = 1, rank = None, poly_degree = None, L0s = None, **kwargs):
 		self.structure = structure
 		self.rank = rank
 		self.kwargs = kwargs
 		self.n_init = n_init
 		self.poly_degree = poly_degree
+		self.L0s = L0s
 
 		self._best_score = np.inf
 
@@ -266,7 +267,7 @@ class GaussianProcess(object):
 		"""
 		self.X = np.copy(X)
 		self.y = np.copy(y)
-		self.refine(X, y, 	n_init = self.n_init)	
+		self.refine(X, y, 	n_init = self.n_init, L0s = self.L0s)	
 
 	def refine(self, X, y, n_init = 1, L0s = None):
 		if L0s is None:
