@@ -7,3 +7,4 @@ from sample import *
 from redis_pool import RedisJob, RedisPool, RedisWorker
 from opt.shared import LinProgException, InfeasibleConstraints
 from pool import SequentialJob, SequentialPool
+from sample import maximin_sample  

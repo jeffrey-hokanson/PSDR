@@ -18,7 +18,6 @@ from numpy.polynomial.laguerre import lagvander, lagder
 
 # Parallel computation
 from parallel import pmap
-from sample import build_ridge_domain
 from pgf import PGF
 from opt import minimax, linprog 
 
@@ -105,6 +104,41 @@ class MultiIndex:
 
 	def __len__(self):
 		return int(comb(self.degree + self.dimension, self.degree, exact = True))
+
+# TODO place this function in a better location,
+# and update to use more recent calls
+def build_ridge_domain(dom, U):
+	if len(U.shape) == 1:
+		U = U.reshape(-1,1)
+	dim = U.shape[1]
+
+	if dim == 1:
+		# One dimensional ridge approximation
+		c = U.flatten()
+		xp = linprog(c, A_ub = dom.A, b_ub = dom.b, lb = dom.lb, ub = dom.ub, A_eq = dom.A_eq, b_eq = dom.b_eq)
+		xn = linprog(-c, A_ub = dom.A, b_ub = dom.b, lb = dom.lb, ub = dom.ub, A_eq = dom.A_eq, b_eq = dom.b_eq)
+		ymin = np.dot(c.T, xp)
+		ymax = np.dot(c.T, xn)
+		ymin, ymax = min(ymin, ymax), max(ymin, ymax)
+		zonotope = BoxDomain(ymin, ymax)
+	else:
+		# In two or more dimensions we resort to Mitchell's best candidate to obtain uniform samples
+
+		# First we constuct an interior approximation of the zonotope
+		# Sample points on sphere in dim dimensions
+		Z = sample_sphere(dim, 5*10**dim)
+		# Construct points on the boundary 
+		#inputs = [ ( (dom, U, z), {}) for z in Z]
+		#zonotope_points = pmap(extent, inputs, desc = 'zonotope sample')
+		zonotope_points = []
+		for z in Z:
+			x = dom.corner(np.dot(U,z))
+			zonotope_points.append(np.dot(U.T, x))
+		zonotope_points = np.vstack(zonotope_points)
+		# Sample the projected space using Mitchell's best candidate
+		zonotope = ConvexHullDomain(zonotope_points) 
+
+	return zonotope
 
 
 ################################################################################
@@ -1041,6 +1075,10 @@ class PolynomialRidgeApproximation:
 			if domain is not None:
 				ridge_domain = build_ridge_domain(domain, self.U)
 				axes.axvspan(ridge_domain.lb[0], ridge_domain.ub[0], color = 'b', alpha = 0.15)
+			
+			axes.set_xlabel('ridge coordinate $U^* x$')
+			axes.set_ylabel('$f(x)$')
+
 
 		elif self.subspace_dimension == 2:
 			Y = np.dot(self.U.T, X.T).T
@@ -1073,15 +1111,24 @@ class PolynomialRidgeApproximation:
 
 		return axes
 
-	def plot_pgf(self, base_name, X = None, y = None):
+	def plot_pgf(self, base_name, X = None, y = None, ridge_range = None):
+		"""
+		Paramters
+		---------
+		ridge_range: None or np.ndarray(2,)
+			Range on which to sample the ridge approximation
+		"""
 		if X is None or y is None:
 			X = self.X
 			y = self.y
 
 		if self.subspace_dimension == 1:
 			Y = np.dot(self.U.T, X.T).flatten()
-			lb = np.min(Y)
-			ub = np.max(Y)
+			if ridge_range is None:
+				lb = np.min(Y)
+				ub = np.max(Y)
+			else:
+				lb, ub = ridge_range
 		
 			pgf = PGF()
 			pgf.add('Ux', Y.flatten())
@@ -1094,6 +1141,8 @@ class PolynomialRidgeApproximation:
 			pgf.add('Ux', xx)
 			pgf.add('predict', self.predict(XX))
 			pgf.write('%s_fit.dat' % base_name)
+		else:
+			raise NotImplementedError
 
 	def box_domain(self):
 		""" Return the lower and upper bounds on the active domain

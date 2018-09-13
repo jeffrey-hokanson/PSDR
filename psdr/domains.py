@@ -123,6 +123,10 @@ class Domain(object):
 		X: np.ndarray((M,m))
 			points in the domain to normalize
 		"""
+		try:
+			X.shape
+		except AttributeError:
+			X = np.array(X)
 		if len(X.shape) == 1:
 			X = X.reshape(-1, len(self)) 
 			return self._normalize(X).flatten()
@@ -359,6 +363,10 @@ class LinIneqDomain(Domain):
 		The inequality (A, b) and equality constraints (A_eq, b_eq) are compounded,
 		whereas the bound constraints (lb, ub) are replaced.
 		"""
+
+		# TODO: Add these checks to a common, shared function
+		# TODO: Normalize inputs so that scalars (non-numpy) can be taken as b_eq/b
+		# TODO: 
 
 		# Inequality constraints
 		if A is not None and b is not None:
@@ -612,17 +620,30 @@ class LinIneqDomain(Domain):
 		# The remainder should still be zero
 		return X_norm
 
-	def normalize_grad(self):
-		""" Gradient of normalization
+
+	def D_normalize(self):
+		""" Derivative of normalization 
 		"""
 		D = np.diag(2.0/(self.ub - self.lb))
 		return D
 	
-	def unnormalize_grad(self):
-		""" Gradient of normalization
+	def D_unnormalize(self):
+		""" Derivative of unnormalization
 		"""
 		D = np.diag((self.ub - self.lb)/2.0)
 		return D
+
+	def normalize_grad(self, grads):
+		""" Gradient of normalization
+		"""
+		D = self.D_unnormalize()
+		return np.dot(grads, D)
+	
+	def unnormalize_grad(self, grads):
+		""" Gradient of normalization
+		"""
+		Dinv = self.D_normalize()
+		return np.dot(grads, Dinv)
 
 
 	def _unnormalize(self, X_norm, **kwargs):
