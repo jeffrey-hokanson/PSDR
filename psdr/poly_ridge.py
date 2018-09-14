@@ -20,6 +20,7 @@ from numpy.polynomial.laguerre import lagvander, lagder
 from parallel import pmap
 from pgf import PGF
 from opt import minimax, linprog 
+from domains import BoxDomain
 
 ################################################################################
 # Two types of custom errors raised by PolynomialRidgeApproximation

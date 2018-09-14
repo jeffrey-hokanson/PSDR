@@ -1,8 +1,9 @@
+import numpy as np
 import cvxopt
 from shared import *
 
 def linprog_cvxopt(c, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = None, b_eq = None,
-	 reltol = 1e-10, abstol = 1e-10, feastol = 1e-10):
+	 reltol = 1e-10, abstol = 1e-10, feastol = 1e-10, verbose = False):
 	""" Solve a linear program using CVXOPT
 	See linprog for documentation of arguments
 	"""
@@ -38,7 +39,7 @@ def linprog_cvxopt(c, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = Non
 		A = None
 		b = None
 
-	cvxopt.solvers.options['show_progress'] = True
+	cvxopt.solvers.options['show_progress'] = verbose
 	cvxopt.solvers.options['reltol'] = reltol
 	cvxopt.solvers.options['abstol'] = abstol
 	cvxopt.solvers.options['feastol'] = feastol
