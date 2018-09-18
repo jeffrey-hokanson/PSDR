@@ -19,7 +19,8 @@ def build_otl_circuit_domain():
 	return BoxDomain(lb, ub)
 
 def otl_circuit(x, return_grad = False):
-	x = x.reshape(-1,6)
+	if x.shape == 0:
+		x = x.reshape(-1,6)
 	Rb1 = x[:,0]
 	Rb2 = x[:,1]
 	Rf = x[:,2]

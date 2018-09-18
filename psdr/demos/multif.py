@@ -70,7 +70,7 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 		
 	# Copy the configuration file	
 	dir_path = os.path.dirname(os.path.realpath(__file__))
-	shutil.copyfile('%s/general-3d.cfg.%s' % (dir_path, version,), workdir + '/general-3d.cfg')
+	shutil.copyfile('%s/multif/general-3d.cfg.%s' % (dir_path, version,), workdir + '/general-3d.cfg')
 	
 	# If provided a maximum number of SU2 iterations, set that value
 	if su2_maxiter is not None:

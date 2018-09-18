@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import nnls
-from . import linprog 
+from linprog import linprog
+from shared import LinProgException  
 
 def minimax(f, x0, lb = None, ub = None, A_eq = None, b_eq = None, A_ub = None, b_ub = None,
 		maxiter = 100, tol_dx = 1e-10, tol_df = 1e-10, tol_kkt = 1e-10, verbose = True,
@@ -84,6 +85,7 @@ def minimax(f, x0, lb = None, ub = None, A_eq = None, b_eq = None, A_ub = None, 
 	# Initialize
 	fs = np.array([fi for fi in f(x0)])
 	t = np.max(fs)
+	t_new = t
 	M = len(fs)
 
 	x = np.copy(x0)
@@ -163,10 +165,10 @@ def minimax(f, x0, lb = None, ub = None, A_eq = None, b_eq = None, A_ub = None, 
 						 A_eq = step_A_eq, b_eq = step_b_eq,
 						 lb = step_lb, ub = step_ub)
 		except LinProgException:
-			print step_A_ub
-			print step_b_ub
-			print step_A_eq
-			print step_b_eq
+			#print step_A_ub
+			#print step_b_ub
+			#print step_A_eq
+			#print step_b_eq
 			if verbose: print "Linear program failed"
 			break
 

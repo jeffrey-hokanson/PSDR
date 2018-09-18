@@ -807,6 +807,8 @@ class PolynomialRidgeApproximation:
 
 
 	def _fit_fixed_U(self, X, y, U):
+		if len(U.shape) == 1:
+			U = U.reshape(-1,1)
 		self.U = orth(U)
 		self._fix_scale(X)	
 		if self.norm == 2:
@@ -837,7 +839,7 @@ class PolynomialRidgeApproximation:
 		
 		if self.U_fixed is not None:
 			# If we have been provided with a fixed U
-			self._fit_fixed_U(self, X, y, self.U_fixed)
+			self._fit_fixed_U(X, y, self.U_fixed)
 			return
 
 		elif self.subspace_dimension == 0 and self.degree == 0:

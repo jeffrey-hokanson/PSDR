@@ -107,7 +107,7 @@ def sample_boundary(domain, n = 500, L = None, tol = 1e-8):
 		Q2, s2, _ = np.linalg.svd(Q, full_matrices = False)
 		Q = Q2[:,np.argwhere(s2> tol).flatten()]
 	
-	Z = sample_sphere(Q.shape[1], nboundary)
+	Z = sample_sphere(Q.shape[1], n)
 	QZ = np.dot(Q, Z.T).T
 	center = domain.center
 	Xbndry = np.array([center + qz*domain.extent(center, qz) for qz in QZ])
