@@ -31,5 +31,6 @@ def build_oas_random_domain():
 
 
 def oas(x, version = 'v1'):
+	import numpy as np
 	pass
 
