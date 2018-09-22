@@ -16,8 +16,9 @@ def build_multif_domain(clip = None):
 def build_multif_design_domain(output = 'none'):
 	return buildDesignDomain(output = output)
 
-def build_multif_random_domain(clip = None):
-	return buildRandomDomain(clip = clip)
+def build_multif_random_domain(clip = None, normalization = 'linear'):
+	if clip is None: normalization = 'nonlinear'
+	return buildRandomDomain(clip = clip, normalization = normalization)
 
 
 def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None, 
@@ -129,3 +130,113 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	return fx
 
 
+level_names = ["NONIDEALNOZZLE,1e-8,AEROTHERMOSTRUCTURAL,LINEAR,0.01",
+		 "NONIDEALNOZZLE,1e-8,AEROTHERMOSTRUCTURAL,NONLINEAR,0.4",
+		"EULER,2D,COARSE,AEROTHERMOSTRUCTURAL,LINEAR,0.01",
+		"EULER,2D,MEDIUM,AEROTHERMOSTRUCTURAL,LINEAR,0.2",
+		"EULER,2D,FINE,AEROTHERMOSTRUCTURAL,LINEAR,0.4",
+		"EULER,3D,COARSE,AEROTHERMOSTRUCTURAL,LINEAR,0.01",
+		"EULER,3D,MEDIUM,AEROTHERMOSTRUCTURAL,LINEAR,0.2",
+		"EULER,3D,FINE,AEROTHERMOSTRUCTURAL,LINEAR,0.4",
+		"RANS,2D,COARSE,AEROTHERMOSTRUCTURAL,LINEAR,0.01",
+		"RANS,2D,MEDIUM,AEROTHERMOSTRUCTURAL,LINEAR,0.2",
+		"RANS,2D,FINE,AEROTHERMOSTRUCTURAL,LINEAR,0.4",
+		"RANS,3D,COARSE,AEROTHERMOSTRUCTURAL,LINEAR,0.01",
+		"RANS,3D,MEDIUM,AEROTHERMOSTRUCTURAL,LINEAR,0.2",
+		"RANS,3D,FINE,AEROTHERMOSTRUCTURAL,LINEAR,0.4"
+	]
+
+qoi_names = [
+	'SU2 Residual',
+	'Mass',
+	'Wall Mass', # 2
+	'Volume',
+	'Thrust', # 4
+	'Thermal Layer Temp. Fail. (Max)',
+	'Inside Load Layer Temp. Fail. (Max)', #6 
+	'Middle Load Layer Temp. Fail. (Max)',
+	'Outside Load Layer Temp. Fail. (Max)', #8
+	'Thermal Layer Struct. Fail. (Max)', 
+	'Inside Load Layer Struct. Fail. (Max)', #10
+	'Middle Load Layer Struct. Fail. (Max)', 
+	'Outside Load Layer Struct. Fail. (Max)', #12
+	'Stringers Struct. Fail. (Max)', 
+	'Baffle 1 Struct. Fail. (Max)', # 14
+	'Baffle 2 Struct. Fail. (Max)', 
+	'Baffle 3 Struct. Fail. (Max)', # 16
+	'Baffle 4 Struct. Fail. (Max)', 
+	'Baffle 5 Struct. Fail. (Max)', #18
+	'Thermal Layer Temp. Fail. (PN)', #19 -----
+	'Inside Load Layer Temp. Fail. (PN)', # 20
+	'Middle Load Layer Temp. Fail. (PN)', 
+	'Outside Load Layer Temp. Fail. (PN)', #22
+	'Thermal Layer Struct. Fail. (PN)',
+	'Inside Load Layer Struct. Fail. (PN)', #24
+	'Middle Load Layer Struct. Fail. (PN)',
+	'Outside Load Layer Struct. Fail. (PN)', #26
+	'Stringers Struct. Fail. (PN)',
+	'Baffle 1 Struct. Fail. (PN)', # 28
+	'Baffle 2 Struct. Fail. (PN)',
+	'Baffle 3 Struct. Fail. (PN)', # 30
+	'Baffle 4 Struct. Fail. (PN)',
+	'Baffle 5 Struct. Fail. (PN)', #32
+	'Thermal Layer Temp. Fail. (KS)', # 33 --------
+	'Inside Load Layer Temp. Fail. (KS)', #34
+	'Middle Load Layer Temp. Fail. (KS)',
+	'Outside Load Layer Temp. Fail. (KS)', #36
+	'Thermal Layer Struct. Fail. (KS)', 
+	'Inside Load Layer Struct. Fail. (KS)', #38
+	'Middle Load Layer Struct. Fail. (KS)', 
+	'Outside Load Layer Struct. Fail. (KS)', # 40
+	'Stringers Struct. Fail. (KS)', 
+	'Baffle 1 Struct. Fail. (KS)', # 42
+	'Baffle 2 Struct. Fail. (KS)', 
+	'Baffle 3 Struct. Fail. (KS)', # 44
+	'Baffle 4 Struct. Fail. (KS)', 
+	'Baffle 5 Struct. Fail. (KS)', # 46
+	]
+
+input_names = [' ']*136
+
+input_names[-40:] = [
+	'CMC Density', 
+	'CMC Elastic Modulus',
+	'CMC Poisson Ratio',
+	'CMC Thermal Conductivity',
+	'CMC Thermal Expansion Coef',
+	'CMC Principle Failure Strain',
+	'CMC Max Service Temperature',
+	'GR-BMI Density',
+	'GR-BMI Elastic Modulus 1',
+	'GR-BMI Elastic Modulus 2',
+	'GR-BMI Shear Modulus',
+	'GR-BMI Poisson Ratio',
+	'GR-BMI Mutual Influence Coef 1',
+	'GR-BMI Mutual Influence Coef 2',
+	'GR-BMI Thermal Conductivity 1',
+	'GR-BMI Thermal Conductivity 2',
+	'GR-BMI Thermal Conductivity 3',
+	'GR-BMI Thermal Expansion Coef 1',
+	'GR-BMI Thermal Expansion Coef 2',
+	'GR-BMI Thermal Expansion Coef 3',
+	'GR-BMI Local Failure Strain 1',
+	'GR-BMI Local Failure Strain 2',
+	'GR-BMI Local Failure Strain 3',
+	'GR-BMI Local Failure Strain 4',
+	'GR-BMI Local Failure Strain 5',
+	'GR-BMI Max Service Temperature',
+	'TI-HC Density',
+	'TI-HC Elastic Modulus',
+	'TI-HC Poisson Ratio',
+	'TI-HC Thermal Conductivity',
+	'TI-HC Thermal Expansion Coef',
+	'TI-HC Yield Stress',
+	'TI-HC Max Service Temperature',
+	'Air Thermal Conductivity',
+	'Panel Yield Stress',
+	'Inlet PSTAG',
+	'Inlet TSTAG',
+	'ATM Pressure',
+	'ATM Temperature',
+	'Heat Transfer Coef to Env.',
+	]		
