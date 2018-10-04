@@ -20,7 +20,9 @@ from numpy.polynomial.laguerre import lagvander, lagder
 from parallel import pmap
 from pgf import PGF
 from opt import minimax, linprog 
-from domains import BoxDomain
+from domains import BoxDomain, ConvexHullDomain
+
+from geometry import sample_sphere
 
 ################################################################################
 # Two types of custom errors raised by PolynomialRidgeApproximation
@@ -115,11 +117,10 @@ def build_ridge_domain(dom, U):
 
 	if dim == 1:
 		# One dimensional ridge approximation
-		c = U.flatten()
-		xp = linprog(c, A_ub = dom.A, b_ub = dom.b, lb = dom.lb, ub = dom.ub, A_eq = dom.A_eq, b_eq = dom.b_eq)
-		xn = linprog(-c, A_ub = dom.A, b_ub = dom.b, lb = dom.lb, ub = dom.ub, A_eq = dom.A_eq, b_eq = dom.b_eq)
-		ymin = np.dot(c.T, xp)
-		ymax = np.dot(c.T, xn)
+		xp = dom.corner(U.flatten())
+		xn = dom.corner(-U.flatten())
+		ymin = np.dot(U.flatten().T, xp)
+		ymax = np.dot(U.flatten().T, xn)
 		ymin, ymax = min(ymin, ymax), max(ymin, ymax)
 		zonotope = BoxDomain(ymin, ymax)
 	else:
@@ -127,7 +128,7 @@ def build_ridge_domain(dom, U):
 
 		# First we constuct an interior approximation of the zonotope
 		# Sample points on sphere in dim dimensions
-		Z = sample_sphere(dim, 5*10**dim)
+		Z = sample_sphere(dim, 5*2**dim)
 		# Construct points on the boundary 
 		#inputs = [ ( (dom, U, z), {}) for z in Z]
 		#zonotope_points = pmap(extent, inputs, desc = 'zonotope sample')
@@ -1114,7 +1115,7 @@ class PolynomialRidgeApproximation:
 
 		return axes
 
-	def plot_pgf(self, base_name, X = None, y = None, ridge_range = None):
+	def plot_pgf(self, base_name, X = None, y = None, ridge_range = None, Nsamp = None):
 		"""
 		Paramters
 		---------
@@ -1138,12 +1139,44 @@ class PolynomialRidgeApproximation:
 			pgf.add('fx', y) 
 			pgf.write('%s_data.dat' % base_name)
 			
-			xx = np.linspace(lb, ub, 100)
+			if Nsamp is None:
+				Nsamp = 100
+			xx = np.linspace(lb, ub, Nsamp)
 			XX = np.array([self.U.flatten()*x for x in xx])
 			pgf = PGF()
 			pgf.add('Ux', xx)
 			pgf.add('predict', self.predict(XX))
 			pgf.write('%s_fit.dat' % base_name)
+		elif self.subspace_dimension == 2:
+			Y = np.dot(self.U.T, X.T).T
+			pgf = PGF()
+			pgf.add('Ux1', Y[:,0])
+			pgf.add('Ux2', Y[:,1])
+			pgf.add('fx', y)
+			pgf.write('%s_data.dat' % base_name)
+			
+			# Now construct predictions
+			if ridge_range is None:
+				lb = np.min(Y, axis = 0)
+				ub = np.max(Y, axis = 0)
+			else:
+				lb, ub = ridge_range
+			
+			# Now construct grid
+			if Nsamp is None:
+				Nsamp = 20
+			y1grid = np.linspace(lb[0], ub[0], Nsamp)
+			y2grid = np.linspace(lb[1], ub[1], Nsamp)
+			Y1grid, Y2grid = np.meshgrid(y1grid, y2grid)
+			Ygrid = np.vstack([Y1grid.flatten(), Y2grid.flatten()]).T
+			
+			Xgrid = np.dot(self.U, Ygrid.T).T
+			predict = self.predict(Xgrid)
+			pgf = PGF()
+			pgf.add('Ux1', Ygrid[:,0])
+			pgf.add('Ux2', Ygrid[:,1])
+			pgf.add('predict', predict)
+			pgf.write('%s_fit.dat' % base_name)	
 		else:
 			raise NotImplementedError
 
