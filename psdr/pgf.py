@@ -1,4 +1,5 @@
 #provides a class for dumping tab separated files for PGF
+import matplotlib as mpl
 from matplotlib.path import Path
 
 class PGF:
@@ -48,7 +49,7 @@ class PGF:
 						self.columns[j].append(float(col))
 
 
-def save_contour(fname, cs, fmt = 'matlab', **kwargs):
+def save_contour(fname, cs, fmt = 'matlab', simplify = 1e-3, **kwargs):
 	""" Save a contour plot to a file for pgfplots
 
 	Additional arguments are passed to iter_segements
@@ -76,9 +77,10 @@ def save_contour(fname, cs, fmt = 'matlab', **kwargs):
 	with open(fname, 'w') as fout:
 		for col, z in zip(cs.collections, cs.levels):
 			for path in col.get_paths():
+				path.simplify_threshold = simplify
 				x_vec = []
 				y_vec = []
-				for i, ((x,y), code) in enumerate(path.iter_segments(**kwargs)):
+				for i, ((x,y), code) in enumerate(path.iter_segments(simplify = True)):
 					if code == Path.MOVETO:
 						if len(x_vec) !=0:
 							write_path(fout, x_vec, y_vec, z)
