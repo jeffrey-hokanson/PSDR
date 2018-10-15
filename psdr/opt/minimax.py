@@ -187,12 +187,18 @@ def minimax(f, x0, lb = None, ub = None, A_eq = None, b_eq = None, A_ub = None, 
 				kkt[:-1] -= np.dot(A_ub_bnds.T, lam_ineq)
 				kkt[:-1] -= np.dot(A_eq.T, lam_eq)
 				fs = np.zeros(M)
-				for i, (fi, gi) in enumerate(f(x_new, return_gradient = True)):
-					fs[i] = fi
-					kkt[:-1] += lam[i]*gi
-					kkt[-1] -= lam[i]
+				try:
+					for i, (fi, gi) in enumerate(f(x_new, return_gradient = True)):
+						fs[i] = fi
+						kkt[:-1] += lam[i]*gi
+						kkt[-1] -= lam[i]
+				except:
+					break
 			else:
-				fs = np.array([fi for fi in f(x_new)])
+				try:
+					fs = np.array([fi for fi in f(x_new)])
+				except:
+					break
 				kkt = np.nan
 
 			t_new = np.max(fs)
