@@ -9,6 +9,7 @@ except ImportError:
 
 try:
 	HAS_CVXOPT = True
+	import cvxopt
 	from wrapper_cvxopt import *
 except ImportError, e:
 	HAS_CVXOPT = False
