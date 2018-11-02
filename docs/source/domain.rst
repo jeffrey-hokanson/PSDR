@@ -6,7 +6,7 @@ Domain
 
 Design Considerations
 ----------------------
-The subclasses of :code:`Domain` all specify *closed convex* domains.
+The subclasses of :code:`Domain` all specify *convex* domains.
 We restrict our attention to this class of domains
 as we want all domains to have certain primative operations to be convex programs:
 

@@ -205,19 +205,30 @@ class Domain(object):
 		return x
 	
 	def closest_point(self, x0, L = None):
-		""" Find the closest point in the domain to x0
+		"""Given a point, find the closest point in the domain to it.
 
-		Solve the minimization problem
 
-			min_{x \in domain} \|L(x - x0)\|_2
+		Given a point :math:`\mathbf x_0`, find the closest point :math:`\mathbf x`
+		in the domain :math:`\mathcal D` to it by solving the optimization problem
+
+		.. math::
 		
+			\min_{\mathbf x \in \mathcal D} \| \mathbf L (\mathbf x - \mathbf x_0)\|_2
+
+		where :math:`\mathbf L` is an optional weighting matrix.		
 
 		Parameters
 		----------
-		x0: np.ndarray(m)
-			point to be closest to
-		L: np.ndarray(m,m)
-			Cholesky factorization of mass matrix
+		x0: array-like
+			Point in :math:`\mathbb R^m`  
+		L: array-like, optional
+			Matrix of size (m,m) to use as a weighting matrix in the 2-norm;
+			if not provided, the standard 2-norm  is used.
+		
+		Returns
+		-------
+		x: array-like
+			Coordinates of closest point in this domain to :math:`\mathbf x_0`
 		"""
 		if isinstance(self, ComboDomain):
 			if all([isinstance(dom, LinIneqDomain) for dom in self.domains]):
