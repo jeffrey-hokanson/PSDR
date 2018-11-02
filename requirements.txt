@@ -3,3 +3,4 @@ scipy>=0.15.0
 matplotlib
 cvxopt
 redis
+dill
