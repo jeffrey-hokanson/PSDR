@@ -9,3 +9,5 @@ Date: 21 Feb 2018
 A collection of routines in Python for performing *parameter space dimension reduction.*
 
 
+[Documentation](psdr.readthedocs.io)
+
