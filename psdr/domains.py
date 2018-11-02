@@ -56,7 +56,7 @@ class Domain(object):
 
 		Returns
 		-------
-		np.ndarray (draw, len(self))
+		array-like (draw, len(self))
 			Array of samples from the domain
 		"""
 		x_sample = self._sample(draw = int(draw))
@@ -67,6 +67,13 @@ class Domain(object):
 
 	def extent(self, x, p):
 		"""Compute the distance alpha such that x + alpha * p is on the boundary of the domain
+
+		Given a point :math:`\mathbf{x}\in\mathcal D` and a direction :math:`\mathbf p`,
+		find the furthest we can go in direction :math:`\mathbf p` and stay inside the domain:
+
+		.. math::
+	
+			\max_{\\alpha > 0}   \\alpha \quad \\text{such that} \quad \mathbf x + \\alpha \mathbf p \in \mathcal D
 
 		Parameters
 		----------
@@ -103,7 +110,7 @@ class Domain(object):
 	def corner(self, p):
 		""" Find the point furthest in direction p inside the domain
 
-		Solves the optimization problem
+		Given a direction :math:`\mathbf p` Solves the optimization problem
 	
 			max  p^T x
 			x in domain

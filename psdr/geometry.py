@@ -163,6 +163,7 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, nsamp = 50, 
 		Y = np.dot(L, X.T).T
 	
 	if L is not None:
+		# This is used for inverting L below to map Voronoi vertices of L x to the space D.
 		U, s, VT = np.linalg.svd(L)
 
 	# First we construct samples on the interior of the domain

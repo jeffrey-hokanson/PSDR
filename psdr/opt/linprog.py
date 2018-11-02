@@ -41,7 +41,7 @@ def linprog(c, A_ub = None, b_ub = None, A_eq = None, b_eq = None,  lb = None, u
 	if backend == 'CVXOPT':
 		assert HAS_CVXOPT, "CVXOPT not avalible on this system"
 		x = linprog_cvxopt(c, A_ub = A_ub, b_ub = b_ub, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq,
-			show_progress = show_progress, **kwargs)
+			verbose = show_progress, **kwargs)
 	elif backend == 'GUROBI':
 		assert HAS_GUROBI, "GUROBI not avalible on this system"
 		x = linprog_gurobi(c, A_ub = A_ub, b_ub = b_ub, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq)
