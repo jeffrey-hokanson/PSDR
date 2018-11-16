@@ -1,6 +1,6 @@
 numpy
 scipy>=0.15.0
-matplotlib
+matplotlib<=2.2.3
 cvxopt
 redis
 dill
