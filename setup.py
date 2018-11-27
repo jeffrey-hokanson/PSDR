@@ -11,5 +11,8 @@ setup(name='psdr',
 		'numpy', 
 		'scipy<=1.1.0', 
 		'matplotlib<=2.2.3',
+		'cvxopt',
+		'redis',
+		'dill',
 		],
 	)
