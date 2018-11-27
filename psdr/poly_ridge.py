@@ -6,7 +6,7 @@ from itertools import product
 import scipy.linalg
 from scipy.linalg import norm
 from scipy.linalg import svd
-from scipy.misc import comb
+from scipy.special import comb
 from scipy.optimize import minimize, check_grad
 from scipy.spatial import Voronoi
 from copy import deepcopy

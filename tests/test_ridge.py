@@ -1,6 +1,6 @@
 import numpy as np
 from psdr.poly_ridge import residual, build_J, LegendreTensorBasis  
-from psdr.util import check_gradient
+from psdr.opt import check_gradient
 
 
 def test_jacobian():
