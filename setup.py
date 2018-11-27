@@ -9,7 +9,7 @@ setup(name='psdr',
 	packages = ['psdr', 'psdr.opt', 'psdr.demos', 'psdr.util'],
 	install_requires = [
 		'numpy', 
-		'scipy', 
+		'scipy<=1.1.0', 
 		'matplotlib<=2.2.3',
 		],
 	)
