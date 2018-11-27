@@ -1,5 +1,5 @@
-from . import util
-from . import opt
+import util
+import opt
 from domains import *
 from poly_ridge import *
 from gp import * 
