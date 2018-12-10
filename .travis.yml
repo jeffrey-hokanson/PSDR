@@ -15,7 +15,7 @@ install:
 
 script:
  - pip freeze --local 
- - pytest --cov=mor tests/
+ - pytest --cov=psdr tests/
 after_success:
  - coveralls
 
