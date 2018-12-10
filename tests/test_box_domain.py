@@ -1,9 +1,7 @@
 import numpy as np
 from psdr import BoxDomain
 
-
-
-def test_box(m=10):
+def test_corner(m=10):
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	assert len(dom) == m
 	
@@ -11,8 +9,3 @@ def test_box(m=10):
 	assert np.all(np.isclose(x, np.ones(m)))
 
 
-	A = np.ones((1,m))
-	b = np.zeros(1)
-	dom2 = dom.add_constraints(A_eq = A, b_eq = b)
-	x = dom2.sample()
-	assert np.isclose(np.dot(A, x), b) 

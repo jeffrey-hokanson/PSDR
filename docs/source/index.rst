@@ -11,7 +11,13 @@ Welcome to Parameter Space Dimension Reduction's documentation!
    :caption: Contents:
    
    domain 
-
+   function
+   pools
+   samplers
+   dim_reduction
+   surrogate
+   opt
+   util
 
 Indices and tables
 ==================

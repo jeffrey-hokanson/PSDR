@@ -1,4 +1,3 @@
-
 from wrapper_scipy import *
 # This should always load: Scipy is a manditory dependency
 try:
@@ -25,17 +24,54 @@ else:
 
 
 def linprog(c, A_ub = None, b_ub = None, A_eq = None, b_eq = None,  lb = None, ub = None, 
-	backend = DEFAULT_BACKEND, show_progress = False, **kwargs):
-	""" Wrapper around several linear program solvers
+	backend = None, show_progress = False, **kwargs):
+	r"""Common interface to multiple linear program solvers
 
-	Solves
-			min_x  c^T x
-			where 
-				A_ub x <= b_ub
-				A_eq x = b_eq
-				lb <= x <= ub
+	
+	Solve the linear program:
 
+	.. math::
+	
+		\min_{\mathbf{x}} &\  \mathbf{c}^\top \mathbf{x} \\
+		\text{such that} &\  \mathbf{A}_{\text{ub}} \mathbf{x} \le \mathbf{b}_{\text{ub}} \\
+				&\  \mathbf{A}_{\text{eq}} \mathbf{x} = \mathbf{b}_{\text{eq}} \\
+				&\  \text{lb} \le \mathbf{x} \le \text{ub}
+
+	Parameters
+	----------
+	c: array-like (n,)
+		Vector specifying the objective function
+	A_ub: array-like (m,n)
+		Matrix in left-hand side of inequality constraint
+	b_ub: array-like (m,)
+		Vector in right-hand side of the ineqaluty constraint
+	A_eq: array-like (p,n)
+		Matrix in left-hand side of equality constraint
+	b_eq: array-like (p,) 
+		Vector in right-hand side of equality constraint
+	lb: array-like (n,)
+		Vector of lower bounds on solution
+	ub: array-like (n,)
+		Vector of upper bounds on solution
+	backend: ['GUROBI', 'CVXOPT', 'SCIPY', None]
+		Specify which of the linear solvers to use; if None, choose automatically
+	show_progress: bool
+		If true, print information about progress of solution
+	**kwargs: dict
+		Additional arguments to pass to the specific linprog implementation
+
+	Returns
+	-------
+	x: np.ndarray (n,)
+		Solution vector
+
+	Raises
+	------
+	LinProgException
 	"""
+
+	if backend is None:
+		backend = DEFAULT_BACKEND
 
 	assert backend in ['CVXOPT', 'GUROBI', 'SCIPY'], "Unknown backend requested"
 

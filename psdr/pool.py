@@ -4,7 +4,14 @@ class Job(object):
 	pass
 
 class Pool(object):
-	pass
+	r"""Base class for orchestrating computation of an expensive function
+	"""
+	def apply(self, f, args = None, kwargs = None):
+		r"""
+		"""
+		if args is None: args = ()
+		if kwargs is None:	kwargs = {}
+		 
 
 
 class SequentialJob(Job):

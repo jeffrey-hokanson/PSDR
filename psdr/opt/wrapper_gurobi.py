@@ -74,3 +74,6 @@ def linprog_gurobi(c, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = Non
 		raise InfeasibleConstraints 
 	else:
 		raise LinProgException
+
+
+				

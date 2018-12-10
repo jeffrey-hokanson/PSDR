@@ -1,4 +1,5 @@
 """Base domain types"""
+from __future__ import print_function, division
 
 import numpy as np
 from scipy.optimize import newton, brentq
@@ -9,10 +10,24 @@ from scipy.linalg import orth
 from scipy.spatial import ConvexHull
 
 from opt import *
+#from opt_gurobi import linobj_gurobi
+import cvxpy as cp
+import warnings
 
-#__all__ = ['Domain', 'ComboDomain', 'BoxDomain', 'UniformDomain', 'NormalDomain', 'LogNormalDomain', 'LinIneqDomain', 'ConvexHullDomain'] 
+__all__ = ['Domain',
+		'LinQuadDomain',
+		'LinIneqDomain',
+		'ConvexHullDomain',
+		'BoxDomain', 
+		'PointDomain',
+		'UniformDomain',
+		'NormalDomain',
+		'LogNormalDomain',
+	] 
 
 
+
+# This should be deleted
 class DomainException(Exception):
 	pass
 
@@ -24,6 +39,7 @@ class EmptyDomain(DomainException):
 
 
 def auto_root(dist): 
+	raise PendingDeprecationWarning
 	# construct initial bracket
 	a = 0.0
 	b = 1.0
@@ -41,28 +57,89 @@ def auto_root(dist):
 	return alpha_brent
 
 
+
 class Domain(object):
 	""" Abstract base class for an input domain
 	"""
+	
+	def __len__(self):
+		raise NotImplementedError
+
 	# To define the documentation once for all domains, these functions call internal functions
 	# to each subclass
-	def sample(self, draw = 1):
-		""" Sample points from the domain according to its measure
+	
+	def closest_point(self, x0, L = None, **kwargs):
+		"""Given a point, find the closest point in the domain to it.
+
+		Given a point :math:`\mathbf x_0`, find the closest point :math:`\mathbf x`
+		in the domain :math:`\mathcal D` to it by solving the optimization problem
+
+		.. math::
+		
+			\min_{\mathbf x \in \mathcal D} \| \mathbf L (\mathbf x - \mathbf x_0)\|_2
+
+		where :math:`\mathbf L` is an optional weighting matrix.		
 
 		Parameters
 		----------
-		draw: int
-			Number of samples to return
-
+		x0: array-like
+			Point in :math:`\mathbb R^m`  
+		L: array-like, optional
+			Matrix of size (p,m) to use as a weighting matrix in the 2-norm;
+			if not provided, the standard 2-norm is used.
+		kwargs: dict, optional
+			Additional arguments to pass to the optimizer
+		
 		Returns
 		-------
-		array-like (draw, len(self))
-			Array of samples from the domain
+		x: array-like
+			Coordinates of closest point in this domain to :math:`\mathbf x_0`
+
+		Raises
+		------
+		ValueError
 		"""
-		x_sample = self._sample(draw = int(draw))
-		if draw == 1: 
-			x_sample = x_sample.flatten()
-		return x_sample
+		try: 
+			x0 = np.array(x0).reshape(len(self))
+		except ValueError:
+			raise ValueError('Dimension of x0 does not match dimension of the domain')
+
+		if L is not None:
+			try: 
+				L = np.array(L).reshape(-1,len(self))
+			except ValueError:
+				raise ValueError('The second dimension of L does not match that of the domain')
+ 
+		return self._closest_point(x0, L = L, **kwargs)
+
+	def _closest_point(self, x0, L = None, **kwargs):
+		raise NotImplementedError	
+	
+	def corner(self, p, **kwargs):
+		r""" Find the point furthest in direction p inside the domain
+
+		Given a direction :math:`\mathbf p`, find the point furthest away in that direction
+
+		.. math::
+ 	
+			\max_{\mathbf{x} \in \mathcal D}  \mathbf{p}^\top \mathbf{x}
+
+		Parameters
+		----------
+		p: array-like (m,)
+			Direction in which to search for furthest point
+		kwargs: dict, optional
+			Additional parameters to be passed to cvxpy solve
+		"""
+		try:
+			p = np.array(p).reshape(len(self))
+		except ValueError:
+			raise ValueError("Dimension of search direction doesn't match the domain dimension")
+
+		return self._corner(p, **kwargs)
+	
+	def _corner(self, p):
+		raise NotImplementedError	
 
 
 	def extent(self, x, p):
@@ -88,8 +165,16 @@ class Domain(object):
 		alpha: float
 			Distance to boundary along direction p
 		"""
+		try:
+			x = np.array(x).reshape(len(self))
+		except ValueError:
+			raise ValueError("Starting point not the same dimension as the domain")
+
 		assert self.isinside(x), "Starting point must be inside the domain" 
 		return self._extent(x, p)
+
+	def _extent(self, x, p):
+		raise NotImplementedError
 
 	def isinside(self, X):
 		""" Determine if points are inside the domain
@@ -107,20 +192,6 @@ class Domain(object):
 			return self._isinside(X)
 
 
-	def corner(self, p):
-		""" Find the point furthest in direction p inside the domain
-
-		Given a direction :math:`\mathbf p` Solves the optimization problem
-	
-			max  p^T x
-			x in domain
-
-		Parameters
-		----------
-		p: np.ndarray(m,)
-			direction in which to maximize
-		"""
-		return self._corner(p)
 
 	def normalize(self, X):
 		""" Given a points in the application space, convert it to normalized units
@@ -164,11 +235,11 @@ class Domain(object):
 		""" Combine two domains
 		"""
 		assert isinstance(other, Domain)
-		if isinstance(other, ComboDomain):
+		if isinstance(other, TensorProductDomain):
 			ret = deepcopy(other)
 			ret.domains.insert(0, deepcopy(self))
 		else:
-			ret = ComboDomain()
+			ret = TensorProductDomain()
 			ret.domains = [deepcopy(self), deepcopy(other)]
 		return ret
 	
@@ -176,256 +247,698 @@ class Domain(object):
 		""" Combine two domains
 		"""
 		assert isinstance(other, Domain)
-		if isinstance(other, ComboDomain):
+		if isinstance(other, TensorProductDomain):
 			ret = deepcopy(other)
 			ret.domains.append(deepcopy(self))
 		else:
-			ret = ComboDomain()
+			ret = TensorProductDomain()
 			ret.domains = [deepcopy(other), deepcopy(self)]
 		return ret
 	
+	def constrained_least_squares(self, A, b, **kwargs):
+		r"""Solves a least squares problem constrained to the domain
 
-	def projected_closest_point(self, A, b):
-		""" Computes the closest projected point, solving
-
-			min_{x in domain} \| A x - b\|_2^2
-			
-		""" 
-		if isinstance(self, ComboDomain):
-			if all([isinstance(dom, LinIneqDomain) for dom in self.domains]):
-				x = projected_closest_point(A, b, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
-			else:
-				raise NotImplementedError
-		elif isinstance(self, LinIneqDomain):
-			x = projected_closest_point(A, b, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
-		else:
-			raise NotImplementedError
-		
-		assert self.isinside(x), "projected closest point not inside domain"
-		return x
-	
-	def closest_point(self, x0, L = None):
-		"""Given a point, find the closest point in the domain to it.
-
-
-		Given a point :math:`\mathbf x_0`, find the closest point :math:`\mathbf x`
-		in the domain :math:`\mathcal D` to it by solving the optimization problem
+		Given a matrix :math:`\mathbf{A} \in \mathbb{R}^{n\times m}`
+		and vector :math:`\mathbf{b} \in \mathbb{R}^n`,
+		solve least squares problem where the solution :math:`\mathbf{x}\in \mathbb{R}^m`
+		is constrained to the domain :math:`\mathcal{D}`:
 
 		.. math::
 		
-			\min_{\mathbf x \in \mathcal D} \| \mathbf L (\mathbf x - \mathbf x_0)\|_2
+			\min_{\mathbf{x} \in \mathcal{D}} \| \mathbf{A} \mathbf{x} - \mathbf{b}\|_2^2
+		
+		Parameters
+		----------
+		A: array-like (n,m)	
+			Matrix in least squares problem
+		b: array-like (n,)
+			Right hand side of least squares problem
+		kwargs: dict, optional
+			Additional parameters to pass to solver
+		""" 
+		try:
+			A = np.array(A).reshape(-1,len(self))
+		except ValueError:
+			raise ValueError("Dimension of matrix A does not match that of the domain")
+		try:
+			b = np.array(b).reshape(A.shape[0])
+		except ValueError:
+			raise ValueError("dimension of b in least squares problem doesn't match A")
 
-		where :math:`\mathbf L` is an optional weighting matrix.		
+		return self._constrained_least_squares(A, b, **kwargs)	
+
+	def sample(self, draw = 1):
+		""" Sample points with uniform probability from the measure associated with the domain.
+
+		This is intended as a low-level interface for generating points from the domain.
+		More advanced approaches are handled through the Sampler subclasses.
 
 		Parameters
 		----------
-		x0: array-like
-			Point in :math:`\mathbb R^m`  
-		L: array-like, optional
-			Matrix of size (m,m) to use as a weighting matrix in the 2-norm;
-			if not provided, the standard 2-norm  is used.
-		
+		draw: int
+			Number of samples to return
+
 		Returns
 		-------
-		x: array-like
-			Coordinates of closest point in this domain to :math:`\mathbf x_0`
+		array-like (draw, len(self))
+			Array of samples from the domain
 		"""
-		if isinstance(self, ComboDomain):
-			if all([isinstance(dom, LinIneqDomain) for dom in self.domains]):
-				return closest_point(x0, L = L, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
-			else:
-				raise NotImplementedError
-		elif isinstance(self, LinIneqDomain):
-			return closest_point(x0, L = L, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
-		else:
-			raise NotImplementedError
+		x_sample = self._sample(draw = int(draw))
+		if draw == 1: 
+			x_sample = x_sample.flatten()
+		return x_sample
+
+	def _sample(self, draw = None):
+		# By default, use the hit and run sampler
+		if draw is None:
+			draw = 1
+
+		X = [self._hit_and_run() for i in range(3*draw)]
+		I = np.random.permutation(len(X))
+		return np.array([X[i] for i in I[0:draw]])
+
+	def _hit_and_run(self, _recurse = 2):
+		r"""Hit-and-run sampling for the domain
+		"""
+		if _recurse < 0:
+			raise ValueError("Could not find valid hit and run step")
+
+		try:
+			# Get the current location of where the hit and run sampler is
+			x0 = self._hit_and_run_state
+			if x0 is None: raise AttributeError
+		except AttributeError:
+			# If this hasn't been initialized find a feasible starting point
+			N = 10
+			# In earlier versions, we find the starting point by finding the Chebeychev center;
+			# here we use a simpler approach that simply picks N points on the boundary 
+			# by calling corner and then take the mean (since the domain is convex).
+			# This removes the need to treat equality constraints carefully and also
+			# generalizes to LinQuadDomains. 
+			x0 = sum([self.corner(np.random.randn(len(self))) for i in range(N)])/N
+			self._hit_and_run_state = x0	
+
+		# See if there is an orthongonal basis for the equality constraints
+		# This is necessary so we can generate random directions that satisfy the equality constraint.
+		# TODO: Should we generalize this as a "tangent cone" or "feasible cone" that each domain implements?
+		try:
+			Qeq = self._A_eq_basis
+		except AttributeError:
+			try: 
+				if len(self.A_eq) == 0: raise AttributeError
+				Qeq = orth(self.A_eq.T)
+			except AttributeError:
+				Qeq = np.zeros((len(self),0))
+			self._A_eq_basis = Qeq
 			
 
-class LinIneqDomain(Domain):
-	""" A domain that is specified by linear inequality constraints
+		# Loop over multiple search directions if we have trouble 
+		for it in range(len(self)):	
+			p = np.random.normal(size = (len(self),))
+			# Orthogonalize against equality constarints constraints
+			p = p - Qeq.dot(Qeq.T.dot(p))
+			p /= np.linalg.norm(p)
 
-	Here we create a domain for points x that satisfy the following set of constraints
+			alpha_min = -self.extent(x0, -p)
+			alpha_max =  self.extent(x0,  p)
+			
+			if alpha_max - alpha_min > 1e-7:
+				alpha = np.random.uniform(alpha_min, alpha_max)
+				self._hit_and_run_state += alpha*p
+				return np.copy(self._hit_and_run_state)	
+		
+		# If we've failed to find a good direction, reinitialize, and recurse
+		self._hit_and_run_state = None
+		return self._hit_and_run(_recurse = _recurse - 1)
 
-	Bound constraints     : lb <= x <= ub
-	Inequality constraints: A x <= b
-	Equality constraints  : A_eq x = b_eq
+
+	def __mul__(self, other):
+		r""" Create a tensor product domain
+		"""
+		return TensorProductDomain([self, other])
+
+
+class LinQuadDomain(Domain):
+	r"""A domain specified by a combination of linear (in)equality constraints and convex quadratic constraints
+
+
+	Here we define a domain that is specified in terms of bound constraints,
+	linear inequality constraints, linear equality constraints, and quadratic constraints.
+
+	.. math::
+
+		\mathcal{D} := \left \lbrace
+			\mathbf{x} : \text{lb} \le \mathbf{x} \le \text{ub}, \ 
+			\mathbf{A} \mathbf{x} \le \mathbf{b}, \
+			\mathbf{A}_{\text{eq}} \mathbf{x} = \mathbf{b}_{\text{eq}}, \
+			\| \mathbf{L}_i (\mathbf{x} - \mathbf{y}_i)\|_2 \le \rho_i
+		\right\rbrace \subset \mathbb{R}^m
+
+
+	Parameters
+	----------
+	A: array-like (m,n)
+		Matrix in left-hand side of inequality constraint
+	b: array-like (m,)
+		Vector in right-hand side of the ineqaluty constraint
+	A_eq: array-like (p,n)
+		Matrix in left-hand side of equality constraint
+	b_eq: array-like (p,) 
+		Vector in right-hand side of equality constraint
+	lb: array-like (n,)
+		Vector of lower bounds 
+	ub: array-like (n,)
+		Vector of upper bounds 
+	Ls: list of array-likes (p,m)
+		List of matrices with m columns defining the quadratic constraints
+	ys: list of array-likes (m,)
+		Centers of the quadratic constraints
+	rhos: list of positive floats 
+		Radii of quadratic constraints
+	kwargs: dict, optional
+		Additional parameters to be passed to cvxpy Problem.solve() 
+	"""
+	def __init__(self, A = None, b = None, 
+		lb = None, ub = None, 
+		A_eq = None, b_eq = None, 
+		Ls = None, ys = None, rhos = None,
+		**kwargs):
+
+		self.tol = 1e-10
+		# Determine dimension of space
+		self._init_dim(lb = lb, ub = ub, A = A, A_eq = A_eq, Ls = Ls)
+
+		# Start setting default values
+		self._lb = self._init_lb(lb)
+		self._ub = self._init_ub(ub)
+		self._A, self._b = self._init_ineq(A, b)
+		self._A_eq, self._b_eq = self._init_eq(A_eq, b_eq)	
+		self._Ls, self._ys, self._rhos = self._init_quad(Ls, ys, rhos)
+
+	
+	################################################################################		
+	# Initialization helpers 
+	################################################################################		
+	def _init_dim(self, lb = None, ub = None, A = None, A_eq = None, Ls = None):
+		"""determine the dimension of the space we are working on"""
+		if lb is not None:
+			m = len(lb)
+		elif ub is not None:
+			m = len(ub)
+		elif A is not None:
+			m = len(A[0])
+		elif A_eq is not None:
+			m = len(A_eq[0])
+		elif Ls is not None:
+			m = len(Ls[0][0])
+		else:
+			raise Exception("Could not determine dimension of space")
+
+		self._dimension = m
+
+
+	def _init_lb(self, lb):
+		if lb is None:
+			return -np.inf*np.ones(len(self))
+		else:
+			assert len(lb) == len(self), "Lower bound has wrong dimensions"
+			return np.array(lb)
+		
+	def _init_ub(self, ub):
+		if ub is None:
+			return np.inf*np.ones(len(self))
+		else:
+			assert len(ub) == len(self), "Upper bound has wrong dimensions"
+			return np.array(ub)
+		
+	def _init_ineq(self, A, b):
+		if A is None and b is None:
+			A = np.zeros((0,len(self)))
+			b = np.zeros((0,))
+		elif A is not None and b is not None:
+			A = np.array(A)
+			b = np.array(b)
+			assert A.shape[1] == len(self), "A has wrong number of columns"
+			assert A.shape[0] == b.shape[0], "The number of rows of A and b do not match"
+			assert len(b.shape) == 1, "b must have only one dimension"
+		else:
+			raise AssertionError("If using inequality constraints, both A and b must be specified")
+		return A, b	
+	
+	def _init_eq(self, A_eq, b_eq):
+		if A_eq is None and b_eq is None:
+			A_eq = np.zeros((0,len(self)))
+			b_eq = np.zeros((0,))
+		elif A_eq is not None and b_eq is not None:
+			A_eq = np.array(A_eq)
+			b_eq = np.array(b_eq)
+			assert A_eq.shape[1] == len(self), "A_eq has wrong number of columns"
+			assert A_eq.shape[0] == b_eq.shape[0], "The number of rows of A_eq and b_eq do not match"
+			assert len(b_eq.shape) == 1, "b_eq must have only one dimension"
+		else:
+			raise AssertionError("If using equality constraints, both A_eq and b_eq must be specified")
+		
+		return A_eq, b_eq
+
+	def _init_quad(self, Ls, ys, rhos):
+		if Ls is None and ys is None and rhos is None:
+			_Ls = []
+			_ys = []
+			_rhos = []
+		elif Ls is not None and ys is not None and rhos is not None:
+			assert len(Ls) == len(ys) == len(rhos), "Length of all quadratic constraints must be the same"
+			
+			_Ls = []
+			_ys = []
+			_rhos = []
+			for L, y, rho in zip(Ls, ys, rhos):
+				assert len(L[0]) == len(self), "dimension of L doesn't match the domain"
+				assert len(y) == len(self), "Dimension of center doesn't match the domain"
+				assert rho > 0, "Radius must be positive"
+				_Ls.append(np.array(L))
+				_ys.append(np.array(y))
+				_rhos.append(rho)
+				# TODO: If constraint is rank-1, should we implicitly convert to a linear inequality constriant
+		else:
+			raise AssertionError("If providing quadratic constraint, each of Ls, ys, and rhos must be defined") 
+		return _Ls, _ys, _rhos 
+
+	################################################################################		
+	# Simple properties
+	################################################################################		
+	def __len__(self): return self._dimension
+	
+	@property
+	def lb(self): return self._lb
+	
+	@property
+	def ub(self): return self._ub
+
+	@property
+	def A(self): return self._A
+
+	@property
+	def b(self): return self._b
+
+	@property
+	def A_eq(self): return self._A_eq
+
+	@property
+	def b_eq(self): return self._b_eq
+
+	@property
+	def Ls(self): return self._Ls
+
+	@property
+	def ys(self): return self._ys
+	
+	@property
+	def rhos(self): return self._rhos
+	
+	################################################################################		
+	# Normalization functions 
+	################################################################################		
+
+	def isnormalized(self):
+		return np.all( (~np.isfinite(self.lb)) | (self.lb == -1.) ) and np.all( (~np.isfinite(self.ub)) | (self.ub == 1.) ) 
+
+	def _normalize_der(self):
+		"""Derivative of normalization function"""
+		slope = np.ones(len(self))
+		I = (self.ub != self.lb) & np.isfinite(self.lb) & np.isfinite(self.ub)
+		slope[I] = 2.0/(self.ub[I] - self.lb[I])
+		return np.diag(slope)
+
+	def _unnormalize_der(self):
+		slope = np.ones(len(self))
+		I = (self.ub != self.lb) & np.isfinite(self.lb) & np.isfinite(self.ub)
+		slope[I] = (self.ub[I] - self.lb[I])/2.0
+		return np.diag(slope)
+	
+	def _center(self):
+		c = np.zeros(len(self))
+		I = np.isfinite(self.lb) & np.isfinite(self.ub)
+		c[I] = (self.lb[I] + self.ub[I])/2.0
+		return c	
+
+	def _normalize(self, X):
+		# reshape so numpy's broadcasting works correctly
+		lb = self.lb.reshape(1, -1)
+		ub = self.ub.reshape(1, -1)
+		
+		# Those points with zero range get mapped to zero, so we only work on those
+		# with a non-zero range
+		X_norm = np.zeros(X.shape)
+		I = (self.ub != self.lb) & np.isfinite(self.lb) & np.isfinite(self.ub)
+		X_norm[:,I] = 2.0 * (X[:,I] - lb[:,I]) / (ub[:,I] - lb[:,I]) - 1.0
+		#I = (self.ub != self.lb)
+		#X_norm[:,I] = 0
+		I = ~np.isfinite(self.lb) | ~np.isfinite(self.ub)
+		X_norm[:,I] = X[:,I]
+		return X_norm
+	
+	def _unnormalize(self, X_norm, **kwargs):
+		# reshape so numpy's broadcasting works correctly
+		lb = self.lb.reshape(1, -1)
+		ub = self.ub.reshape(1, -1)
+		
+		# Idenify parameters with nonzero range
+		X = np.zeros(X_norm.shape)
+
+		# unnormalize parameters with non-zero range and bounded
+		I = (self.ub != self.lb) & np.isfinite(self.lb) & np.isfinite(self.ub)
+		X[:,I] = (ub[:,I] - lb[:,I]) * (X_norm[:,I] + 1.0)/2.0 + lb[:,I]
+	
+		# for those with infinite bounds, apply no transformation
+		I = ~np.isfinite(self.lb) | ~np.isfinite(self.ub) 
+		X[:,I] = X_norm[:,I]	
+		# for those dimensions with zero dimension, set to the center point lb[:,~I] = ub[:,~I]
+		I = (self.ub == self.lb)
+		X[:,I] = lb[:,I]
+		return X 
+	
+	def _normalized_domain(self):
+		return LinQuadDomain(lb = self.lb_norm, ub = self.ub_norm, A = self.A_norm, b = self.b_norm, 
+			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, Ls = self.Ls_norm, ys = self.ys_norm, rhos = self.rhos_norm)
+	
+	@property
+	def lb_norm(self):
+		return self.normalize(self.lb)
+
+	@property
+	def ub_norm(self):
+		return self.normalize(self.ub)
+
+	@property
+	def A_norm(self):
+		D = self._unnormalize_der()
+		return self.A.dot(D)
+
+	@property
+	def b_norm(self):
+		c = self._center()
+		return self.b - self.A.dot(c)
+
+	@property
+	def A_eq_norm(self):	
+		D = self._unnormalize_der()
+		return self.A_eq.dot(D)
+
+	@property
+	def b_eq_norm(self):
+		c = self._center()
+		return self.b_eq - self.A_eq.dot(c)
+
+	@property
+	def Ls_norm(self):
+		D = self._unnormalize_der()
+		return [ L.dot(D) for L in self.Ls]
+			
+	@property
+	def ys_norm(self):
+		c = self._center()
+		return [y - L.dot(c) for L, y in zip(self.Ls, self.ys)]	
+
+	@property
+	def rhos_norm(self):
+		return self.rhos
+
+
+	################################################################################		
+	# Bound checking
+	################################################################################		
+	def _isinside_bounds(self, X, tol = 1e-10):
+		lb_check = np.array([np.all(x >= self.lb-tol) for x in X], dtype = np.bool)
+		ub_check = np.array([np.all(x <= self.ub+tol) for x in X], dtype = np.bool)
+		return lb_check & ub_check
+
+	def _isinside_ineq(self, X, tol = 1e-10):
+		return np.array([np.all(np.dot(self.A, x) <= self.b + tol) for x in X], dtype = np.bool)
+
+	def _isinside_eq(self, X, tol = 1e-10):
+		return np.array([np.all( np.abs(np.dot(self.A_eq, x) - self.b_eq) < tol) for x in X], dtype = np.bool)
+
+	def _isinside_quad(self, X, tol = 1e-10):
+		"""check that points are inside quadratic constraints"""
+		inside = np.ones(X.shape[0],dtype = np.bool)
+		for L, y, rho in zip(self.Ls, self.ys, self.rhos):
+			diff = X - np.tile(y.reshape(1,-1), (X.shape[0],1))
+			Ldiff = L.dot(diff.T).T
+			Ldiff_norm = np.sum(Ldiff**2,axis=1)
+			inside = inside & (np.sqrt(Ldiff_norm) <= rho + tol)
+		return inside
+
+	def _isinside(self, X):
+		return self._isinside_bounds(X) & self._isinside_ineq(X) & self._isinside_eq(X) & self._isinside_quad(X)
+
+
+	################################################################################		
+	# Extent functions 
+	################################################################################		
+	
+	def _extent_bounds(self, x, p):
+		"""Check the extent from the box constraints"""
+		alpha = np.inf
+		
+		# If on the boundary, the direction needs to point inside the domain
+		# otherwise we cannot move
+		if np.any(p[self.lb == x] < 0):
+			return 0.
+		if np.any(p[self.ub == x] > 0):
+			return 0.	
+		
+		# To prevent divide-by-zero we ignore directions we are not moving in
+		I = np.nonzero(p)
+
+		# Check upper bounds
+		y = (self.ub - x)[I]/p[I]
+		if np.sum(y>0) > 0:
+			alpha = min(alpha, np.min(y[y>0]))	
+
+		# Check lower bounds
+		y = (self.lb - x)[I]/p[I]
+		if np.sum(y>0) > 0:
+			alpha = min(alpha, np.min(y[y>0]))
+		
+		return alpha
+
+	def _extent_ineq(self, x, p):
+		""" check the extent from the inequality constraints """
+		alpha = np.inf
+		# positive extent
+		y = (self.b - np.dot(self.A, x)	)/np.dot(self.A, p)
+		if np.sum(y>0) > 0:
+			alpha = min(alpha, np.min(y[y>0]))
+
+		return alpha
+	
+	def _extent_quad(self, x, p):
+		""" check the extent from the quadratic constraints"""
+		alpha = np.inf
+		for L, y, rho in zip(self.Ls, self.ys, self.rhos):
+			Lp = L.dot(p)
+			Lxy = L.dot(x - y)
+			# Terms in quadratic formula a alpha^2 + b alpha + c
+			a = Lp.T.dot(Lp)
+			b = 2*Lp.T.dot(Lxy)
+			c = Lxy.T.dot(Lxy) - rho**2
+			
+			roots = np.roots([a,b,c])
+			real_roots = roots[np.isreal(roots)]
+			pos_roots = real_roots[real_roots>=0]
+			if len(pos_roots) > 0:
+				alpha = min(alpha, min(pos_roots))
+		return alpha
+
+	def _extent(self, x, p):
+		# Check that direction satisfies equality constraints to a tolerance
+		if self.A_eq.shape[0] == 0 or np.all(np.abs(self.A_eq.dot(p) ) < self.tol):
+			return min(self._extent_bounds(x, p), self._extent_ineq(x, p), self._extent_quad(x, p))
+		else:
+			return 0. 
+
+	################################################################################		
+	# Convex Solver Functions 
+	################################################################################		
+
+	def _build_constraints_norm(self, x_norm):
+		r""" Build the constraints corresponding to the domain given a vector x
+		"""
+		constraints = []
+		
+		# Numerical issues emerge with unbounded constraints
+		I = np.isfinite(self.lb_norm)
+		if np.sum(I) > 0:
+			constraints.append( self.lb_norm[I] <= x_norm[I])
+		
+		I = np.isfinite(self.ub_norm)
+		if np.sum(I) > 0:
+			constraints.append( x_norm[I] <= self.ub_norm[I])
+		
+		if self.A.shape[0] > 0:	
+			constraints.append( x_norm.__rmatmul__(self.A_norm) <= self.b_norm)
+		if self.A_eq.shape[0] > 0:
+			constraints.append( x_norm.__rmatmul__(self.A_eq) == self.b_eq)
+
+		for L, y, rho in zip(self.Ls_norm, self.ys_norm, self.rhos_norm):
+			constraints.append( cp.norm2(x_norm.__rmatmul__(L) - L.dot(y)) <= rho )
+
+		return constraints
+	
+
+	def _closest_point(self, x0, L = None, **kwargs):
+		x_norm = cp.Variable(len(self))
+		constraints = self._build_constraints_norm(x_norm)
+		x0_norm =  self.normalize(x0)
+		
+		if L is None:
+			L = np.eye(len(self))
+			
+		D = self._unnormalize_der() 	
+		LD = L.dot(D)
+		obj = cp.norm2(LD*x_norm - LD.dot(x0_norm))
+
+		# There is a bug in cvxpy causing these deprecation warnings to appear
+		with warnings.catch_warnings():
+			warnings.simplefilter('ignore', PendingDeprecationWarning)
+			problem = cp.Problem(cp.Minimize(obj), constraints)
+			problem.solve(**kwargs)
+
+		# TODO: Check solution state 			
+		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))	
+
+	def _corner(self, p, **kwargs):
+		x_norm = cp.Variable(len(self))
+		D = self._unnormalize_der() 	
+		# There is a bug in cvxpy causing these deprecation warnings to appear
+		with warnings.catch_warnings():
+			warnings.simplefilter('ignore', PendingDeprecationWarning)
+			# p.T @ x
+			obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
+			constraints = self._build_constraints_norm(x_norm)
+			problem = cp.Problem(cp.Maximize(obj), constraints)
+			problem.solve(**kwargs)
+		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+
+	def _constrained_least_squares(self, A, b, **kwargs):
+		x_norm = cp.Variable(len(self))
+		D = self._unnormalize_der() 
+		c = self._center()	
+		# There is a bug in cvxpy causing these deprecation warnings to appear
+		with warnings.catch_warnings():
+			warnings.simplefilter('ignore', PendingDeprecationWarning)
+			# \| A x - b\|_2 
+			obj = cp.norm2(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
+			constraints = self._build_constraints_norm(x_norm)
+			problem = cp.Problem(cp.Minimize(obj), constraints)
+			problem.solve(**kwargs)
+		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+
+	################################################################################		
+	# 
+	################################################################################		
+
+	def add_constraints(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None,
+		Ls = None, ys = None, rhos = None):
+		r"""Add new constraints to the domain
+		"""
+		lb = self._init_lb(lb)
+		ub = self._init_ub(ub)
+		A, b = self._init_ineq(A, b)
+		A_eq, b_eq = self._init_eq(A_eq, b_eq)
+		Ls, ys, rhos = self._init_quad(Ls, ys, rhos)
+
+		# Update constraints
+		lb = np.maximum(lb, self.lb)
+		ub = np.minimum(ub, self.ub)
+		
+		A = np.vstack([self.A, A])	
+		b = np.hstack([self.b, b])
+
+		A_eq = np.vstack([self.A_eq, A_eq])
+		b_eq = np.hstack([self.b_eq, b_eq])
+
+		Ls = self.Ls + Ls
+		ys = self.ys + ys
+		rhos = self.rhos + rhos
+
+		if len(Ls) > 0:
+			return LinQuadDomain(lb = lb, ub = ub, A = A, b = b, A_eq = A_eq, b_eq = b_eq,
+				 Ls = Ls, ys = ys, rhos = rhos)
+		elif len(b) > 0 or len(b_eq) > 0:
+			return LinIneqDomain(lb = lb, ub = ub, A = A, b = b, A_eq = A_eq, b_eq = b_eq)
+		else:
+			return BoxDomain(lb = lb, ub = ub)
+
+	def __and__(self, other):
+		if isinstance(other, LinQuadDomain):
+			return self.add_constraints(lb = other.lb, ub = other.ub,
+				A = other.A, b = other.b, A_eq = other.A_eq, b_eq = other.b_eq,
+				Ls = other.Ls, ys = other.ys, rhos = other.rhos)
+		else:
+			raise NotImplementedError
+	
+	################################################################################		
+	# End of LinQuadDomain 
+	################################################################################		
+
+
+class LinIneqDomain(LinQuadDomain):
+	r"""A domain specified by a combination of linear equality and inequality constraints.
+
+	Here we build a domain specified by three kinds of constraints:
+	bound constraints :math:`\text{lb} \le \mathbf{x} \le \text{ub}`,
+	inequality constraints :math:`\mathbf{A} \mathbf{x} \le \mathbf{b}`,
+	and equality constraints :math:`\mathbf{A}_{\text{eq}} \mathbf{x} = \mathbf{b}_{\text{eq}}`:
+	
+	.. math::
+
+		\mathcal{D} := \left \lbrace
+			\mathbf{x} : \text{lb} \le \mathbf{x} \le \text{ub}, \ 
+			\mathbf{A} \mathbf{x} \le \mathbf{b}, \
+			\mathbf{A}_{\text{eq}} \mathbf{x} = \mathbf{b}_{\text{eq}}
+		\right\rbrace \subset \mathbb{R}^m
+
+	Parameters
+	----------
+	A: array-like (m,n)
+		Matrix in left-hand side of inequality constraint
+	b: array-like (m,)
+		Vector in right-hand side of the ineqaluty constraint
+	A_eq: array-like (p,n)
+		Matrix in left-hand side of equality constraint
+	b_eq: array-like (p,) 
+		Vector in right-hand side of equality constraint
+	lb: array-like (n,)
+		Vector of lower bounds 
+	ub: array-like (n,)
+		Vector of upper bounds 
+	kwargs: dict, optional
+		Additional parameters to pass to solvers 
 
 	Raises
 	------
-	EmptyDomain
+	EmptyDomain:
+		raised if cannot find a point inside the domain; can be caused by scaling of constraints.
 
 	"""
-	def __init__(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None, center = None):
-		if (A is None and b is None) and (lb is None and ub is None):
-			raise ValueError('Either A and b must be specified or bounds lb and ub')
+	def __init__(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None, **kwargs):
+		LinQuadDomain.__init__(self, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, **kwargs)
 
-		if (A is None and b is not None) or (A is not None and b is None):
-			raise ValueError('Both A and b must be either defined or undefined')
+	def _isinside(self, X):
+		return self._isinside_bounds(X) & self._isinside_ineq(X) & self._isinside_eq(X)
 
-		if (A_eq is None and b_eq is not None) or (A_eq is not None and b_eq is None):
-			raise ValueError('Both A_eq and b_eq must be either defined or undefined')
-		
-
-		# Default values
-		self._radius = None
-		self._z0 = None 
-
-		# Determine the dimension of the parameter space
-		if A is not None:
-			m = A.shape[1]
-		elif lb is not None:
-			m = lb.shape[0]
-
-		# Check dimensions of the constraints match
-		if A is not None:
-			assert A.shape[1] == m
-			assert A.shape[0] == b.shape[0]
-			assert len(b.shape) == 1
-		if lb is not None:
-			assert lb.shape[0] == m
-		if ub is not None:
-			assert ub.shape[0] == m
-		if A_eq is not None:
-			assert A_eq.shape[1] == m
-			assert A_eq.shape[0] == b_eq.shape[0]
-			assert len(b_eq.shape) == 1
-		
-		# Copy over the constraints
-		if A is None and b is None:
-			self._A = np.zeros((0, m))
-			self._b = np.zeros((0,))
+	def _extent(self, x, p):
+		# Check that direction satisfies equality constraints to a tolerance
+		if self.A_eq.shape[0] == 0 or np.all(np.abs(self.A_eq.dot(p) ) < self.tol):
+			return min(self._extent_bounds(x, p), self._extent_ineq(x, p))
 		else:
-			self._A = np.copy(A)
-			self._b = np.copy(b)
-
-		if lb is None:
-			self._lb = -np.inf*np.ones((m,))
-		else:
-			self._lb = np.copy(lb)
-		if ub is None:
-			self._ub = np.inf*np.ones((m,))	
-		else:
-			self._ub = np.copy(ub)
-		
-		if A_eq is None and b_eq is None:
-			self._A_eq = np.zeros((0, m))
-			self._b_eq = np.zeros((0,))
-			self._A_eq_basis = np.zeros((m,0))
-		else:
-			self._A_eq = np.copy(A_eq)
-			self._b_eq = np.copy(b_eq)
-			if A_eq.shape[0] > 0:
-				self._A_eq_basis = orth(A_eq.T)
-			else:
-				self._A_eq_basis = np.copy(A_eq.T)
-
-		# Before continuing, check that the constraints provide a non-empty domain
-		try:
-			c = np.zeros((m,))
-			linprog(c, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq, lb = self.lb, ub = self.ub)
-		except LinProgException:		
-			raise EmptyDomain
-
-		
-
-		# If we are not provided a center, use the Chebeychev center
-		if center is None:
-			center, radius = self._chebyshev_center()
-			self.center = center
-		else:
-			# TODO: This should be a try-catch statement that will except if we cannot solve QP
-			#self.center = self.closest_point(center)
-			self.center = center
-		
-		self._z0 = np.copy(center)
-
-		# Now see if this domain contains more than a point
-		if self.radius > 1e-10:
-			self._can_sample = True
-		else:
-			# Test if there are any directions to go from the center that are not empty
-			self._can_sample = False
-			for it in range(10*len(self)):
-				# Choose a random direction
-				p = np.random.normal(size = self._z0.shape)
-				p /= np.linalg.norm(p)
-				
-				# Project the direction onto the orthogonal complement of the 
-				# range of A_eq.T, so that the step continues to satisfy the 
-				# equality constraint
-				p -= np.dot(self._A_eq_basis, np.dot(self._A_eq_basis.T, p))
-				# Determine the extent
-				alpha_min = -self.extent(self.center, -p)
-				alpha_max = self.extent(self.center, p)
-				if alpha_max - alpha_min > 1e-7:
-					self._can_sample = True
-					break
-
-		# Now construct finite lower/upper bounds for normalization purposes
-		for i in range(len(self)):
-			if not np.isfinite(self.lb[i]):
-				c = np.zeros((m,))
-				c[i] = 1
-				x = linprog(c, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq)
-				self._lb[i] = x[i]
+			return 0. 
 	
-			if not np.isfinite(self.ub[i]):
-				c = np.zeros((m,))
-				c[i] = -1
-				x = linprog(c, A_ub = self.A, b_ub = self.b, A_eq = self.A_eq, b_eq = self.b_eq)
-				self._ub[i] = x[i]
+	def _normalized_domain(self):
+		return LinIneqDomain(lb = self.lb_norm, ub = self.ub_norm, A = self.A_norm, b = self.b_norm, 
+			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm)
  
-	def add_constraint(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None, center = None):
-		""" Add a constraint(s) to the domain, returning a new domain
-
-		The inequality (A, b) and equality constraints (A_eq, b_eq) are compounded,
-		whereas the bound constraints (lb, ub) are replaced.
-		"""
-
-		# TODO: Add these checks to a common, shared function
-		# TODO: Normalize inputs so that scalars (non-numpy) can be taken as b_eq/b
-		# TODO: 
-
-		# Inequality constraints
-		if A is not None and b is not None:
-			assert A.shape[0] == b.shape[0], "both A and b must have the same number of rows"
-			assert A.shape[1] == len(self), "A must have the same dimensions as the current A"
-			A = np.vstack([self.A, A])
-			b = np.hstack([self.b, b])
-		elif b is None and A is None:
-			A = self.A
-			b = self.b
-		else:
-			raise ValueError("Both A and be must be defined")
-
-
-		# Bound constraints
-		if lb is not None:
-			assert lb.shape[0] == len(self), "lb must have the same dimension as the current domain"
-			lb = np.maximum(self.lb, lb)
-		else:
-			lb = self.lb
-		if ub is not None:
-			assert ub.shape[0] == len(self), "lb must have the same dimension as the current domain"
-			ub = np.minimum(self.lb, lb)
-		else:
-			ub = self.ub
-		
-		# Equality constraints
-		if A_eq is not None and b_eq is not None:
-			assert A_eq.shape[0] == b_eq.shape[0], "both A_eq and b_eq must have the same number of rows"
-			assert A_eq.shape[1] == len(self), "A_eq must have the same number of columns as the dimension of the domain"
-			A_eq = np.vstack([self.A_eq, A_eq])
-			b_eq = np.hstack([self.b_eq, b_eq])
-		elif b_eq is None and A_eq is None:
-			A_eq = self.A_eq
-			b_eq = self.b_eq
-		else:
-			raise ValueError("Both A_eq and b_eq must be defined")
-	
-		#if center is None:
-		#	center = closest_point(self.center, A_ub = A, b_ub = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq) 
-		return LinIneqDomain(A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, center = center)	
  
 	def _chebyshev_center(self):
 		"""
@@ -470,271 +983,142 @@ class LinIneqDomain(Domain):
 		radius = zc[-1]
 		
 		self._radius = radius
-
-		return center, radius
+		self._center = center
 		
 	@property
 	def radius(self):
-		if self._radius is None:
+		try:
+			return self._radius
+		except:
 			self._chebyshev_center()
-		return self._radius
-
-
-	def _sample(self, draw = 1):
-		if self._can_sample:
-			X = [self._hit_and_run() for j in range(draw)]
-			return np.array(X)	
-		else:
-			# If we cannot sample, simply return a number of points at the origin
-			return np.array([self.center for j in range(draw)])	
-		
-
-
-	def _hit_and_run(self, recurse = True):
-		""" Hit-and-run sampling for the domain
-	
-		self._z0 - current location of hitting and running
-		"""
-
-		# Try to find a good direction to search in
-		# This direction should have a non-zero length
-		# and should allow some movement through the domain
-
-		for it in range(len(self)):
-			good_dir = True
-
-			# Choose a random direction
-			p = np.random.normal(size = self._z0.shape)
-			p /= np.linalg.norm(p)
-
-			# Project the direction onto the orthogonal complement of the 
-			# range of A_eq.T, so that the step continues to satisfy the 
-			# equality constraint
-			p -= np.dot(self._A_eq_basis, np.dot(self._A_eq_basis.T, p))
-			
-			# If the resulting direction is too small, try again
-			if np.linalg.norm(p) < 1e-16:
-				print "p too small"
-				good_dir = False
-
-			# Normalize the search direction
-			p /= np.linalg.norm(p)
-
-			if good_dir:
-				# If we so far have a good step, try to find out how far along this 
-				# direction we can go
-				alpha_min = -self.extent(self._z0, -p)
-				alpha_max = self.extent(self._z0, p)
-
-				# If we can't go far enough in the desired direction, this is a bad direction 
-				if alpha_max - alpha_min < 1e-7:
-					print "extent too small", it, alpha_max - alpha_min
-					good_dir = False
-			
-			if good_dir:
-				# If our step satisfies these two requirements above, we can stop looking
-				break
-
-		# If we couldn't find a good direction, set the current location back to the center
-		# and start again
-		if good_dir is False and recurse:
-			print "could not find good direction"
-			self._z0 = np.copy(self.center)
-			return self._hit_and_run(recurse = False)
-
-		if good_dir is False and not recurse:
-			return np.copy(self.center)
-			#raise Exception('could not find a good direction')
-		
-		# Determine a new point along the direction p
-		step_length = np.random.uniform(alpha_min, alpha_max)
-		self._z0 += step_length * p
-		if not self.isinside(self._z0):
-			self._z0 = np.copy(self.center)
-			if recurse:
-				return self._hit_and_run(recurse = False)
-			else:
-				return np.copy(self._z0)
-		# TODO: Ensure point _z0 still satisfies equality constraints to machine precision by solving KKT system
-		return np.copy(self._z0)
-		
-
-	def _extent(self, x, p):
-		return min(self._extent_bounds(x, p), self._extent_ineq(x, p))
-
-	def _extent_bounds(self, x, p):
-		""" Check the extent from the box constraints
-		"""
-		alpha = np.inf
-		
-		# To prevent divide-by-zero we ignore directions we are not moving in
-		I = np.nonzero(p)
-
-		# Check upper bounds
-		y = (self.ub - x)[I]/p[I]
-		if np.sum(y>0) > 0:
-			alpha = min(alpha, np.min(y[y>0]))	
-
-		# Check lower bounds
-		y = (self.lb - x)[I]/p[I]
-		if np.sum(y>0) > 0:
-			alpha = min(alpha, np.min(y[y>0]))
-		
-		# If on the boundary, the direction needs to point inside the domain
-		if np.any(p[self.lb == x] < 0):
-			alpha = 0.
-		if np.any(p[self.ub == x] > 0):
-			alpha = 0.	
-
-		return alpha	
-	
-	def _extent_ineq(self, x, p):
-		alpha = np.inf
-		# positive extent
-		y = (self.b - np.dot(self.A, x)	)/np.dot(self.A, p)
-		if np.sum(y>0) > 0:
-			alpha = min(alpha, np.min(y[y>0]))
-
-		return alpha
-
-
-	def _isinside(self, X):
-		return self._isinside_bounds(X) & self._isinside_ineq(X) & self._isinside_eq(X)
-
-	def _isinside_bounds(self, X, tol = 1e-10):
-		lb_check = np.array([np.all(x >= self.lb-tol) for x in X], dtype = np.bool)
-		ub_check = np.array([np.all(x <= self.ub+tol) for x in X], dtype = np.bool)
-		return lb_check & ub_check
-
-	def _isinside_ineq(self, X, tol = 1e-10):
-		return np.array([np.all(np.dot(self.A, x) <= self.b + tol) for x in X], dtype = np.bool)
-
-	def _isinside_eq(self, X, tol = 1e-10):
-		return np.array([np.all( np.abs(np.dot(self.A_eq, x) - self.b_eq) < tol) for x in X], dtype = np.bool)
-
-
-	def _corner(self, p):
-		x = linprog(-p, 
-			A_ub = self.A,
-			b_ub = self.b,
-			lb = self.lb,
-			ub = self.ub,
-			A_eq = self.A_eq,
-			b_eq = self.b_eq,
-			)
-		return x
-
-	def _normalize(self, X):
-		# reshape so numpy's broadcasting works correctly
-		lb = self.lb.reshape(1, -1)
-		ub = self.ub.reshape(1, -1)
-		
-		# Idenify parameters with nonzero range
-		I = self.ub != self.lb
-		X_norm = np.zeros(X.shape)
-		# Normalize parameters with non-zero range
-		X_norm[:,I] = 2.0 * (X[:,I] - lb[:,I]) / (ub[:,I] - lb[:,I]) - 1.0
-		
-		# The remainder should still be zero
-		return X_norm
-
-
-	def D_normalize(self):
-		""" Derivative of normalization 
-		"""
-		D = np.diag(2.0/(self.ub - self.lb))
-		return D
-	
-	def D_unnormalize(self):
-		""" Derivative of unnormalization
-		"""
-		D = np.diag((self.ub - self.lb)/2.0)
-		return D
-
-	def normalize_grad(self, grads):
-		""" Gradient of normalization
-		"""
-		D = self.D_unnormalize()
-		return np.dot(grads, D)
-	
-	def unnormalize_grad(self, grads):
-		""" Gradient of normalization
-		"""
-		Dinv = self.D_normalize()
-		return np.dot(grads, Dinv)
-
-
-	def _unnormalize(self, X_norm, **kwargs):
-		# reshape so numpy's broadcasting works correctly
-		lb = self.lb.reshape(1, -1)
-		ub = self.ub.reshape(1, -1)
-		
-		# Idenify parameters with nonzero range
-		I = self.ub != self.lb
-		X = np.zeros(X_norm.shape)
-		# Normalize parameters with non-zero range
-		X[:,I] = (ub[:,I] - lb[:,I]) * (X_norm[:,I] + 1.0)/2.0 + lb[:,I]
-		X[:,~I] = lb[:,~I]
-		return X 
-
-
-	def _normalized_domain(self):
-		# Coordiante transform
-		assert np.all(np.isfinite(self.lb)) and np.all(np.isfinite(self.ub)), "Cannot normalize on an unbounded domain"
-		D = np.diag( (self.ub - self.lb)/2.0)
-		c = (self.lb + self.ub)/2.0
-
-		A_norm = np.dot(self.A, D)
-		b_norm = self.b - np.dot(self.A, c)
-		
-		A_eq_norm = np.dot(self.A_eq, D)
-		b_eq_norm = self.b_eq - np.dot(self.A_eq, c)
-
-		lb_norm = -np.ones(len(self))
-		ub_norm = np.ones(len(self))
-	
-		return LinIneqDomain(A = A_norm, b = b_norm, lb = lb_norm, ub = ub_norm, A_eq = A_eq_norm, b_eq = b_eq_norm)
-
+			return self._radius
 
 	@property
-	def A(self):
-		return self._A
-
-	@property
-	def b(self):
-		return self._b
-
-	@property
-	def lb(self):
-		return self._lb
-	
-	@property
-	def ub(self):
-		return self._ub
-
-	@property
-	def A_eq(self):
-		return self._A_eq
-
-	@property
-	def b_eq(self):
-		return self._b_eq
-	
-	def __len__(self):
-		return self.lb.shape[0]
+	def center(self):
+		try:
+			return self._center
+		except:
+			self._chebyshev_center()
+			return self._center
 
 
-class ConvexHullDomain(LinIneqDomain):
-	"""Define a domain that is the interior of a convex hull of points
+class BoxDomain(LinIneqDomain):
+	r""" Implements a domain specified by box constraints
 
-	Note this is expensive in moderate dimensions (5>) due to the need to form a convex hull.
-	However, by converting into a convex hull, there are fewer constraints to be satisfied.
+	Given a set of lower and upper bounds, this class defines the domain
 
+	.. math::
+
+		\mathcal{D} := \lbrace \mathbf{x} \in \mathbb{R}^m : \text{lb} \le \mathbf{x} \le \text{ub} \rbrace \subset \mathbb{R}^m.
 
 	Parameters
 	----------
-	X: np.ndarray (N, m)
-		Matrix of size (number of samples, number of dimensions) of data points	
+	lb: array-like (m,)
+		Lower bounds
+	ub: array-like (m,)
+		Upper bounds
+	"""
+	def __init__(self, lb, ub):
+		LinQuadDomain.__init__(self, lb = lb, ub = ub)	
+		assert np.all(np.isfinite(lb)) and np.all(np.isfinite(ub)), "Both lb and ub must be finite to construct a box domain"
+
+	# Due to the simplicity of this domain, we can use a more efficient sampling routine
+	def _sample(self, draw = 1):
+		x_sample = np.random.uniform(self.lb, self.ub, size = (draw, len(self)))
+		return x_sample
+
+	def _corner(self, p):
+		# Since the domain is a box, we can find the corners simply by looking at the sign of p
+		x = np.copy(self.lb)
+		I = (p>=0)
+		x[I] = self.ub[I]
+		return x
+
+	def _extent(self, x, p):
+		return self._extent_bounds(x, p)
+
+	def _isinside(self, X):
+		return self._isinside_bounds(X)
+
+	def _normalized_domain(self):
+		return BoxDomain(lb = self.lb_norm, ub = self.ub_norm)
+
+
+class PointDomain(BoxDomain):
+	r""" A domain consisting of a single point
+
+	Given a point :math:`\mathbf{x} \in \mathbb{R}^m`, construct the domain consisting of that point
+
+	.. math::
+	
+		\mathcal{D} = \lbrace \mathbf x \rbrace \subset \mathbb{R}^m.
+
+	Parameters
+	----------
+	x: array-like (m,)
+		Single point to be contained in the domain
+	"""
+	def __init__(self, x):
+		self._point = np.array(x).flatten()
+		assert len(self._point.shape) == 1, "Must provide a one-dimensional point"
+
+	def __len__(self):
+		return self._point.shape[0]
+		
+	def closest_point(self, x0):
+		return np.copy(self._point)
+
+	def _corner(self, p):
+		return np.copy(self._point)
+
+	def _extent(self, x, p):
+		return 0
+
+	def _isinside(self, X):
+		Pcopy = np.tile(self._point.reshape(1,-1), (X.shape[0],1))
+		return np.all(X == Pcopy, axis = 1)	
+
+	def _sample(self, draw = 1):
+		return np.tile(self._point.reshape(1,-1), (draw, 1))
+
+	@property
+	def lb(self):
+		return np.copy(self._point)
+
+	@property
+	def ub(self):
+		return np.copy(self._point)
+
+
+
+class RandomDomain(object):
+	r"""Abstract base class for domains with an associated sampling measure
+	"""
+
+	def pdf(self, x):
+		r""" Probability density function associated with the domain
+		"""
+		raise NotImplementedError
+
+
+class ConvexHullDomain(LinIneqDomain):
+	r"""Define a domain that is the interior of a convex hull of points.
+
+	Given a set of points :math:`\lbrace x_i \rbrace_{i=1}^M\subset \mathbb{R}^m`,
+	construct a domain from their convex hull:
+
+	.. math::
+	
+		\mathcal{D} := \left\lbrace \sum_{i=1}^M \alpha_i x_i : \sum_{i=1}^M \alpha_i = 1, \ \alpha_i \ge 0 \right\rbrace \subset \mathbb{R}^m.
+
+	In the current implementation, this domain is built by constructing the convex hull of these points
+	and then converting it into a linear inequality constrained domain.
+	This is expensive for moderate dimensions (>5) and so care should be applied when using this function.
+
+	Parameters
+	----------
+	X: array-like (M, m)
+		Points from which to build the convex hull of points.
 	"""
 	def __init__(self, X):
 		self.X = np.copy(X)
@@ -752,79 +1136,68 @@ class ConvexHullDomain(LinIneqDomain):
 			LinIneqDomain.__init__(self, A, b, lb = lb, ub = ub)
 			self.vertices = np.array([lb, ub]).reshape(-1,1)
 
-class ComboDomain(Domain):
-	""" Holds multiple domains together
+class TensorProductDomain(Domain):
+	r""" A class describing a tensor product of a multiple domains
+
 	"""
 	def __init__(self, domains = None):
+		self._domains = []
 		if domains == None:
 			domains = []
-		self.domains = deepcopy(domains)
 	
+		for domain in domains:
+			if isinstance(domain, TensorProductDomain):
+				# If one of the sub-domains is a tensor product domain,
+				# flatten it to limit recursion
+				self._domains.extend(domain.domains)
+			else:
+				self._domains.append(domain)
+
+
+	@property
+	def domains(self):
+		return self._domains
+
+	@property
+	def _slices(self):	
+		start, stop = 0,0
+		for dom in self.domains:
+			stop += len(dom)
+			yield(slice(start, stop))
+			start += len(dom) 	
+
 	def _sample(self, draw = 1):
 		X = []
 		for dom in self.domains:
 			X.append(dom.sample(draw = draw))
 		return np.hstack(X)
 
-	def _split(self, X):
-		"""Utility function for dividing coordinates X among constituent domains 
-
-		Parameters
-		----------
-		X: np.ndarray(M,m)
-			coordinates
-		"""
-		X_split = []
-		start, stop = 0, 0
-		for dom in self.domains:
-			stop += len(dom)
-			X_split.append(X.T[start:stop].T)
-			start = stop
-
-		return X_split
-
-
 	def _isinside(self, X):
 		inside = np.ones(X.shape[0], dtype = np.bool)
-		for dom, Xdom in zip(self.domains, self._split(X)):
-			inside = inside & dom.isinside(Xdom)
+		for dom, I in zip(self.domains, self._slices):
+			inside = inside & dom.isinside(X[:,I])
 		return inside
 
 	def _extent(self, x, p):
-		alpha = [dom.extent(xdom, pdom) for dom, x, pdom in zip(self.domains, self._split(x), self._split(p))]
+		alpha = [dom.extent(x[I], p[I]) for dom, I in zip(self.domains, self._slices)]
 		return min(alpha)
 
 	def _normalize(self, X):
-		return np.hstack([dom.normalize(Xdom) for dom, Xdom in zip(self.domains, self._split(X))])
+		return np.hstack([dom.normalize(X[:,I]) for dom, I in zip(self.domains, self._slices)])
 
 	def _unnormalize(self, X_norm):
-		return np.hstack([dom.unnormalize(Xdom_norm) for dom, Xdom_norm in zip(self.domains, self._split(X_norm))])
+		return np.hstack([dom.unnormalize(X_norm[:,I]) for dom, I in zip(self.domains, self._slices)])
 
 	def _normalized_domain(self):
 		domains_norm = [dom.normalized_domain() for dom in self.domains]
-		return ComboDomain(domains = domains_norm)
+		return TensorProductDomain(domains = domains_norm)
 
 	def __len__(self):
 		return sum([len(dom) for dom in self.domains])
 	
-	def __add__(self, other):
-		ret = deepcopy(self)
-		assert isinstance(other, Domain)
-		if isinstance(other, ComboDomain):
-			ret.domains.extend(deepcopy(other.domains))
-		else:
-			ret.domains.append(deepcopy(other))
-		return ret	
-
-	def __radd__(self, other):
-		assert isinstance(other, Domain)
-		if isinstance(other, ComboDomain):
-			ret = deepcopy(other)
-			ret.domains.extend(deepcopy(self.domains))
-		else:
-			ret = deepcopy(self)
-			ret.domains.insert(0,deepcopy(other))
-		return ret
+	################################################################################		
+	# Properties resembling LinQuad Domains 
+	################################################################################		
 
 	@property
 	def lb(self):
@@ -862,88 +1235,30 @@ class ComboDomain(Domain):
 	def b_eq(self):
 		return np.concatenate([dom.b_eq for dom in self.domains])
 
-	@property
-	def center(self):
-		return np.hstack([dom.center.flatten() for dom in self.domains])
-
 
 	def _corner(self, p):
-		# Check if this is a lin-ineq domain
-		if all([isinstance(dom, LinIneqDomain) for dom in self.domains]):
-			x = linprog(-p, 
-				A_ub = self.A,
-				b_ub = self.b,
-				lb = self.lb,
-				ub = self.ub,
-				A_eq = self.A_eq,
-				b_eq = self.b_eq,
-				)
-			return x
-		else:
-			raise NotImplementedError("Corners only work for linear inequality domains")
+		if all([isinstance(dom, LinQuadDomain) for dom in self.domains]):
+			# If all subdomains ar 
+			pass
 
 
-	def add_constraint(self, **kwargs):
-		if all([isinstance(dom, LinIneqDomain) for dom in self.domains]):
-			dom = LinIneqDomain(A = self.A, b = self.b, lb = self.lb, ub = self.ub, A_eq = self.A_eq, b_eq = self.b_eq, center = self.center)
-			return dom.add_constraint(**kwargs)
-		else:
-			raise NotImplementedError("We currently do not support adding constraints to ComboDomains that are not linear inequality domains")
+#	def add_constraint(self, **kwargs):
+#		if all([isinstance(dom, LinIneqDomain) for dom in self.domains]):
+#			dom = LinIneqDomain(A = self.A, b = self.b, lb = self.lb, ub = self.ub, A_eq = self.A_eq, b_eq = self.b_eq, center = self.center)
+#			return dom.add_constraint(**kwargs)
+#		else:
+#			raise NotImplementedError("We currently do not support adding constraints to TensorProductDomains that are not linear inequality domains")
 
 
-class BoxDomain(LinIneqDomain):
-	def __init__(self, lb, ub, center = None):
-		lb = np.array(lb).reshape(-1)
-		ub = np.array(ub).reshape(-1)
-		assert lb.shape[0] == ub.shape[0], "lower and upper bounds must have the same length"
-		assert np.all(lb < ub)
-		
-		self._lb = np.copy(lb)
-		self._ub = np.copy(ub)
-
-		if center is None:
-			center = (ub + lb)/2.
-
-		self.center = np.copy(center)
-		self._radius = None
-
-	def _sample(self, draw = 1):
-		x_sample = np.random.uniform(self.lb, self.ub, size = (draw, len(self)))
-		return x_sample
-
-	def _extent(self, x, p):
-		return self._extent_bounds(x, p)
-
-	def _isinside(self, X):
-		return self._isinside_bounds(X)
-
-	def _normalized_domain(self):
-		return BoxDomain(-np.ones(len(self)), np.ones(len(self)))
-
-	@property
-	def A(self):
-		return np.zeros((0,self.__len__()))
-
-	@property
-	def b(self):
-		return np.zeros((0,))
-
-	@property
-	def A_eq(self):
-		return np.zeros((0,self.__len__()))
-
-	@property
-	def b_eq(self):
-		return np.zeros((0,))
 
 
-class UniformDomain(BoxDomain):
-	""" An alias for a box domain
+class UniformDomain(BoxDomain, RandomDomain):
+	r""" A randomized version of a BoxDomain
 	"""
 	pass
 
 
-class NormalDomain(BoxDomain):
+class NormalDomain(BoxDomain, RandomDomain):
 	""" Domain described by a normal distribution
 
 	Parameters
@@ -1061,7 +1376,7 @@ class NormalDomain(BoxDomain):
 		return self.mean.shape[0]
  
 	def _isinside(self, X):
-		print "called isinside"
+		print("called isinside")
 		if self.clip is None:
 			return np.ones(X.shape[0], dtype = np.bool)
 		else:
@@ -1076,7 +1391,7 @@ class NormalDomain(BoxDomain):
 			# If there is only one coordinate, we can simply check against the bounds
 			return self._extent_bounds(x, p)
 		else:
-			print "called extent"
+			print("called extent")
 			dist_from_boundary = lambda alpha: np.linalg.norm(self._normalize_nonlinear(x + alpha*p), 2) - self.clip
 			alpha = auto_root(dist_from_boundary) 	
 			return alpha
@@ -1144,7 +1459,7 @@ class LogNormalDomain(NormalDomain):
 	
 	def _normalize_nonlinear(self, X):
 		if np.any(X/self.scaling <= 0):
-			print "invalid value", X/self.scaling
+			print("invalid value", X/self.scaling)
 		return NormalDomain._normalize_nonlinear(self, np.log(X/self.scaling))
 
 	def _unnormalize_nonlinear(self, X_norm):
@@ -1172,7 +1487,7 @@ class LogNormalDomain(NormalDomain):
 			NormalDomain._extent(self, x, p)
 			
 	def _isinside(self, X):
-		print "called LogNormalDomain isinside"
+		print("called LogNormalDomain isinside")
 		if self.clip is None:
 			return np.min(X>0, axis = 1)
 		else:

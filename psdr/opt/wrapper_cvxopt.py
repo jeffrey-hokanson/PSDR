@@ -47,4 +47,5 @@ def linprog_cvxopt(c, A_ub = None, b_ub = None, lb = None, ub = None, A_eq = Non
 	if sol['status'] == 'optimal':
 		return np.array(sol['x'])
 	else:
+		print sol
 		raise LinProgException

@@ -4,7 +4,7 @@ import numpy as np
 # https://stackoverflow.com/questions/6323860/sibling-package-imports
 import sys, os
 sys.path.insert(0, os.path.abspath('../../'))
-from psdr import BoxDomain, NormalDomain, ComboDomain
+from psdr import BoxDomain, NormalDomain, TensorProductDomain
 
 
 __all__ = ['golinski_volume', 
@@ -299,7 +299,7 @@ def build_golinski_design_domain():
 	return BoxDomain([2.6,0.7, 7.3, 7.3, 2.9, 5.0], [3.6, 0.8, 8.3, 8.3, 3.9, 5.5])
 # Taken from table 3 of Hu, Zhou, Chen, Parks, 2017 in AIAA journal 
 def build_golinski_random_domain(clip = None):
-	return ComboDomain([NormalDomain(0,21e-4**2, clip = clip),
+	return TensorProductDomain([NormalDomain(0,21e-4**2, clip = clip),
 				NormalDomain(0, 1e-4**2, clip = clip),
 				NormalDomain(0, 30e-4**2, clip = clip),
 				NormalDomain(0, 30e-4**2, clip = clip),

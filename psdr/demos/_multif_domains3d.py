@@ -9,7 +9,7 @@ from _multif_linear_constraints import cleanupConstraintMatrix
 # https://stackoverflow.com/questions/6323860/sibling-package-imports
 import sys, os
 sys.path.insert(0, os.path.abspath('../../'))
-from psdr import LinIneqDomain, UniformDomain, LogNormalDomain, ComboDomain
+from psdr import LinIneqDomain, UniformDomain, LogNormalDomain, TensorProductDomain
 
 def buildDesignDomain(output='verbose'):
 
@@ -245,7 +245,7 @@ def buildDesignDomain(output='verbose'):
     
     # -------------------------------- FULL CONSTRAINTS --------------------------
     
-    design_domain = ComboDomain([inner_wall_domain, thermal_layer_domain,
+    design_domain = TensorProductDomain([inner_wall_domain, thermal_layer_domain,
                                  air_gap_domain, load_layer_inner_domain, 
                                  load_layer_middle_domain, 
                                  load_layer_outer_domain, stringers_domain,
@@ -338,4 +338,4 @@ def buildRandomDomain(output='verbose', clip = None, normalization = 'linear'):
         LogNormalDomain(2.5090, 0.2285, clip = clip, normalization = normalization),
     ]
 
-    return ComboDomain(random_domains)
+    return TensorProductDomain(random_domains)

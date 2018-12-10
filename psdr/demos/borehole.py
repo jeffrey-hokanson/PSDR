@@ -4,7 +4,7 @@ import numpy as np
 # https://stackoverflow.com/questions/6323860/sibling-package-imports
 import sys, os
 sys.path.insert(0, os.path.abspath('../../'))
-from psdr import BoxDomain, NormalDomain, ComboDomain
+from psdr import BoxDomain, NormalDomain
 
 
 __all__ = ['build_borehole_domain', 'borehole']
