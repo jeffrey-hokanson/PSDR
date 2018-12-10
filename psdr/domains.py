@@ -435,6 +435,9 @@ class LinQuadDomain(Domain):
 		self._A_eq, self._b_eq = self._init_eq(A_eq, b_eq)	
 		self._Ls, self._ys, self._rhos = self._init_quad(Ls, ys, rhos)
 
+		if len(kwargs) == 0:
+			kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': True}
+		self.kwargs = kwargs
 	
 	################################################################################		
 	# Initialization helpers 
@@ -781,12 +784,15 @@ class LinQuadDomain(Domain):
 			constraints.append( x_norm.__rmatmul__(self.A_eq) == self.b_eq)
 
 		for L, y, rho in zip(self.Ls_norm, self.ys_norm, self.rhos_norm):
-			constraints.append( cp.norm2(x_norm.__rmatmul__(L) - L.dot(y)) <= rho )
+			constraints.append( cp.norm(x_norm.__rmatmul__(L) - L.dot(y)) <= rho )
 
 		return constraints
 	
 
 	def _closest_point(self, x0, L = None, **kwargs):
+		if len(kwargs) == 0:
+			kwargs = self.kwargs
+
 		x_norm = cp.Variable(len(self))
 		constraints = self._build_constraints_norm(x_norm)
 		x0_norm =  self.normalize(x0)
@@ -796,7 +802,7 @@ class LinQuadDomain(Domain):
 			
 		D = self._unnormalize_der() 	
 		LD = L.dot(D)
-		obj = cp.norm2(LD*x_norm - LD.dot(x0_norm))
+		obj = cp.norm(LD*x_norm - LD.dot(x0_norm))
 
 		# There is a bug in cvxpy causing these deprecation warnings to appear
 		with warnings.catch_warnings():
@@ -808,6 +814,9 @@ class LinQuadDomain(Domain):
 		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))	
 
 	def _corner(self, p, **kwargs):
+		if len(kwargs) == 0:
+			kwargs = self.kwargs
+ 
 		x_norm = cp.Variable(len(self))
 		D = self._unnormalize_der() 	
 		# There is a bug in cvxpy causing these deprecation warnings to appear
@@ -821,6 +830,9 @@ class LinQuadDomain(Domain):
 		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
 
 	def _constrained_least_squares(self, A, b, **kwargs):
+		if len(kwargs) == 0:
+			kwargs = self.kwargs
+		
 		x_norm = cp.Variable(len(self))
 		D = self._unnormalize_der() 
 		c = self._center()	
@@ -828,7 +840,7 @@ class LinQuadDomain(Domain):
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore', PendingDeprecationWarning)
 			# \| A x - b\|_2 
-			obj = cp.norm2(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
+			obj = cp.norm(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
 			constraints = self._build_constraints_norm(x_norm)
 			problem = cp.Problem(cp.Minimize(obj), constraints)
 			problem.solve(**kwargs)

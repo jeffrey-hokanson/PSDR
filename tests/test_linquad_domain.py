@@ -8,7 +8,7 @@ def test_isinside():
 	y = np.zeros(m)
 	rho = 1
 
-	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho], center = y)
+	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho])
 	
 	X = np.random.randn(10,m)
 	X = np.array([x/np.linalg.norm(x) for x in X])
@@ -27,7 +27,7 @@ def test_extent_quad(m = 5):
 
 	p = np.random.randn(m)
 
-	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho], center = y)
+	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho])
 	x0 = np.random.randn(m)
 	x0 *= 0.1/np.linalg.norm(x0)
 	alpha = dom._extent_quad(x0, p)
@@ -38,7 +38,7 @@ def test_extent_quad(m = 5):
 	# Now a pathological case where the direction is in the nullspace of the metric 
 	L = np.zeros((1,m))
 	L[0,0] = 1
-	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho], center = y)
+	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho])
 	p = np.zeros(m)
 	p[1] = 1
 	
@@ -51,7 +51,7 @@ def test_corner(m = 5):
 	y = np.zeros(m)
 	rho = 1
 
-	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho], center = y)
+	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho])
 
 	p = np.random.randn(m)
 
@@ -66,7 +66,7 @@ def test_closest_point(m = 5):
 	y = np.zeros(m)
 	rho = 1
 
-	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho], center = y)
+	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho])
 
 	x0 = np.random.randn(m)
 	x0 *= 5/np.linalg.norm(x0)
@@ -87,7 +87,7 @@ def test_constrained_least_squares(m = 5):
 	y = np.zeros(m)
 	rho = 1
 
-	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho], center = y)
+	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho])
 
 	x0 = np.random.randn(m)
 	x0 *= 5/np.linalg.norm(x0)
@@ -104,7 +104,7 @@ def test_sample(m = 5):
 	y = np.zeros(m)
 	rho = 1
 
-	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho], center = y)
+	dom = LinQuadDomain(Ls = [L], ys = [y], rhos = [rho])
 
 	X = dom.sample(10)
 	assert np.all(dom.isinside(X)), "sampler placed samples outside the domain"
@@ -119,10 +119,9 @@ def test_bad_scaling():
 
 	
 	# Check quality of solution
-	for i in range(10):
-		p = np.random.randn(len(dom1))
-		x1 = dom1.corner(p)
-		x2 = dom2.corner(p, verbose = True, abstol = 1e-10, reltol = 1e-20, feastol = 1e-20, max_iters = 500)
-		for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
-			print "%+15.15e %+15.15e %+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_)
-		assert np.all(np.isclose(x1,x2))	
+	p = np.ones(len(dom1))
+	x1 = dom1.corner(p)
+	x2 = dom2.corner(p) #, verbose = True, abstol = 1e-10, reltol = 1e-20, feastol = 1e-20, max_iters = 500)
+	for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
+		print "x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_)
+	assert np.all(np.isclose(x1,x2))	
