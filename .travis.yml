@@ -9,7 +9,8 @@ install:
  - pip install coveralls
  - python setup.py install 
 
-script: 
+script:
+ - pip freeze --local 
  - pytest --cov=mor tests/
 after_success:
  - coveralls
