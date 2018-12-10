@@ -8,7 +8,7 @@ setup(name='psdr',
 	author = 'Jeffrey M. Hokanson',
 	packages = ['psdr', 'psdr.opt', 'psdr.demos', 'psdr.util'],
 	install_requires = [
-		'numpy', 
+		'numpy>=1.14', 
 		'scipy<=1.1.0', 
 		'matplotlib<=2.2.3',
 		'cvxopt',
