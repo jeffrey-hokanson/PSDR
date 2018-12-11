@@ -23,38 +23,64 @@ __all__ = ['Domain',
 		'UniformDomain',
 		'NormalDomain',
 		'LogNormalDomain',
+		'TensorProductDomain',
 	] 
 
 
-
-# This should be deleted
-class DomainException(Exception):
-	pass
-
-class UnboundedDomain(DomainException):
-	pass
-
-class EmptyDomain(DomainException):
+class EmptyDomain(Exception):
 	pass
 
 
-def auto_root(dist): 
-	raise PendingDeprecationWarning
-	# construct initial bracket
-	a = 0.0
-	b = 1.0
-	for i in range(1000):
-		dist_b = dist(b)
-		#print 'bracket:', a, b, 'dist', dist_b
-		if np.isfinite(dist_b) and dist_b > 0:
-			break
-		if not np.isfinite(dist_b):
-			b = (a + b)/2.0
-		if dist_b < 0:
-			a = b
-			b *= 2.0 
-	alpha_brent = brentq(dist, a, b, xtol = 1e-12, maxiter = 100)
-	return alpha_brent
+def closest_point(dom, x0, L, **kwargs):
+	r""" Solve the closest point problem given a domain
+	"""
+	x_norm = cp.Variable(len(dom))
+	constraints = dom._build_constraints_norm(x_norm)
+	x0_norm =  dom.normalize(x0)
+	
+	if L is None:
+		L = np.eye(len(dom))
+		
+	D = dom._unnormalize_der() 	
+	LD = L.dot(D)
+	obj = cp.norm(LD*x_norm - LD.dot(x0_norm))
+
+	# There is a bug in cvxpy causing these deprecation warnings to appear
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore', PendingDeprecationWarning)
+		problem = cp.Problem(cp.Minimize(obj), constraints)
+		problem.solve(**kwargs)
+
+	# TODO: Check solution state 			
+	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))	
+
+def constrained_least_squares(dom, A, b, **kwargs):
+	x_norm = cp.Variable(len(dom))
+	D = dom._unnormalize_der() 
+	c = dom._center()	
+	# There is a bug in cvxpy causing these deprecation warnings to appear
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore', PendingDeprecationWarning)
+		# \| A x - b\|_2 
+		obj = cp.norm(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
+		constraints = dom._build_constraints_norm(x_norm)
+		problem = cp.Problem(cp.Minimize(obj), constraints)
+		problem.solve(**kwargs)
+	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
+
+def corner(dom, p, **kwargs):
+	x_norm = cp.Variable(len(dom))
+	D = dom._unnormalize_der() 	
+	# There is a bug in cvxpy causing these deprecation warnings to appear
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore', PendingDeprecationWarning)
+		# p.T @ x
+		obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
+		constraints = dom._build_constraints_norm(x_norm)
+		problem = cp.Problem(cp.Maximize(obj), constraints)
+		problem.solve(**kwargs)
+	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
+
 
 
 
@@ -138,7 +164,7 @@ class Domain(object):
 
 		return self._corner(p, **kwargs)
 	
-	def _corner(self, p):
+	def _corner(self, p, **kwargs):
 		raise NotImplementedError	
 
 
@@ -231,29 +257,15 @@ class Domain(object):
 		"""
 		return self._normalized_domain()
 	
-	def __add__(self, other):
+	def __mul__(self, other):
 		""" Combine two domains
 		"""
-		assert isinstance(other, Domain)
-		if isinstance(other, TensorProductDomain):
-			ret = deepcopy(other)
-			ret.domains.insert(0, deepcopy(self))
-		else:
-			ret = TensorProductDomain()
-			ret.domains = [deepcopy(self), deepcopy(other)]
-		return ret
+		return TensorProductDomain([self, other])
 	
-	def __radd__(self, other):
+	def __rmul__(self, other):
 		""" Combine two domains
 		"""
-		assert isinstance(other, Domain)
-		if isinstance(other, TensorProductDomain):
-			ret = deepcopy(other)
-			ret.domains.append(deepcopy(self))
-		else:
-			ret = TensorProductDomain()
-			ret.domains = [deepcopy(other), deepcopy(self)]
-		return ret
+		return TensorProductDomain([self, other])
 	
 	def constrained_least_squares(self, A, b, **kwargs):
 		r"""Solves a least squares problem constrained to the domain
@@ -792,59 +804,20 @@ class LinQuadDomain(Domain):
 	def _closest_point(self, x0, L = None, **kwargs):
 		if len(kwargs) == 0:
 			kwargs = self.kwargs
+		return closest_point(self, x0, L = L, **kwargs)
 
-		x_norm = cp.Variable(len(self))
-		constraints = self._build_constraints_norm(x_norm)
-		x0_norm =  self.normalize(x0)
-		
-		if L is None:
-			L = np.eye(len(self))
-			
-		D = self._unnormalize_der() 	
-		LD = L.dot(D)
-		obj = cp.norm(LD*x_norm - LD.dot(x0_norm))
-
-		# There is a bug in cvxpy causing these deprecation warnings to appear
-		with warnings.catch_warnings():
-			warnings.simplefilter('ignore', PendingDeprecationWarning)
-			problem = cp.Problem(cp.Minimize(obj), constraints)
-			problem.solve(**kwargs)
-
-		# TODO: Check solution state 			
-		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))	
 
 	def _corner(self, p, **kwargs):
 		if len(kwargs) == 0:
 			kwargs = self.kwargs
  
-		x_norm = cp.Variable(len(self))
-		D = self._unnormalize_der() 	
-		# There is a bug in cvxpy causing these deprecation warnings to appear
-		with warnings.catch_warnings():
-			warnings.simplefilter('ignore', PendingDeprecationWarning)
-			# p.T @ x
-			obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
-			constraints = self._build_constraints_norm(x_norm)
-			problem = cp.Problem(cp.Maximize(obj), constraints)
-			problem.solve(**kwargs)
-		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+		return corner(self, p, **kwargs)
 
 	def _constrained_least_squares(self, A, b, **kwargs):
 		if len(kwargs) == 0:
 			kwargs = self.kwargs
-		
-		x_norm = cp.Variable(len(self))
-		D = self._unnormalize_der() 
-		c = self._center()	
-		# There is a bug in cvxpy causing these deprecation warnings to appear
-		with warnings.catch_warnings():
-			warnings.simplefilter('ignore', PendingDeprecationWarning)
-			# \| A x - b\|_2 
-			obj = cp.norm(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
-			constraints = self._build_constraints_norm(x_norm)
-			problem = cp.Problem(cp.Minimize(obj), constraints)
-			problem.solve(**kwargs)
-		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+
+		return constrained_least_squares(self, A, b, **kwargs)
 
 	################################################################################		
 	# 
@@ -1158,6 +1131,7 @@ class TensorProductDomain(Domain):
 			domains = []
 	
 		for domain in domains:
+			assert isinstance(domain, Domain), "Input must be list of domains"
 			if isinstance(domain, TensorProductDomain):
 				# If one of the sub-domains is a tensor product domain,
 				# flatten it to limit recursion
@@ -1194,19 +1168,53 @@ class TensorProductDomain(Domain):
 		alpha = [dom.extent(x[I], p[I]) for dom, I in zip(self.domains, self._slices)]
 		return min(alpha)
 
+
+	def __len__(self):
+		return sum([len(dom) for dom in self.domains])
+
+
+	################################################################################		
+	# Normalization related functions
+	################################################################################		
+	
 	def _normalize(self, X):
 		return np.hstack([dom.normalize(X[:,I]) for dom, I in zip(self.domains, self._slices)])
 
 	def _unnormalize(self, X_norm):
 		return np.hstack([dom.unnormalize(X_norm[:,I]) for dom, I in zip(self.domains, self._slices)])
 
+	def _unnormalize_der(self):
+		return np.diag(np.hstack([np.diag(dom._unnormalize_der()) for dom in self.domains]))
+
+	def _normalize_der(self):
+		return np.diag(np.hstack([np.diag(dom._normalize_der()) for dom in self.domains]))
+
 	def _normalized_domain(self):
 		domains_norm = [dom.normalized_domain() for dom in self.domains]
 		return TensorProductDomain(domains = domains_norm)
 
-	def __len__(self):
-		return sum([len(dom) for dom in self.domains])
 	
+	################################################################################		
+	# Convex solver problems
+	################################################################################		
+	
+	def _build_constraints_norm(self, x_norm):
+		assert all([isinstance(dom, LinQuadDomain) for dom in self.domains]), "Cannot solve for constraints on the domain"
+		constraints = []
+		for dom, I in zip(self.domains, self._slices):
+			constraints.extend(dom._build_constraints_norm(x_norm[I]))
+		return constraints 
+
+	def _closest_point(self, x0, L = None, **kwargs):
+		return closest_point(self, x0, L = L, **kwargs)
+
+	def _corner(self, p, **kwargs):
+		return corner(self, p,  **kwargs)
+	
+	def _constrained_least_squares(self, A, b, **kwargs):
+		return constrained_least_squares(self, A, b,  **kwargs)
+
+
 	################################################################################		
 	# Properties resembling LinQuad Domains 
 	################################################################################		
@@ -1222,11 +1230,10 @@ class TensorProductDomain(Domain):
 	@property
 	def A(self):
 		A = []
-		for k, dom in enumerate(self.domains):
-			before = int(np.sum([len(self.domains[j]) for j in range(0,k)]))
-			after  = int(np.sum([len(self.domains[j]) for j in range(k+1,len(self.domains))]))
-			A.append(np.hstack([np.zeros((dom.A.shape[0], before)), 
-					dom.A, np.zeros((dom.A.shape[0], after))]))
+		for dom, I in zip(self.domain, self._slices):
+			A_tmp = np.zeros((dom.A.shape[0] ,len(self)))
+			A_tmp[:,I] = dom.A
+			A.append(A_tmp)
 		return np.vstack(A)
 
 	@property
@@ -1236,11 +1243,10 @@ class TensorProductDomain(Domain):
 	@property
 	def A_eq(self):
 		A_eq = []
-		for k, dom in enumerate(self.domains):
-			before = int(np.sum([len(self.domains[j]) for j in range(0,k)]))
-			after  = int(np.sum([len(self.domains[j]) for j in range(k+1,len(self.domains))]))
-			A_eq.append(np.hstack([np.zeros((dom.A_eq.shape[0], before)), 
-					dom.A_eq, np.zeros((dom.A_eq.shape[0], after))]))
+		for dom, I in zip(self.domain, self._slices):
+			A_tmp = np.zeros((dom.A_eq.shape[0] ,len(self)))
+			A_tmp[:,I] = dom.A_eq
+			A_eq.append(A_tmp)
 		return np.vstack(A_eq)
 	
 	@property
@@ -1248,10 +1254,6 @@ class TensorProductDomain(Domain):
 		return np.concatenate([dom.b_eq for dom in self.domains])
 
 
-	def _corner(self, p):
-		if all([isinstance(dom, LinQuadDomain) for dom in self.domains]):
-			# If all subdomains ar 
-			pass
 
 
 #	def add_constraint(self, **kwargs):
