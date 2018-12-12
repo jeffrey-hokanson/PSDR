@@ -2,6 +2,7 @@ import util
 import opt
 from domains import *
 from function import Function
+from subspace import *
 from poly_ridge import *
 from gp import * 
 from sample import *
