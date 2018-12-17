@@ -17,6 +17,7 @@ Welcome to Parameter Space Dimension Reduction's documentation!
    dim_reduction
    surrogate
    opt
+   demos
    util
 
 Indices and tables

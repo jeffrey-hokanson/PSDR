@@ -530,19 +530,23 @@ class Domain(object):
 	################################################################################		
 	# Bound checking
 	################################################################################		
-	def _isinside_bounds(self, X, tol = 1e-10):
+	def _isinside_bounds(self, X, tol = None):
+		if tol is None: tol = self.tol
 		lb_check = np.array([np.all(x >= self.lb-tol) for x in X], dtype = np.bool)
 		ub_check = np.array([np.all(x <= self.ub+tol) for x in X], dtype = np.bool)
 		return lb_check & ub_check
 
-	def _isinside_ineq(self, X, tol = 1e-10):
+	def _isinside_ineq(self, X, tol = None):
+		if tol is None: tol = self.tol
 		return np.array([np.all(np.dot(self.A, x) <= self.b + tol) for x in X], dtype = np.bool)
 
-	def _isinside_eq(self, X, tol = 1e-10):
+	def _isinside_eq(self, X, tol = None):
+		if tol is None: tol = self.tol
 		return np.array([np.all( np.abs(np.dot(self.A_eq, x) - self.b_eq) < tol) for x in X], dtype = np.bool)
 
-	def _isinside_quad(self, X, tol = 1e-10):
+	def _isinside_quad(self, X, tol = None):
 		"""check that points are inside quadratic constraints"""
+		if tol is None: tol = self.tol
 		inside = np.ones(X.shape[0],dtype = np.bool)
 		for L, y, rho in zip(self.Ls, self.ys, self.rhos):
 			diff = X - np.tile(y.reshape(1,-1), (X.shape[0],1))
@@ -670,7 +674,8 @@ class LinQuadDomain(Domain):
 		self._Ls, self._ys, self._rhos = self._init_quad(Ls, ys, rhos)
 
 		if len(kwargs) == 0:
-			kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': True}
+			#kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False}
+			kwargs ={} 
 		self.kwargs = kwargs
 	
 	################################################################################		
@@ -679,9 +684,15 @@ class LinQuadDomain(Domain):
 	def _init_dim(self, lb = None, ub = None, A = None, A_eq = None, Ls = None):
 		"""determine the dimension of the space we are working on"""
 		if lb is not None:
-			m = len(lb)
+			if isinstance(lb, (int, float)):
+				m = 1
+			else:
+				m = len(lb)
 		elif ub is not None:
-			m = len(ub)
+			if isinstance(ub, (int, float)):
+				m = 1
+			else:
+				m = len(ub)
 		elif A is not None:
 			m = len(A[0])
 		elif A_eq is not None:
@@ -698,6 +709,8 @@ class LinQuadDomain(Domain):
 		if lb is None:
 			return -np.inf*np.ones(len(self))
 		else:
+			if isinstance(lb, (int, float)):
+				lb = [lb]
 			assert len(lb) == len(self), "Lower bound has wrong dimensions"
 			return np.array(lb)
 		
@@ -705,6 +718,8 @@ class LinQuadDomain(Domain):
 		if ub is None:
 			return np.inf*np.ones(len(self))
 		else:
+			if isinstance(ub, (int, float)):
+				ub = [ub]
 			assert len(ub) == len(self), "Upper bound has wrong dimensions"
 			return np.array(ub)
 		
@@ -945,11 +960,6 @@ class LinIneqDomain(LinQuadDomain):
 	kwargs: dict, optional
 		Additional parameters to pass to solvers 
 
-	Raises
-	------
-	EmptyDomain:
-		raised if cannot find a point inside the domain; can be caused by scaling of constraints.
-
 	"""
 	def __init__(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None, **kwargs):
 		LinQuadDomain.__init__(self, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, **kwargs)
@@ -969,15 +979,31 @@ class LinIneqDomain(LinQuadDomain):
 			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm)
  
  
-	def _chebyshev_center(self):
-		"""
-		
+	def chebyshev_center(self):
+		r"""Estimates the Chebyshev center using the constrainted least squares approach
+	
+		Solves the linear program finding the radius :math:`r` and Chebyshev center :math:`\mathbf{x}`. 
+
+		.. math::
+
+			\max_{r\in \mathbb{R}^+, \mathbf{x} \in \mathcal{D}} &\  r \\
+			\text{such that} & \ \mathbf{a}_i^\top \mathbf{x} + r \|\mathbf{a}_i\|_2 \le b_i
+
+		where we have expressed the domain in terms of the linear inequality constraints 
+		:math:`\mathcal{D}=\lbrace \mathbf{x} : \mathbf{A}\mathbf{x} \le \mathbf{b}\rbrace`
+		and :math:`\mathbf{a}_i^\top` are the rows of :math:`\mathbf{A}` as described in [BVNotes]_. 
+
+	
 		Returns
 		-------
 		center: np.ndarray(m,)
 			Center of the domain
 		radius: float
 			radius of largest circle inside the domain
+
+		References
+		----------
+		.. [BVNotes] https://see.stanford.edu/materials/lsocoee364a/04ConvexOptimizationProblems.pdf, page 4-19.
 		"""
 		m, n = self.A.shape
 
@@ -1001,34 +1027,54 @@ class LinIneqDomain(LinQuadDomain):
 		
 		# See p.4-19 https://see.stanford.edu/materials/lsocoee364a/04ConvexOptimizationProblems.pdf
 		# 
-		normA = np.sqrt( np.sum( np.power(A, 2), axis=1 ) ).reshape((A.shape[0], 1))
-		AA = np.hstack(( A, normA ))
-		c = np.zeros((A.shape[1]+1,))
-		c[-1] = -1.0
-		A_eq = np.hstack([self.A_eq, np.zeros( (self.A_eq.shape[0],1))])
-		zc = linprog(c, A_ub = AA, b_ub = b, A_eq = A_eq, b_eq = self.b_eq )
-
-		center = zc[:-1].reshape((n,))
-		radius = zc[-1]
+		normA = np.sqrt( np.sum( np.power(A, 2), axis=1 ) ).reshape((A.shape[0], ))
 		
+		r = cp.Variable(1)
+		x = cp.Variable(len(self))
+			
+		constraints = [x.__rmatmul__(A) + normA * r <= b]
+		if len(self.A_eq) > 0:
+			constraints += [x.__rmatmul__(self.A_eq) == self.b_eq]	
+
+		problem = cp.Problem(cp.Maximize(r), constraints)
+		problem.solve(**self.kwargs)
+		radius = float(r.value)
+		center = np.array(x.value).reshape(len(self))
+		
+		#AA = np.hstack(( A, normA.reshape(-1,1) ))
+		#c = np.zeros((A.shape[1]+1,))
+		#c[-1] = -1.0
+		#A_eq = np.hstack([self.A_eq, np.zeros( (self.A_eq.shape[0],1))])
+		#zc = linprog(c, A_ub = AA, b_ub = b, A_eq = A_eq, b_eq = self.b_eq )
+		#center = zc[:-1].reshape((n,))
+		#radius = zc[-1]
+		#print(center)
+		#print(self.isinside(center))
+		#zc = cp.Variable(len(self)+1)
+		#prob = cp.Problem(cp.Maximize(zc[-1]), [zc.__rmatmul__(AA) <= b])
+		#prob.solve()
+		#print(zc.value[0:-1])
+
 		self._radius = radius
-		self._center = center
+		self._cheb_center = center
+		
+		return center, radius
 		
 	@property
 	def radius(self):
 		try:
 			return self._radius
 		except:
-			self._chebyshev_center()
+			self.chebyshev_center()
 			return self._radius
 
 	@property
 	def center(self):
 		try:
-			return self._center
+			return self._cheb_center
 		except:
-			self._chebyshev_center()
-			return self._center
+			self.chebyshev_center()
+			return self._cheb_center
 
 
 class BoxDomain(LinIneqDomain):
@@ -1444,7 +1490,7 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 		return self.mean.shape[0]
  
 	def _isinside(self, X):
-		print("called isinside")
+		#print("called isinside")
 		if self.clip is None:
 			return np.ones(X.shape[0], dtype = np.bool)
 		else:

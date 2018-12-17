@@ -45,6 +45,7 @@ for each of the subclasses.
 .. autoclass:: psdr.LinQuadDomain
 
 .. autoclass:: psdr.LinIneqDomain
+   :members: chebyshev_center 
 
 .. autoclass:: psdr.ConvexHullDomain
 
