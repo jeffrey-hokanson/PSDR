@@ -14,7 +14,7 @@ Welcome to Parameter Space Dimension Reduction's documentation!
    function
    pools
    samplers
-   dim_reduction
+   subspace
    surrogate
    opt
    demos
