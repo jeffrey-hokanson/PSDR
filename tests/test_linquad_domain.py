@@ -111,7 +111,8 @@ def test_sample(m = 5):
 
 def test_bad_scaling():
 		
-	# TODO: This fails with ub = 1e9
+	# TODO: This fails with ub = 1e7
+	# This is mainly due to solver tolerances
 	lb = [-1, 1e7]
 	ub = [1, 2e7]
 	dom1 = BoxDomain(lb = lb, ub = ub)
@@ -121,7 +122,7 @@ def test_bad_scaling():
 	# Check quality of solution
 	p = np.ones(len(dom1))
 	x1 = dom1.corner(p)
-	x2 = dom2.corner(p) #, verbose = True, abstol = 1e-10, reltol = 1e-20, feastol = 1e-20, max_iters = 500)
+	x2 = dom2.corner(p, verbose = True, solver = 'ECOS', abstol = 4e-10, reltol = 1e-20, feastol = 1e-20, max_iters = 500)
 	for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
 		print "x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_)
 	assert np.all(np.isclose(x1,x2))	

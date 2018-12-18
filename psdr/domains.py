@@ -662,7 +662,7 @@ class LinQuadDomain(Domain):
 		Ls = None, ys = None, rhos = None,
 		**kwargs):
 
-		self.tol = 1e-10
+		self.tol = 1e-6
 		# Determine dimension of space
 		self._init_dim(lb = lb, ub = ub, A = A, A_eq = A_eq, Ls = Ls)
 
@@ -852,7 +852,10 @@ class LinQuadDomain(Domain):
 			constraints.append( x_norm.__rmatmul__(self.A_eq) == self.b_eq)
 
 		for L, y, rho in zip(self.Ls_norm, self.ys_norm, self.rhos_norm):
-			constraints.append( cp.norm(x_norm.__rmatmul__(L) - L.dot(y)) <= rho )
+			if len(L) > 1:
+				constraints.append( cp.norm(x_norm.__rmatmul__(L) - L.dot(y)) <= rho )
+			elif len(L) == 1:
+				constraints.append( cp.norm(L*x_norm - L.dot(y)) <= rho)
 
 		return constraints
 	
@@ -1340,27 +1343,39 @@ class TensorProductDomain(Domain):
 
 	
 
-#	def add_constraint(self, **kwargs):
-#		if all([isinstance(dom, LinIneqDomain) for dom in self.domains]):
-#			dom = LinIneqDomain(A = self.A, b = self.b, lb = self.lb, ub = self.ub, A_eq = self.A_eq, b_eq = self.b_eq, center = self.center)
-#			return dom.add_constraint(**kwargs)
-#		else:
-#			raise NotImplementedError("We currently do not support adding constraints to TensorProductDomains that are not linear inequality domains")
-
-
-
-
-
-
 class RandomDomain(Domain):
 	r"""Abstract base class for domains with an associated sampling measure
 	"""
 
 	def pdf(self, x):
 		r""" Probability density function associated with the domain
+
+		This evaluates a probability density function :math:`p:\mathcal{D}\to \mathbb{R}_*`
+		at the requested points. By definition, this density function is normalized
+		to have measure over the domain to be one:
+
+		.. math::
+
+			\int_{\mathbf{x} \in \mathcal{D}} p(\mathbf{x}) \mathrm{d} \mathbf{x}.
+
+		Parameters
+		----------
+		x: array-like, either (m,) or (N,m)
+			points to evaluate the density function at
+	
+		Returns
+		-------
+		array-like (N,)
+			evaluation of the density function
+
 		"""
-		x = np.array(x).reshape(-1,len(self))
-		return self._pdf(self, x)
+		x = np.array(x)
+		if len(x.shape) == 1:
+			x = x.reshape(-1,len(self))
+			return self._pdf(self, x).flatten()
+		else:
+			x = np.array(x).reshape(-1,len(self))
+			return self._pdf(self, x)
 
 	def _pdf(self, x):
 		raise NotImplementedError
@@ -1373,7 +1388,18 @@ class UniformDomain(BoxDomain, RandomDomain):
 		return np.one(x.shape[0])/np.prod([(ub_ - lb_) for lb_, ub_ in zip(self.lb, self.ub)])
 
 class NormalDomain(LinQuadDomain, RandomDomain):
-	""" Domain described by a normal distribution
+	r""" Domain described by a normal distribution
+
+	This class describes a normal distribution with 
+	mean :math:`\boldsymbol{\mu}\in \mathbb{R}^m` and 
+	a symmetric positive definite covariance matrix :math:`\boldsymbol{\Gamma}\in \mathbb{R}^{m\times m}`
+	that has the probability density function:
+
+	.. math:: 
+
+		p(\mathbf{x}) = \frac{
+			e^{-\frac12 (\mathbf{x} - \boldsymbol{\mu}) \boldsymbol{\Gamma}^{-1}(\mathbf{x} - \boldsymbol{\mu})}
+			}{\sqrt{(2\pi)^m |\boldsymbol{\Gamma}|}} 
 
 	Parameters
 	----------
@@ -1393,7 +1419,7 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 		if isinstance(mean, float) or isinstance(mean, int):
 			mean = [mean]
 		self.mean = np.array(mean)
-		m = self.mean.shape[0]
+		self._dimension = m = self.mean.shape[0]
 		
 		# covariance
 		if isinstance(cov, float) or isinstance(cov, int):
@@ -1403,6 +1429,7 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 		self.cov = np.array(cov)
 		assert self.cov.shape[0] == self.cov.shape[1], "Covariance must be square"
 		assert self.cov.shape[0] == self.mean.shape[0], "Covariance must be the same shape as mean"
+
 
 		# Check that cov is symmetric positive definite
 		assert np.linalg.norm(self.cov - self.cov.T) < 1e-10
@@ -1425,6 +1452,12 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 			self._normalize = self._normalize_nonlinear
 			self._unnormalize = self._unnormalize_nonlinear
 			self._normalized_domain = self._normalized_domain_nonlinear
+	
+		### Recent updates
+		self._Ls = [np.linalg.cholesky(self.cov).reshape(len(self), len(self))]
+		self._ys = [np.copy(self.mean)]
+		self._rhos = [self.clip]
+
 
 
 	def _sample(self, draw = 1):
@@ -1461,7 +1494,12 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 
 	def _normalized_domain_nonlinear(self):
 		return NormalDomain(np.zeros(len(self)), np.eye(len(self)), clip = self.clip, normalization = self.normalization)
+	
 
+	################################################################################		
+	# Simple properties
+	################################################################################		
+	
 	@property		
 	def lb(self):
 		if self.clip is None:
@@ -1483,12 +1521,19 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 			raise NotImplementedError
 
 	@property
-	def center(self):
-		return self.mean.reshape(-1)
+	def A(self): return np.zeros((0,len(self)))
 
-	def __len__(self):
-		return self.mean.shape[0]
+	@property
+	def b(self): return np.zeros(0)
+
+	@property
+	def A_eq(self): return np.zeros((0,len(self)))
+
+	@property
+	def b_eq(self): return np.zeros(0)
+
  
+
 	def _isinside(self, X):
 		#print("called isinside")
 		if self.clip is None:
