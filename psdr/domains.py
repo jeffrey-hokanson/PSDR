@@ -21,6 +21,7 @@ __all__ = ['Domain',
 		'BoxDomain', 
 		'PointDomain',
 		'UniformDomain',
+		'RandomDomain',
 		'NormalDomain',
 		'LogNormalDomain',
 		'TensorProductDomain',
@@ -1206,6 +1207,11 @@ class ConvexHullDomain(LinIneqDomain):
 class TensorProductDomain(Domain):
 	r""" A class describing a tensor product of a multiple domains
 
+
+	Parameters
+	----------
+	domains: list of domains
+		Domains to combine into a single domain
 	"""
 	def __init__(self, domains = None):
 		self._domains = []
@@ -1381,7 +1387,7 @@ class RandomDomain(Domain):
 		raise NotImplementedError
 
 class UniformDomain(BoxDomain, RandomDomain):
-	r""" A randomized version of a BoxDomain
+	r""" A randomized version of a BoxDomain with a uniform measure on the space.
 	"""
 	
 	def _pdf(self, x):
@@ -1401,20 +1407,29 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 			e^{-\frac12 (\mathbf{x} - \boldsymbol{\mu}) \boldsymbol{\Gamma}^{-1}(\mathbf{x} - \boldsymbol{\mu})}
 			}{\sqrt{(2\pi)^m |\boldsymbol{\Gamma}|}} 
 
+	If the parameter :code:`truncate` is specified, this distribution is truncated uniformly; i.e.,
+	calling this parameter :math:`\tau`, the resulting domain has measure :math:`1-\tau`.
+	Specifically, if we have a Cholesky decomposition of :math:`\boldsymbol{\Gamma} = \mathbf{L} \mathbf{L}^\top`
+	we find a :math:`\rho` such that
+
+	.. math::
+		
+		\mathcal{D} &= \lbrace \mathbf{x}: \|\mathbf{L}^{-1}(\mathbf{x} - \boldsymbol{\mu})\|_2^2 \le \rho\rbrace ; \\
+		p(\mathcal{D}) &= 1-\tau.
+		 
+	This is done so that the domain has compact support which is necessary for several metric-based sampling strategies.
+
+
 	Parameters
 	----------
-	mean : float or np.ndarray
+	mean : array-like (m,)
 		Mean 
-	cov : float or np.ndarray
-		Covariance matrix
-	clip: float or None
-		Truncate distribution of the standard normal to within +/-clip,
-		to remove the tails.
-	normalization: one of ['linear', 'nonlinear'] 
-		Use either a nonlinear normalization, mapping back to the standard normal,
-		or a linear mapping (which requires clip to be enabled).
+	cov : array-like (m,m), optional
+		Positive definite Covariance matrix; defaults to the identity matrix
+	truncate: float in [0,1), optional
+		Amount to truncate the domain to ensure compact support
 	"""
-	def __init__(self, mean, cov = None, clip = None, normalization = None):
+	def __init__(self, mean, cov = None, clip = None, normalization = None, truncate = None):
 		# mean
 		if isinstance(mean, float) or isinstance(mean, int):
 			mean = [mean]

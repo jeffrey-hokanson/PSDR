@@ -60,8 +60,11 @@ Random Domains
 --------------
 An alternative function of domains is to provide
 samples from an associate sampling measure on some domain :math:`\mathcal{D}`.
+Domains with a stochastic interpretation are all subclasses of :code:`psdr.RandomDomain`
+and implement several additional functions.
 
-
+.. autoclass:: psdr.RandomDomain
+   :members:
 
 .. autoclass:: psdr.UniformDomain
 
