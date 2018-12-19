@@ -1,12 +1,15 @@
 """Base domain types"""
 from __future__ import print_function, division
 
+import types
 import numpy as np
 from scipy.optimize import newton, brentq
 from copy import deepcopy
 
+import scipy.linalg
+import scipy.stats
 from scipy.optimize import nnls, minimize
-from scipy.linalg import orth
+from scipy.linalg import orth, solve_triangular
 from scipy.spatial import ConvexHull
 
 from opt import *
@@ -27,10 +30,11 @@ __all__ = ['Domain',
 		'TensorProductDomain',
 	] 
 
-
 class EmptyDomain(Exception):
-	pass
+	pass 
 
+class SolverError(Exception):
+	pass
 
 def closest_point(dom, x0, L, **kwargs):
 	r""" Solve the closest point problem given a domain
@@ -76,10 +80,15 @@ def corner(dom, p, **kwargs):
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore', PendingDeprecationWarning)
 		# p.T @ x
-		obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
+		if len(dom) > 1:
+			obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
+		else:
+			obj = x_norm*float(D.dot(p))
 		constraints = dom._build_constraints_norm(x_norm)
 		problem = cp.Problem(cp.Maximize(obj), constraints)
 		problem.solve(**kwargs)
+	if problem.status != 'optimal':
+		raise SolverError
 	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
 
 
@@ -352,7 +361,9 @@ class Domain(object):
 			# This removes the need to treat equality constraints carefully and also
 			# generalizes to LinQuadDomains. 
 			x0 = sum([self.corner(np.random.randn(len(self))) for i in range(N)])/N
-			self._hit_and_run_state = x0	
+			x0 = self.closest_point(x0)
+			self._hit_and_run_state = x0
+				
 
 		# See if there is an orthongonal basis for the equality constraints
 		# This is necessary so we can generate random directions that satisfy the equality constraint.
@@ -460,72 +471,165 @@ class Domain(object):
 	@property
 	def ys_norm(self):
 		c = self._center()
-		return [y - L.dot(c) for L, y in zip(self.Ls, self.ys)]	
+		return [y - c for y in self.ys]	
 
 	@property
 	def rhos_norm(self):
 		return self.rhos
+
+
+
+	# These are the lower and upper bounds to use for normalization purposes;
+	# they do not add constraints onto the domain.
+	@property
+	def norm_lb(self):
+		r"""Lower bound used for normalization purposes; does not constrain the domain
+		"""
+		try: 
+			return self._norm_lb
+		except AttributeError:
+			# Temporarly disable normalization
+			self._use_norm = False
+	
+			self._norm_lb = -np.inf*np.ones(len(self))
+			for i in range(len(self)):
+				ei = np.zeros(len(self))
+				ei[i] = 1
+				if np.isfinite(self.lb[i]):
+					self._norm_lb[i] = self.lb[i]
+				else:
+					try:
+						x_corner = self.corner(-ei)
+						self._norm_lb[i] = x_corner[i]	
+					except SolverError:
+						self._norm_lb[i] = -np.inf
+
+			self._use_norm = True
+			return self._norm_lb
+
+	@property
+	def norm_ub(self):
+		r"""Upper bound used for normalization purposes; does not constrain the domain
+		"""
+		try: 
+			return self._norm_ub
+		except AttributeError:
+			# Temporarly disable normalization
+			self._use_norm = False
+			
+			# Note: since this will be called by corner, we need to 
+			# choose a reasonable value to initialize this property, which
+			# will be used until the remainder of the corner calls are made
+			self._norm_ub = np.inf*np.ones(len(self))
+			for i in range(len(self)):
+				ei = np.zeros(len(self))
+				ei[i] = 1
+				if np.isfinite(self.ub[i]):
+					self._norm_ub[i] = self.ub[i]
+				else:
+					try:
+						x_corner = self.corner(ei)
+						self._norm_ub[i] = x_corner[i]	
+					except SolverError:
+						self._norm_ub[i] = np.inf
+			# Re-enable normalization
+			self._use_norm = True
+			
+			return self._norm_ub
 	
 	################################################################################		
 	# Normalization functions 
 	################################################################################		
 
 	def isnormalized(self):
-		return np.all( (~np.isfinite(self.lb)) | (self.lb == -1.) ) and np.all( (~np.isfinite(self.ub)) | (self.ub == 1.) ) 
+		return np.all( (~np.isfinite(self.norm_lb)) | (self.norm_lb == -1.) ) and np.all( (~np.isfinite(self.norm_ub)) | (self.norm_ub == 1.) ) 
 
 	def _normalize_der(self):
 		"""Derivative of normalization function"""
-		slope = np.ones(len(self))
-		I = (self.ub != self.lb) & np.isfinite(self.lb) & np.isfinite(self.ub)
-		slope[I] = 2.0/(self.ub[I] - self.lb[I])
-		return np.diag(slope)
+		try:
+			self._use_norm
+		except AttributeError:
+			self._use_norm = True
+
+		if self._use_norm:
+			slope = np.ones(len(self))
+			I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
+			slope[I] = 2.0/(self.norm_ub[I] - self.norm_lb[I])
+			return np.diag(slope)
+		else:
+			return np.eye(len(self))
 
 	def _unnormalize_der(self):
-		slope = np.ones(len(self))
-		I = (self.ub != self.lb) & np.isfinite(self.lb) & np.isfinite(self.ub)
-		slope[I] = (self.ub[I] - self.lb[I])/2.0
-		return np.diag(slope)
+		try:
+			self._use_norm
+		except AttributeError:
+			self._use_norm = True
+		
+		if self._use_norm:
+			slope = np.ones(len(self))
+			I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
+			slope[I] = (self.norm_ub[I] - self.norm_lb[I])/2.0
+			return np.diag(slope)
+		else:
+			return np.eye(len(self))
 	
 	def _center(self):
-		c = np.zeros(len(self))
-		I = np.isfinite(self.lb) & np.isfinite(self.ub)
-		c[I] = (self.lb[I] + self.ub[I])/2.0
-		return c	
+		try:
+			self._use_norm
+		except AttributeError:
+			self._use_norm = True
+		
+		if self._use_norm:
+			c = np.zeros(len(self))
+			I = np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
+			c[I] = (self.norm_lb[I] + self.norm_ub[I])/2.0
+			return c	
+		else:
+			return np.zeros(len(self))
+
 
 	def _normalize(self, X):
 		# reshape so numpy's broadcasting works correctly
-		lb = self.lb.reshape(1, -1)
-		ub = self.ub.reshape(1, -1)
+		#lb = self.norm_lb.reshape(1, -1)
+		#ub = self.norm_ub.reshape(1, -1)
 		
 		# Those points with zero range get mapped to zero, so we only work on those
 		# with a non-zero range
-		X_norm = np.zeros(X.shape)
-		I = (self.ub != self.lb) & np.isfinite(self.lb) & np.isfinite(self.ub)
-		X_norm[:,I] = 2.0 * (X[:,I] - lb[:,I]) / (ub[:,I] - lb[:,I]) - 1.0
-		#I = (self.ub != self.lb)
+		#X_norm = np.zeros(X.shape)
+		#I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
+		#X_norm[:,I] = 2.0 * (X[:,I] - lb[:,I]) / (ub[:,I] - lb[:,I]) - 1.0
+		#I = (self.norm_ub != self.norm_lb)
 		#X_norm[:,I] = 0
-		I = ~np.isfinite(self.lb) | ~np.isfinite(self.ub)
-		X_norm[:,I] = X[:,I]
+		#I = ~np.isfinite(self.norm_lb) | ~np.isfinite(self.norm_ub)
+		#X_norm[:,I] = X[:,I]
+		
+		c = self._center()
+		D = self._normalize_der()
+		X_norm = D.dot( (X - c.reshape(1,-1)).T ).T
 		return X_norm
 	
 	def _unnormalize(self, X_norm, **kwargs):
-		# reshape so numpy's broadcasting works correctly
-		lb = self.lb.reshape(1, -1)
-		ub = self.ub.reshape(1, -1)
+#		# reshape so numpy's broadcasting works correctly
+#		lb = self.norm_lb.reshape(1, -1)
+#		ub = self.norm_ub.reshape(1, -1)
+#		
+#		# Idenify parameters with nonzero range
+#		X = np.zeros(X_norm.shape)
+#
+#		# unnormalize parameters with non-zero range and bounded
+#		I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
+#		X[:,I] = (ub[:,I] - lb[:,I]) * (X_norm[:,I] + 1.0)/2.0 + lb[:,I]
+#	
+#		# for those with infinite bounds, apply no transformation
+#		I = ~np.isfinite(self.norm_lb) | ~np.isfinite(self.norm_ub) 
+#		X[:,I] = X_norm[:,I]	
+#		# for those dimensions with zero dimension, set to the center point lb[:,~I] = ub[:,~I]
+#		I = (self.norm_ub == self.norm_lb)
+#		X[:,I] = lb[:,I]
 		
-		# Idenify parameters with nonzero range
-		X = np.zeros(X_norm.shape)
-
-		# unnormalize parameters with non-zero range and bounded
-		I = (self.ub != self.lb) & np.isfinite(self.lb) & np.isfinite(self.ub)
-		X[:,I] = (ub[:,I] - lb[:,I]) * (X_norm[:,I] + 1.0)/2.0 + lb[:,I]
-	
-		# for those with infinite bounds, apply no transformation
-		I = ~np.isfinite(self.lb) | ~np.isfinite(self.ub) 
-		X[:,I] = X_norm[:,I]	
-		# for those dimensions with zero dimension, set to the center point lb[:,~I] = ub[:,~I]
-		I = (self.ub == self.lb)
-		X[:,I] = lb[:,I]
+		c = self._center()
+		Dinv = self._unnormalize_der()
+		X = Dinv.dot(X_norm.T).T + c.reshape(1,-1)
 		return X 
 
 	################################################################################		
@@ -815,12 +919,9 @@ class LinQuadDomain(Domain):
 	def _normalized_domain(self):
 		return LinQuadDomain(lb = self.lb_norm, ub = self.ub_norm, A = self.A_norm, b = self.b_norm, 
 			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, Ls = self.Ls_norm, ys = self.ys_norm, rhos = self.rhos_norm)
-	
 
 	def _isinside(self, X):
 		return self._isinside_bounds(X) & self._isinside_ineq(X) & self._isinside_eq(X) & self._isinside_quad(X)
-
-
 
 	def _extent(self, x, p):
 		# Check that direction satisfies equality constraints to a tolerance
@@ -1080,6 +1181,16 @@ class LinIneqDomain(LinQuadDomain):
 			self.chebyshev_center()
 			return self._cheb_center
 
+	@property
+	def Ls(self): return []
+
+	@property
+	def ys(self): return []
+
+	@property
+	def rhos(self): return []
+	
+
 
 class BoxDomain(LinIneqDomain):
 	r""" Implements a domain specified by box constraints
@@ -1121,6 +1232,24 @@ class BoxDomain(LinIneqDomain):
 
 	def _normalized_domain(self):
 		return BoxDomain(lb = self.lb_norm, ub = self.ub_norm)
+
+	@property
+	def A(self): return np.zeros((0,len(self)))
+	
+	@property
+	def b(self): return np.zeros((0))
+	
+	@property
+	def A_eq(self): return np.zeros((0,len(self)))
+	
+	@property
+	def b_eq(self): return np.zeros((0))
+	
+	def _isinside(self, X):
+		return self._isinside_bounds(X) 
+
+	def _extent(self, x, p):
+		return self._extent_bounds(x, p)
 
 
 class PointDomain(BoxDomain):
@@ -1253,11 +1382,12 @@ class TensorProductDomain(Domain):
 	def _isinside(self, X):
 		inside = np.ones(X.shape[0], dtype = np.bool)
 		for dom, I in zip(self.domains, self._slices):
+			print(dom, I, dom.isinside(X[:,I]))
 			inside = inside & dom.isinside(X[:,I])
 		return inside
 
 	def _extent(self, x, p):
-		alpha = [dom.extent(x[I], p[I]) for dom, I in zip(self.domains, self._slices)]
+		alpha = [dom._extent(x[I], p[I]) for dom, I in zip(self.domains, self._slices)]
 		return min(alpha)
 
 
@@ -1346,7 +1476,6 @@ class TensorProductDomain(Domain):
 	def b_eq(self):
 		return np.concatenate([dom.b_eq for dom in self.domains])
 
-
 	
 
 class RandomDomain(Domain):
@@ -1378,10 +1507,10 @@ class RandomDomain(Domain):
 		x = np.array(x)
 		if len(x.shape) == 1:
 			x = x.reshape(-1,len(self))
-			return self._pdf(self, x).flatten()
+			return self._pdf(x).flatten()
 		else:
 			x = np.array(x).reshape(-1,len(self))
-			return self._pdf(self, x)
+			return self._pdf(x)
 
 	def _pdf(self, x):
 		raise NotImplementedError
@@ -1429,111 +1558,98 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 	truncate: float in [0,1), optional
 		Amount to truncate the domain to ensure compact support
 	"""
-	def __init__(self, mean, cov = None, clip = None, normalization = None, truncate = None):
-		# mean
-		if isinstance(mean, float) or isinstance(mean, int):
+	def __init__(self, mean, cov = None, truncate = None, **kwargs):
+		self.tol = 1e-6	
+		self.kwargs = kwargs
+		######################################################################################	
+		# Process the mean
+		######################################################################################	
+		if isinstance(mean, (int, float)):
 			mean = [mean]
 		self.mean = np.array(mean)
 		self._dimension = m = self.mean.shape[0]
-		
-		# covariance
-		if isinstance(cov, float) or isinstance(cov, int):
-			cov = [[cov]]
-		if cov is None:
-			cov = np.eye(m)
-		self.cov = np.array(cov)
-		assert self.cov.shape[0] == self.cov.shape[1], "Covariance must be square"
-		assert self.cov.shape[0] == self.mean.shape[0], "Covariance must be the same shape as mean"
-
-
-		# Check that cov is symmetric positive definite
-		assert np.linalg.norm(self.cov - self.cov.T) < 1e-10
-		self.ew, self.ev = np.linalg.eigh(cov)
-		assert np.all(self.ew > 0), 'covariance matrix must be positive definite'
-		
-		self.clip = clip
-		if normalization is None:
-			if clip is None:
-				normalization = 'nonlinear'
-			else:
-				normalization = 'linear'
-
-		assert normalization in ['linear', 'nonlinear'], "normalization must be one of either 'linear' or 'nonlinear'"
-		self.normalization = normalization
-
-		if normalization == 'linear':
-			assert clip is not None, "clip must be specified to use linear normalization function"
-		else:
-			self._normalize = self._normalize_nonlinear
-			self._unnormalize = self._unnormalize_nonlinear
-			self._normalized_domain = self._normalized_domain_nonlinear
 	
-		### Recent updates
-		self._Ls = [np.linalg.cholesky(self.cov).reshape(len(self), len(self))]
-		self._ys = [np.copy(self.mean)]
-		self._rhos = [self.clip]
+		######################################################################################	
+		# Process the covariance
+		######################################################################################	
+		if isinstance(cov, (int, float)):
+			cov = np.array([[cov]])
+		elif cov is None:
+			cov = np.eye(m)
+		else:
+			cov = np.array(cov)
+			assert cov.shape[0] == cov.shape[1], "Covariance must be square"
+			assert cov.shape[0] == len(self),  "Covariance must be the same shape as mean"
+			assert np.all(np.isclose(cov,cov.T)), "Covariance matrix must be symmetric"
+		
+		self.cov = cov
+		self.L = scipy.linalg.cholesky(self.cov, lower = True)		
+		self.Linv = scipy.linalg.solve_triangular(self.L, np.eye(len(self)), lower = True, trans = 'N')
+		self.truncate = truncate
 
+		if truncate is not None:
+			# Clip corresponds to the 2-norm squared where we should trim based on the truncate
+			# parameter.  1 - cdf is the survival function, so we call the inverse survival function to locate
+			# this parameter.
+			self.clip = scipy.stats.chi2.isf(truncate, len(self)) 
+			
+			self._Ls = [np.copy(self.Linv) ]
+			self._ys = [np.copy(self.mean)]
+			# As the transform by Linv places this as a standard-normal,
+			# we truncate at the clip parameter.
+			self._rhos = [np.sqrt(self.clip)]
 
+		else:
+			self.clip = None
+			self._Ls = []
+			self._ys = []
+			self._rhos = []
 
 	def _sample(self, draw = 1):
 		X = np.random.randn(draw, self.mean.shape[0])
 		if self.clip is not None:
+			# Under the assumption that the truncation parameter is small,
+			# we use replacement sampling.
 			while True:
 				# Find points that violate the clipping
-				I = np.sqrt(np.sum(X**2, axis = 1)) > self.clip
+				I = np.sum(X**2, axis = 1) > self.clip
 				if np.sum(I) == 0:
 					break
 				X[I,:] = np.random.randn(np.sum(I), self.mean.shape[0])
 		
 		# Convert from standard normal into this domain
-		X = (self.mean.reshape(-1,1) + np.dot(np.diag(np.sqrt(self.ew)), np.dot(self.ev.T, X.T))).T
-		return X	
+		X = (self.mean.reshape(-1,1) + self.L.dot(X.T) ).T
+		return X
 
-	def _normalize_nonlinear(self, X):
-		return np.dot(self.ev, np.dot(np.diag(1./np.sqrt(self.ew)), X.T - self.mean.reshape(-1,1))).T
 
-	def _unnormalize_nonlinear(self, X_norm):
-		return (self.mean.reshape(-1,1) + np.dot(np.diag(np.sqrt(self.ew)), np.dot(self.ev.T, X_norm.T))).T
-	
-	#def _normalized_domain(self):
-	#	# Linear domain transform
-	#	assert self.clip is not None, "to generate normalized domain with a linear transform, clip must not be none"
-	#	mean_norm = np.zeros(len(self))
-	#	D = np.diag(2./(self.ub - self.lb))
-	#	cov_norm = np.dot(D, np.dot(self.cov, D))
-	#	return NormalDomain(mean_norm, cov_norm, clip = self.clip, normalization = self.normalization) 
-	
+	def _center(self):
+		# We redefine the center because due to anisotropy in the covariance matrix,
+		# the center is *not* the mean of the coordinate-wise bounds
+		try:
+			self._use_norm
+		except AttributeError:
+			self._use_norm = True
+		
+		if self._use_norm:
+			return np.copy(self.mean)
+		else:
+			return np.zeros(len(self))
+
 	def _normalized_domain(self):
-		assert self.normalization == 'linear'
-		return BoxDomain(-1*np.ones(self.lb.shape),np.ones(self.ub.shape))
+		# We need to do this to keep the sampling measure correct
+		D = self._normalize_der()
+		return NormalDomain(self.normalize(self.mean), D.dot(self.cov).dot(D.T), truncate = self.truncate)
 
-	def _normalized_domain_nonlinear(self):
-		return NormalDomain(np.zeros(len(self)), np.eye(len(self)), clip = self.clip, normalization = self.normalization)
 	
 
 	################################################################################		
 	# Simple properties
 	################################################################################		
+	@property
+	def lb(self): return -np.inf*np.ones(len(self))
 	
-	@property		
-	def lb(self):
-		if self.clip is None:
-			return -np.inf*np.ones(len(self))
-		elif len(self) == 1:
-			return self.mean.reshape(-1) - self.clip*np.sqrt(np.diag(self.cov))
-		else:
-			# Should loop over corner for each coordinate, and cache those values
-			# this should probably be done in the initialization
-			raise NotImplementedError	
-	
-	@property		
-	def ub(self):
-		if self.clip is None:
-			return np.inf*np.ones(len(self))
-		elif len(self) == 1:
-			return self.mean.reshape(-1) + self.clip*np.sqrt(np.diag(self.cov))
-		else:
-			raise NotImplementedError
+	@property
+	def ub(self): return np.inf*np.ones(len(self))
 
 	@property
 	def A(self): return np.zeros((0,len(self)))
@@ -1547,130 +1663,79 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 	@property
 	def b_eq(self): return np.zeros(0)
 
- 
 
 	def _isinside(self, X):
-		#print("called isinside")
-		if self.clip is None:
-			return np.ones(X.shape[0], dtype = np.bool)
-		else:
-			X_norm = self._normalize_nonlinear(X)
-			X2 = np.sqrt(np.sum(X_norm**2, axis = 1))
-			return X2 < self.clip	
+		return self._isinside_quad(X) 
 
-	def _extent(self, x, p):
-		if self.clip is None:
-			return np.inf
-		elif len(self) == 1:
-			# If there is only one coordinate, we can simply check against the bounds
-			return self._extent_bounds(x, p)
-		else:
-			print("called extent")
-			dist_from_boundary = lambda alpha: np.linalg.norm(self._normalize_nonlinear(x + alpha*p), 2) - self.clip
-			alpha = auto_root(dist_from_boundary) 	
-			return alpha
-
-	def _corner(self, p):
-		if self.clip is None:
-			raise UnboundedError("Cannot find the corner on an unbounded domain")
-		elif len(self) == 1:
-			# If there is only one coordinate, we can simply use an LP
-			return linprog(-p, lb = self.lb, ub = self.ub)
-		else:
-			# TODO: implement quadratic program for finding the boundary
-			# for a comparison of quadratic program solvers, see: https://scaron.info/blog/quadratic-programming-in-python.html
-			# the conclusion is quadprog is probably the best bet: https://github.com/rmcgibbo/quadprog
-			raise NotImplementedError
+	def _pdf(self, X):
+		# Mahalanobis distance
+		d2 = np.sum(self.Linv.dot(X.T - self.mean.reshape(-1,1))**2, axis = 0)
+		# Normalization term
+		p = np.exp(-0.5*d2) / np.sqrt((2*np.pi)**len(self) * np.abs(scipy.linalg.det(self.cov)))
+		if self.truncate is not None:
+			p /= (1-self.truncate)
+		return p
 
 # TODO: Ensure sampling is still correct (IMPORTANT FOR DUU Solution)
-class LogNormalDomain(NormalDomain):
-	""" A domain imbued with a log normal sampling measure
+class LogNormalDomain(BoxDomain, RandomDomain):
+	r"""A one-dimensional domain described by a log-normal distribution.
 
-	A log-normal domain is distributed like:
-		
-		offset + scaling * exp(x)    where x samples a normal distribution with mean mean and covariance cov
+	Given a normal distribution :math:`\mathcal{N}(\boldmath{\mu}, \boldmath{\Gamma})`,
+	the log normal is described by
+
+	.. math::
+
+		x = \alpha + \beta e^y, \quad y \sim \mathcal{N}(\boldmath{\mu}, \boldmath{\Gamma})
+
+	where :math:`\alpha` is an offset and :math:`\beta` is a scaling coefficient. 
+	
 
 	Parameters
 	----------
-	mean: np.ndarray or float
+	mean: float
 		mean of normal distribution feeding the log-normal distribution
-	cov: np.ndarray or float
-		covariance matrix of normal distribution that feeds the log-normal distribution
-	clip: float
-		truncate the normal distribution feeding the log-normal distribution
-	offset: np.ndarray [optional]
+	cov: float, optional  
+		covariance of normal distribution feeding the log-normal distribution
+	offset: float, optional
 		Shift the distribution
 	scaling: float or np.ndarray
 		Scale the output of the log-normal distribution
-	normalization: one of ['linear', 'nonlinear']
-		Use either a nonlinear normalization, mapping back to the standard normal,
-		or a linear mapping (which requires clip to be enabled).
+	truncate: float [0,1)
+		Truncate the tails of the distribution
 	"""	
-	def __init__(self, mean, cov, scaling = 1., offset = None, clip = None, normalization = None):
-		# Since the setup is almost identical to a normal domain, we simply borrow the constructor
-		NormalDomain.__init__(self, mean, cov, clip = clip, normalization = normalization)
-		self.scaling = np.array(scaling).reshape(-1,1)
-		if offset is None:
-			offset = np.zeros(self.mean.shape)
-		self.offset = offset
+	def __init__(self, mean, cov = 1., offset = 0., scaling = 1., truncate = None):
+		self.tol = 1e-6
+		self.normal_domain = NormalDomain(mean, cov, truncate = truncate)
+		assert len(self.normal_domain) == 1, "Only defined for one-dimensional distributions"
+
+		self.scaling = float(scaling)
+		self.offset = float(offset)
+		self.truncate = truncate
+
+		# Determine bounds
+		# Because this doesn't have a convex relationship to the multivariate normal
+		# truncated domains, we manually specify these here as they cannot be inferred
+		# from the (non-existant) quadratic constraints as in the NormalDomain case.
+		if self.truncate is not None:
+			self._lb = self.offset + self.scaling*np.exp(self.normal_domain.norm_lb)
+			self._ub = self.offset + self.scaling*np.exp(self.normal_domain.norm_ub)
+		else:
+			self._lb = 0.*np.ones(1)
+			self._ub = np.inf*np.ones(1)
+
+	def __len__(self):
+		return len(self.normal_domain)
 
 	def _sample(self, draw = 1):
-		return self.offset + self.scaling * np.exp(NormalDomain._sample(self, draw = draw))
+		X = self.normal_domain.sample(draw)
+		return np.array(self.offset).reshape(-1,1) + self.scaling*np.exp(X)
 
-	@property
-	def lb(self):
-		if self.clip is None:
-			return self.offset.reshape(-1)
+	def _normalized_domain(self):
+		if self.truncate is not None:
+			c = self._center()
+			D = float(self._normalize_der()) 
+			return LogNormalDomain(self.normal_domain.mean, self.normal_domain.cov, 
+				offset = D*(self.offset - c) , scaling = D*self.scaling, truncate = self.truncate)
 		else:
-			return (self.offset + self.scaling.reshape(-1) * np.exp(NormalDomain.lb.fget(self) )).reshape(-1)
-
-	@property
-	def ub(self):
-		if self.clip is None:
-			return np.inf*np.ones( (len(self),))
-		else:
-			return (self.offset + self.scaling.reshape(-1) * np.exp(NormalDomain.ub.fget(self))).reshape(-1)
-	
-	def _normalize_nonlinear(self, X):
-		if np.any(X/self.scaling <= 0):
-			print("invalid value", X/self.scaling)
-		return NormalDomain._normalize_nonlinear(self, np.log(X/self.scaling))
-
-	def _unnormalize_nonlinear(self, X_norm):
-		return self.scaling * np.exp(NormalDomain._unnormalize_nonlinear(self, X_norm))
-
-# 	TODO: How can we make this code work such that we preserve density after normalization
-#	def _normalized_domain(self):
-#		assert self.clip is not None, "to generate normalized domain with a linear transform, clip must not be none"
-#		lb = NormalDomain.lb.fget(self)
-#		ub = NormalDomain.ub.fget(self)
-#
-#		scaling_norm = ( 2.0/(np.exp(ub) - np.exp(lb) ))
-#		scaling_norm = scaling_norm.reshape(-1,1)
-#		offset_norm = -np.ones(len(self)) - np.exp(lb)*scaling_norm
-#
-#		return LogNormalDomain(self.mean, self.cov, offset = offset_norm, scaling = scaling_norm, normalization = self.normalization, clip = self.clip)
-
-	def _normalized_domain_nonlinear(self):
-		return NormalDomain(np.zeros(len(self)), np.eye(len(self)), clip = self.clip, normalization = self.normalization)
-	
-	def _extent(self, x, p):
-		if self.clip is None:
-			return self._extent_bounds(x, p)
-		else:
-			NormalDomain._extent(self, x, p)
-			
-	def _isinside(self, X):
-		print("called LogNormalDomain isinside")
-		if self.clip is None:
-			return np.min(X>0, axis = 1)
-		else:
-			X_norm = self._normalize_nonlinear(X)
-			X2 = np.sqrt(np.sum(X_norm**2, axis = 1))
-			return X2 < self.clip	
-
-	@property
-	def center(self):
-		return self.scaling * np.exp(self.mean.reshape(-1))
-
+			return self
 

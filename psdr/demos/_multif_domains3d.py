@@ -268,16 +268,16 @@ def buildDesignDomain(output='verbose'):
 	return design_domain
 
 
-def buildRandomDomain(output='verbose', clip = None, normalization = 'linear'):
+def buildRandomDomain(output='verbose', truncate = None):
 	'''
 	The standard random domain with 40 random variables.
 	'''
 
 	random_domains = [
 	#			CMC_DENSITY, 1,
-		LogNormalDomain(7.7803, 0.0182**2, clip = clip, normalization = normalization),
+		LogNormalDomain(7.7803, 0.0182**2, truncate = truncate),
 	#			CMC_ELASTIC_MODULUS, 1,
-		LogNormalDomain(4.2047, 0.0551**2, scaling = 1e9, clip = clip, normalization = normalization),
+		LogNormalDomain(4.2047, 0.0551**2, scaling = 1e9, truncate = truncate, ),
 	#			CMC_POISSON_RATIO, 1,
 		UniformDomain(0.23, 0.43),
 	#			 CMC_THERMAL_CONDUCTIVITY, 1,
@@ -285,7 +285,7 @@ def buildRandomDomain(output='verbose', clip = None, normalization = 'linear'):
 	#			CMC_THERMAL_EXPANSION_COEF, 1, 
 		UniformDomain(0.228e-6, 0.252e-6),	 
 	#			CMC_PRINCIPLE_FAILURE_STRAIN, 1, 
-		LogNormalDomain(-2.6694, 0.1421**2, scaling=1e-2, clip = clip, normalization = normalization),
+		LogNormalDomain(-2.6694, 0.1421**2, scaling=1e-2, truncate = truncate, ),
 	#			CMC_MAX_SERVICE_TEMPERATURE, 1, 
 		UniformDomain(963, 983),
 	#
@@ -323,7 +323,7 @@ def buildRandomDomain(output='verbose', clip = None, normalization = 'linear'):
 	#			TI-HC_DENSITY, 1, 
 		UniformDomain(177.77, 181.37),
 	#			TI-HC_ELASTIC_MODULUS, 1, 
-		LogNormalDomain(0.6441, 0.0779**2, scaling = 1e9, clip = clip, normalization = normalization),
+		LogNormalDomain(0.6441, 0.0779**2, scaling = 1e9, truncate = truncate, ),
 	#			TI-HC_POISSON_RATIO, 1, 
 		UniformDomain(0.160, 0.196),
 	#			TI-HC_THERMAL_CONDUCTIVITY, 1, 
@@ -331,7 +331,7 @@ def buildRandomDomain(output='verbose', clip = None, normalization = 'linear'):
 	#			TI-HC_THERMAL_EXPANSION_COEF, 1, 
 		UniformDomain(2.88e-6, 3.06e-6),
 	#			TI-HC_YIELD_STRESS, 1,
-		LogNormalDomain(2.5500, 0.1205**2, scaling = 1e6, clip = clip, normalization = normalization),
+		LogNormalDomain(2.5500, 0.1205**2, scaling = 1e6, truncate = truncate, ),
 	#			TI-HC_MAX_SERVICE_TEMPERATURE, 1, 
 		UniformDomain(745, 765),
 	#
@@ -339,17 +339,17 @@ def buildRandomDomain(output='verbose', clip = None, normalization = 'linear'):
 	#			AIR_THERMAL_CONDUCTIVITY, 1, 
 		UniformDomain(0.0320, 0.0530),
 	#			PANEL_YIELD_STRESS, 1, 
-		LogNormalDomain(4.3191, 0.1196**2, scaling = 1e6, clip = clip, normalization = normalization), 
+		LogNormalDomain(4.3191, 0.1196**2, scaling = 1e6, truncate = truncate, ), 
 	#			INLET_PSTAG, 1, 
-		LogNormalDomain(11.5010, 0.0579**2, clip = clip, normalization = normalization),
+		LogNormalDomain(11.5010, 0.0579**2, truncate = truncate, ),
 	#			INLET_TSTAG, 1, 
-		LogNormalDomain(6.8615, 0.0119**2, clip = clip, normalization = normalization),
+		LogNormalDomain(6.8615, 0.0119**2, truncate = truncate, ),
 	#			ATM_PRES, 1, 
-		LogNormalDomain(9.8386, 0.0323**2, clip = clip, normalization = normalization),
+		LogNormalDomain(9.8386, 0.0323**2, truncate = truncate, ),
 	#			ATM_TEMP, 1, 
-		LogNormalDomain(5.3781, 0.0282**2, clip = clip, normalization = normalization),
+		LogNormalDomain(5.3781, 0.0282**2, truncate = truncate, ),
 	#			HEAT_XFER_COEF_TO_ENV, 1
-		LogNormalDomain(2.5090, 0.2285, clip = clip, normalization = normalization),
+		LogNormalDomain(2.5090, 0.2285, truncate = truncate, ),
 	]
 
 	return TensorProductDomain(random_domains)

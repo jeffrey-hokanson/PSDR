@@ -55,6 +55,9 @@ def test_corner(m = 5):
 
 	p = np.random.randn(m)
 
+	print(dom.norm_lb)
+	print(dom.norm_ub)
+
 	x = dom.corner(p)
 	print(x)
 	print(p/np.linalg.norm(p))
@@ -122,7 +125,7 @@ def test_bad_scaling():
 	# Check quality of solution
 	p = np.ones(len(dom1))
 	x1 = dom1.corner(p)
-	x2 = dom2.corner(p, verbose = True, solver = 'ECOS', abstol = 4e-10, reltol = 1e-20, feastol = 1e-20, max_iters = 500)
+	x2 = dom2.corner(p, verbose = True, solver = 'ECOS', abstol = 4e-10, reltol = 1e-14, feastol = 1e-14, max_iters = 500)
 	for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
 		print "x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_)
 	assert np.all(np.isclose(x1,x2))	

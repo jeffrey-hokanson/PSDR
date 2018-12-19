@@ -8,17 +8,16 @@ from __future__ import print_function
 import numpy as np
 from _multif_domains3d import buildDesignDomain, buildRandomDomain
 
-def build_multif_domain(clip = 5):
+def build_multif_domain(truncate = 1e-7):
 	design_domain = buildDesignDomain(output = 'none')
-	random_domain = buildRandomDomain(clip = clip)
+	random_domain = buildRandomDomain(truncate = truncate)
 	return design_domain * random_domain
 
 def build_multif_design_domain(output = 'none'):
 	return buildDesignDomain(output = output)
 
-def build_multif_random_domain(clip = 5, normalization = 'linear'):
-	if clip is None: normalization = 'nonlinear'
-	return buildRandomDomain(clip = clip, normalization = normalization)
+def build_multif_random_domain(truncate = 1e-7):
+	return buildRandomDomain(truncate = truncate)
 
 
 def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None, 

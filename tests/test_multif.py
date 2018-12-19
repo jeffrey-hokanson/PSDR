@@ -3,9 +3,13 @@ from psdr.demos import build_multif_domain
 
 def test_multif():
 	dom = build_multif_domain()
+	for i in range(len(dom)):
+		print "%10.2e, %10.2e" % (dom.norm_lb[i], dom.norm_ub[i]) 
+	#dom = dom.normalized_domain()
+	#assert False
 	# Check sampling
-	dom.sample(10)
-
+	X = dom.sample(10)
+	dom.isinside(X)
 	# Check corners
 	for i in range(10):
 		p = np.random.randn(len(dom))

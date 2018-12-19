@@ -368,76 +368,76 @@ def cleanupConstraintMatrix(Alist=[],blist=[]):
         if np.count_nonzero(A[i,:]) == 0: # no entries
             rowsToDelete.append(i);
     
-    A = np.delete(A,np.array(rowsToDelete),0)
-    b = np.delete(b,np.array(rowsToDelete),0)
+    A = np.delete(A,np.array(rowsToDelete, dtype = np.int),0)
+    b = np.delete(b,np.array(rowsToDelete, dtype = np.int),0)
     
     return A, b;
 
 
 # A hit and run method for sampling from a polytope.    
-def hitAndRun(N, A, b, lb, ub):
-
-    m, n = A.shape
-        
-    # Attempt to find initial feasible point at Chebyshev center
-    normA = np.sqrt( np.sum( np.power(A, 2), axis=1 ) ).reshape((m, 1))
-    AA = np.hstack(( A, normA ))
-    c = np.zeros((n+1,))
-    c[-1] = -1.0
-    if lb.size < 1: # do not use bounds
-        result = optimize.linprog(c,A_ub=AA,b_ub=b)
-        #print result
-        z0 = result.x[0:-1].reshape((n,1))   
-    else:
-        raise NotImplementedError('Bounds are not currently implemented.');
-        bounds_list = []
-        for i in range(x.n):
-            bounds_list.append((lb[i],ub[i]))
-        bounds_list.append((None,None))
-        result = optimize.linprog(c,A_ub=AA,b_ub=b,bounds=tuple(bounds_list))
-        z0 = result.x[0:-1].reshape((n,1))
-    
-    # Reshape necessary arrays
-    b = b.reshape((m,1))
-
-    # tolerance
-    ztol = 1e-6
-    eps0 = ztol/4.0
-
-    Z = np.zeros((N, n))
-    for i in range(N):
-
-        # random direction
-        bad_dir = True
-        count, maxcount = 0, int(1e6)
-        while bad_dir:
-            d = np.random.normal(size=(n, 1))
-            bad_dir = np.any(np.dot(A, z0 + eps0*z0*d/np.linalg.norm(d)) > b)
-            count += 1
-            if count >= maxcount:
-                print 'hitAndRun error: reached max bad direction count'
-                Z[i:,:] = np.tile(z0, (1,N-i)).transpose()
-                return -1
-
-        # find constraints that impose lower and upper bounds on eps
-        f, g = b - np.dot(A,z0), np.dot(A, d)
-
-        # find an upper bound on the step
-        min_ind = np.logical_and(g>=0, f > np.sqrt(np.finfo(np.float).eps))
-        eps_max = np.amin(f[min_ind]/g[min_ind])
-
-        # find a lower bound on the step
-        max_ind = np.logical_and(g<0, f > np.sqrt(np.finfo(np.float).eps))
-        eps_min = np.amax(f[max_ind]/g[max_ind])
-
-        # randomly sample eps
-        eps1 = np.random.uniform(eps_min, eps_max)
-
-        # take a step along d
-        z1 = z0 + eps1*d
-        Z[i,:] = z1.reshape((n, ))
-
-        # update temp var
-        z0 = z1.copy()
-
-    return Z
+#def hitAndRun(N, A, b, lb, ub):
+#
+#    m, n = A.shape
+#        
+#    # Attempt to find initial feasible point at Chebyshev center
+#    normA = np.sqrt( np.sum( np.power(A, 2), axis=1 ) ).reshape((m, 1))
+#    AA = np.hstack(( A, normA ))
+#    c = np.zeros((n+1,))
+#    c[-1] = -1.0
+#    if lb.size < 1: # do not use bounds
+#        result = optimize.linprog(c,A_ub=AA,b_ub=b)
+#        #print result
+#        z0 = result.x[0:-1].reshape((n,1))   
+#    else:
+#        raise NotImplementedError('Bounds are not currently implemented.');
+#        bounds_list = []
+#        for i in range(x.n):
+#            bounds_list.append((lb[i],ub[i]))
+#        bounds_list.append((None,None))
+#        result = optimize.linprog(c,A_ub=AA,b_ub=b,bounds=tuple(bounds_list))
+#        z0 = result.x[0:-1].reshape((n,1))
+#    
+#    # Reshape necessary arrays
+#    b = b.reshape((m,1))
+#
+#    # tolerance
+#    ztol = 1e-6
+#    eps0 = ztol/4.0
+#
+#    Z = np.zeros((N, n))
+#    for i in range(N):
+#
+#        # random direction
+#        bad_dir = True
+#        count, maxcount = 0, int(1e6)
+#        while bad_dir:
+#            d = np.random.normal(size=(n, 1))
+#            bad_dir = np.any(np.dot(A, z0 + eps0*z0*d/np.linalg.norm(d)) > b)
+#            count += 1
+#            if count >= maxcount:
+#                print 'hitAndRun error: reached max bad direction count'
+#                Z[i:,:] = np.tile(z0, (1,N-i)).transpose()
+#                return -1
+#
+#        # find constraints that impose lower and upper bounds on eps
+#        f, g = b - np.dot(A,z0), np.dot(A, d)
+#
+#        # find an upper bound on the step
+#        min_ind = np.logical_and(g>=0, f > np.sqrt(np.finfo(np.float).eps))
+#        eps_max = np.amin(f[min_ind]/g[min_ind])
+#
+#        # find a lower bound on the step
+#        max_ind = np.logical_and(g<0, f > np.sqrt(np.finfo(np.float).eps))
+#        eps_min = np.amax(f[max_ind]/g[max_ind])
+#
+#        # randomly sample eps
+#        eps1 = np.random.uniform(eps_min, eps_max)
+#
+#        # take a step along d
+#        z1 = z0 + eps1*d
+#        Z[i,:] = z1.reshape((n, ))
+#
+#        # update temp var
+#        z0 = z1.copy()
+#
+#    return Z
