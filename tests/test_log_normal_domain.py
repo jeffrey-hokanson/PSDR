@@ -29,3 +29,8 @@ def test_normalize():
 	assert np.isclose(dom_norm.ub, 1)
 
 	# TODO: Check densities
+	X = dom.sample(100)
+	X_norm = dom.normalize(X)
+	p = dom.pdf(X)
+	p_norm = dom_norm.pdf(X_norm)
+	assert np.all(np.isclose(p, p_norm))

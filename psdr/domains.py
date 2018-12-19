@@ -1669,6 +1669,8 @@ class LogNormalDomain(BoxDomain, RandomDomain):
 		self.normal_domain = NormalDomain(mean, cov, truncate = truncate)
 		assert len(self.normal_domain) == 1, "Only defined for one-dimensional distributions"
 
+		self.mean = float(self.normal_domain.mean)
+		self.cov = float(self.normal_domain.cov)
 		self.scaling = float(scaling)
 		self.offset = float(offset)
 		self.truncate = truncate
@@ -1699,4 +1701,9 @@ class LogNormalDomain(BoxDomain, RandomDomain):
 				offset = D*(self.offset - c) , scaling = D*self.scaling, truncate = self.truncate)
 		else:
 			return self
+
+	def _pdf(self, X):
+		X_norm = (X - self.offset)/self.scaling
+		p = np.exp(-(np.log(X_norm) - self.mean)**2/(2*self.cov))/(X_norm*self.cov*np.sqrt(2*np.pi))
+		return p
 
