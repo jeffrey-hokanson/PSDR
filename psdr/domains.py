@@ -488,9 +488,6 @@ class Domain(object):
 		try: 
 			return self._norm_lb
 		except AttributeError:
-			# Temporarly disable normalization
-			self._use_norm = False
-	
 			self._norm_lb = -np.inf*np.ones(len(self))
 			for i in range(len(self)):
 				ei = np.zeros(len(self))
@@ -504,7 +501,6 @@ class Domain(object):
 					except SolverError:
 						self._norm_lb[i] = -np.inf
 
-			self._use_norm = True
 			return self._norm_lb
 
 	@property
@@ -515,7 +511,6 @@ class Domain(object):
 			return self._norm_ub
 		except AttributeError:
 			# Temporarly disable normalization
-			self._use_norm = False
 			
 			# Note: since this will be called by corner, we need to 
 			# choose a reasonable value to initialize this property, which
@@ -532,8 +527,6 @@ class Domain(object):
 						self._norm_ub[i] = x_corner[i]	
 					except SolverError:
 						self._norm_ub[i] = np.inf
-			# Re-enable normalization
-			self._use_norm = True
 			
 			return self._norm_ub
 	
@@ -546,47 +539,23 @@ class Domain(object):
 
 	def _normalize_der(self):
 		"""Derivative of normalization function"""
-		try:
-			self._use_norm
-		except AttributeError:
-			self._use_norm = True
 
-		if self._use_norm:
-			slope = np.ones(len(self))
-			I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
-			slope[I] = 2.0/(self.norm_ub[I] - self.norm_lb[I])
-			return np.diag(slope)
-		else:
-			return np.eye(len(self))
+		slope = np.ones(len(self))
+		I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
+		slope[I] = 2.0/(self.norm_ub[I] - self.norm_lb[I])
+		return np.diag(slope)
 
 	def _unnormalize_der(self):
-		try:
-			self._use_norm
-		except AttributeError:
-			self._use_norm = True
-		
-		if self._use_norm:
-			slope = np.ones(len(self))
-			I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
-			slope[I] = (self.norm_ub[I] - self.norm_lb[I])/2.0
-			return np.diag(slope)
-		else:
-			return np.eye(len(self))
+		slope = np.ones(len(self))
+		I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
+		slope[I] = (self.norm_ub[I] - self.norm_lb[I])/2.0
+		return np.diag(slope)
 	
 	def _center(self):
-		try:
-			self._use_norm
-		except AttributeError:
-			self._use_norm = True
-		
-		if self._use_norm:
-			c = np.zeros(len(self))
-			I = np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
-			c[I] = (self.norm_lb[I] + self.norm_ub[I])/2.0
-			return c	
-		else:
-			return np.zeros(len(self))
-
+		c = np.zeros(len(self))
+		I = np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
+		c[I] = (self.norm_lb[I] + self.norm_ub[I])/2.0
+		return c	
 
 	def _normalize(self, X):
 		# reshape so numpy's broadcasting works correctly
@@ -1625,15 +1594,7 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 	def _center(self):
 		# We redefine the center because due to anisotropy in the covariance matrix,
 		# the center is *not* the mean of the coordinate-wise bounds
-		try:
-			self._use_norm
-		except AttributeError:
-			self._use_norm = True
-		
-		if self._use_norm:
-			return np.copy(self.mean)
-		else:
-			return np.zeros(len(self))
+		return np.copy(self.mean)
 
 	def _normalized_domain(self):
 		# We need to do this to keep the sampling measure correct

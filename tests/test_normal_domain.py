@@ -59,14 +59,9 @@ def test_corner():
 	print dom.norm_lb
 	print dom.norm_ub
 	print dom._center()
-	print dom._use_norm
-	dom._use_norm = True
 	print "lower bound", dom.corner([-1])
 	print "upper bound", dom.corner([1])
 	print dom.sample(10)
-	#X = dom.sample(10)
-	#assert np.all(X<= dom.ub)
-	#assert np.all(dom.lb <= X)
 
 
 # TODO: Need to implement tensor-product quadrature rules to test 

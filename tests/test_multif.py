@@ -6,7 +6,6 @@ def test_multif():
 	for i in range(len(dom)):
 		print "%10.2e, %10.2e" % (dom.norm_lb[i], dom.norm_ub[i]) 
 	#dom = dom.normalized_domain()
-	#assert False
 	# Check sampling
 	X = dom.sample(10)
 	dom.isinside(X)
