@@ -1641,12 +1641,12 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 class LogNormalDomain(BoxDomain, RandomDomain):
 	r"""A one-dimensional domain described by a log-normal distribution.
 
-	Given a normal distribution :math:`\mathcal{N}(\boldmath{\mu}, \boldmath{\Gamma})`,
+	Given a normal distribution :math:`\mathcal{N}(\boldsymbol{\mu}, \boldsymbol{\Gamma})`,
 	the log normal is described by
 
 	.. math::
 
-		x = \alpha + \beta e^y, \quad y \sim \mathcal{N}(\boldmath{\mu}, \boldmath{\Gamma})
+		x = \alpha + \beta e^y, \quad y \sim \mathcal{N}(\boldsymbol{\mu}, \boldsymbol{\Gamma})
 
 	where :math:`\alpha` is an offset and :math:`\beta` is a scaling coefficient. 
 	
