@@ -11,6 +11,7 @@ Welcome to Parameter Space Dimension Reduction's documentation!
    :caption: Contents:
    
    domain 
+   basis
    function
    pools
    samplers

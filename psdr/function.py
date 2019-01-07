@@ -29,8 +29,17 @@ class Function(object):
 		self.funs = funs
 		self.domain = domain
 
-	def __call__(self, X, **kwargs):
-		pass
+	def eval(self, X):
+		return self.__call__(self, X, return_grad = False)
+
+	def grad(self, X):
+		return self.__call__(self, X, return_grad = True)[1]
+
+	def __call__(self, X, return_grad = False):
+		if return_grad:
+			return self.eval(X), self.grad(X)
+		else:
+			return self.eval(X)
 
 	def __get__(self, i):
 		"""Get a particular sub-function as another Function"""

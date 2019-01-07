@@ -1,9 +1,10 @@
 import util
 import opt
 from domains import *
+from basis import *
 from function import Function
 from subspace import *
-from poly_ridge import *
+from polyridge import *
 from gp import * 
 from sample import *
 from lipschitz import scalar_lipschitz, multivariate_lipschitz, check_lipschitz  

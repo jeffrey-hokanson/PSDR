@@ -10,11 +10,7 @@ from scipy.special import comb
 from scipy.optimize import minimize, check_grad
 from scipy.spatial import Voronoi
 from copy import deepcopy
-from numpy.polynomial.polynomial import polyvander, polyder
-from numpy.polynomial.legendre import legvander, legder, legroots 
-from numpy.polynomial.chebyshev import chebvander, chebder
-from numpy.polynomial.hermite import hermvander, hermder
-from numpy.polynomial.laguerre import lagvander, lagder
+from basis import *
 
 # Parallel computation
 from parallel import pmap
@@ -23,6 +19,35 @@ from opt import minimax, linprog
 from domains import BoxDomain, ConvexHullDomain
 
 from geometry import sample_sphere
+from function import Function
+
+class PolynomialRidgeFunction(Function):
+	r""" A polynomial ridge function
+	"""
+	def __init__(self, basis, coef, U):
+		self.basis = basis
+		self.coef = np.copy(coef)
+		self.U = np.array(U)
+
+	def eval(self, X):
+		Y = np.dot(U.T, X.T).T
+		return self.basis.VC(Y, self.coef)
+	
+	def grad(self, X):
+		Y = np.dot(U.T, X.T).T
+		
+
+
+
+# Now PolynomialRidgeApproximation inherits from PolynomialRidgeFunction
+# to provide access to call/predict 
+
+################################################################################
+# EDIT LINE; edited code above
+################################################################################
+
+
+
 
 ################################################################################
 # Two types of custom errors raised by PolynomialRidgeApproximation
@@ -49,238 +74,6 @@ def lstsq(A,b):
 	return scipy.linalg.lstsq(A, b, cond = -1)[0]
 	#return np.linalg.lstsq(A,b, rcond=-1)[0]
 
-################################################################################
-# Indexing utility functions
-################################################################################
-
-def _full_index_set(n, d):
-	""" A helper function for index_set.
-	"""
-	if d == 1:
-		I = np.array([[n]])
-	else:
-		II = _full_index_set(n, d-1)
-		m = II.shape[0]
-		I = np.hstack((np.zeros((m, 1)), II))
-		for i in range(1, n+1):
-			II = _full_index_set(n-i, d-1)
-			m = II.shape[0]
-			T = np.hstack((i*np.ones((m, 1)), II))
-			I = np.vstack((I, T))
-	return I
-
-def index_set(n, d):
-	"""Enumerate multi-indices for a total degree of order `n` in `d` variables.
-	Parameters
-	----------
-	n : int
-		degree of polynomial
-	d : int
-		number of variables, dimension
-	Returns
-	-------
-	I : ndarray
-		multi-indices ordered as columns
-	"""
-	I = np.zeros((1, d), dtype = np.int)
-	for i in range(1, n+1):
-		II = _full_index_set(i, d)
-		I = np.vstack((I, II))
-	return I[:,::-1].astype(int)
-
-class MultiIndex:
-	"""Specifies a multi-index for a polynomial in the monomial basis of fixed total degree 
-
-	"""
-	def __init__(self, dimension, degree):
-		self.dimension = dimension
-		self.degree = degree
-		#self.iterator = product(range(0, degree+1), repeat = dimension)	
-		self.idx = index_set(degree, dimension)
-		self.iterator = iter(self.idx)
-
-	def __iter__(self):
-		return self
-
-	def next(self):
-		return self.iterator.next()
-
-	def __len__(self):
-		return int(comb(self.degree + self.dimension, self.degree, exact = True))
-
-# TODO place this function in a better location,
-# and update to use more recent calls
-def build_ridge_domain(dom, U):
-	if len(U.shape) == 1:
-		U = U.reshape(-1,1)
-	dim = U.shape[1]
-
-	if dim == 1:
-		# One dimensional ridge approximation
-		xp = dom.corner(U.flatten())
-		xn = dom.corner(-U.flatten())
-		ymin = np.dot(U.flatten().T, xp)
-		ymax = np.dot(U.flatten().T, xn)
-		ymin, ymax = min(ymin, ymax), max(ymin, ymax)
-		zonotope = BoxDomain(ymin, ymax)
-	else:
-		# In two or more dimensions we resort to Mitchell's best candidate to obtain uniform samples
-
-		# First we constuct an interior approximation of the zonotope
-		# Sample points on sphere in dim dimensions
-		Z = sample_sphere(dim, 5*2**dim)
-		# Construct points on the boundary 
-		#inputs = [ ( (dom, U, z), {}) for z in Z]
-		#zonotope_points = pmap(extent, inputs, desc = 'zonotope sample')
-		zonotope_points = []
-		for z in Z:
-			x = dom.corner(np.dot(U,z))
-			zonotope_points.append(np.dot(U.T, x))
-		zonotope_points = np.vstack(zonotope_points)
-		# Sample the projected space using Mitchell's best candidate
-		zonotope = ConvexHullDomain(zonotope_points) 
-
-	return zonotope
-
-
-################################################################################
-# Defining polynomial bases
-################################################################################
-
-class Basis:
-	pass
-
-class TensorBasis(Basis):
-	""" Generic tensor product basis class, based on momial basis
-
-	This class (and its children) provide the Vandermonde-like matrix
-	associated with a multivariate polynomial of total degree p 
-	defined in tensor product basis inthe coordinate axes: i.e.,
-
-		f(x) = prod_k \sum_{j=0}^p (x_k)^j.
-
-	
- 
-	"""
-	def __init__(self, n, p):
-		self.n = n
-		self.p = p
-		self.vander = polyvander
-		self.der = polyder
-		self.indices = index_set(p, n).astype(int)
-		self.build_Dmat()
-
-	def build_Dmat(self):
-		self.Dmat = np.zeros( (self.p+1, self.p))
-		for j in range(self.p + 1):
-			ej = np.zeros(self.p + 1)
-			ej[j] = 1.
-			self.Dmat[j,:] = self.der(ej)
-
-	def V(self, Y):
-		""" Builds the Vandermonde matrix associated with this basis
-
-		Given points [Y]_i in R^n, constructs the Vandermonde matrix
-
-			[V]_{i,j} = sum_j prod_k phi_{ [alpha_j]_k} ([Y]_{i,k})
-
-		where alpha_j is an ordering of all multindices with degree less than p
-
-		"""
-		M = Y.shape[0]
-		V_coordinate = [self.vander(Y[:,k], self.p) for k in range(self.n)]
-		
-		V = np.ones((M, len(self.indices)), dtype = Y.dtype)
-		
-		for j, alpha in enumerate(self.indices):
-			for k in range(self.n):
-				V[:,j] *= V_coordinate[k][:,alpha[k]]
-		return V
-
-	def VC(self, Y, C):
-		""" Compute the product V(Y) x """
-		M = Y.shape[0]
-		assert len(self.indices) == C.shape[0]
-
-		if len(C.shape) == 2:
-			oneD = False
-		else:
-			C = C.reshape(-1,1)
-			oneD = True
-
-		V_coordinate = [self.vander(Y[:,k], self.p) for k in range(self.n)]
-		out = np.zeros((M, C.shape[1]))	
-		for j, alpha in enumerate(self.indices):
-
-			# If we have a non-zero coefficient
-			if np.max(np.abs(C[j,:])) > 0.:
-				col = np.ones(M)
-				for ell in range(self.n):
-					col *= V_coordinate[ell][:,alpha[ell]]
-
-				for k in range(C.shape[1]):
-					out[:,k] += C[j,k]*col
-		if oneD:
-			out = out.flatten()
-		return out
-
-	def DV(self, Y):
-		M = Y.shape[0]
-		V_coordinate = [self.vander(Y[:,k], self.p) for k in range(self.n)]
-		
-		mi = MultiIndex(self.n, self.p)
-		N = len(mi)
-		DV = np.ones((M, N, self.n), dtype = Y.dtype)
-
-		for k in range(self.n):
-			for j, alpha in enumerate(MultiIndex(self.n, self.p)):
-				for q in range(self.n):
-					if q == k:
-						DV[:,j,k] *= np.dot(V_coordinate[q][:,0:-1], self.Dmat[alpha[q],:])
-					else:
-						DV[:,j,k] *= V_coordinate[q][:,alpha[q]]
-
-		return DV
-
-
-class MonomialTensorBasis(TensorBasis):
-	pass
-
-class LegendreTensorBasis(TensorBasis):
-	def __init__(self, n, p):
-		self.n = n
-		self.p = p
-		self.vander = legvander
-		self.der = legder
-		self.indices = index_set(p, n).astype(int)
-		self.build_Dmat()
-
-class ChebyshevTensorBasis(TensorBasis):
-	def __init__(self, n, p):
-		self.n = n
-		self.p = p
-		self.vander = chebvander
-		self.der = chebder
-		self.indices = index_set(p, n).astype(int)
-		self.build_Dmat()
-
-class LaguerreTensorBasis(TensorBasis):
-	def __init__(self, n, p):
-		self.n = n
-		self.p = p
-		self.vander = lagvander
-		self.der = lagder
-		self.indices = index_set(p,n ).astype(int)
-		self.build_Dmat()
-
-class HermiteTensorBasis(TensorBasis):
-	def __init__(self, n, p):
-		self.n = n
-		self.p = p
-		self.vander = hermvander
-		self.der = hermder
-		self.indices = index_set(p, n).astype(int)
-		self.build_Dmat()
 
 
 ################################################################################
