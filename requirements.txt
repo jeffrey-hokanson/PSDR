@@ -5,3 +5,4 @@ cvxopt
 redis
 dill
 cvxpy
+scs>=2.0.2
