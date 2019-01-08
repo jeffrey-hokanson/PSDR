@@ -5,7 +5,7 @@ from scipy.linalg import eigh, expm, logm
 from scipy.optimize import fmin_l_bfgs_b
 from itertools import product
 from opt import check_gradient
-from poly_ridge import LegendreTensorBasis
+from basis import LegendreTensorBasis
 
 __all__ = [ 'fit_gp', 'GaussianProcess']
 

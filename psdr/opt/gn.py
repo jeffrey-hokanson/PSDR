@@ -9,7 +9,12 @@ import scipy as sp
 class BadStep(Exception):
 	pass
 
-def lnsrch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, trajectory=None):
+
+def trajectory_linear(x0, p, t):
+	return x0 + t * p
+
+
+def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, trajectory = trajectory_linear):
 	"""Back-Tracking Line Search to satify Armijo Condition
 
 		f(x0 + alpha*p) < f(x0) + alpha * ftol * <g,p>
@@ -37,8 +42,7 @@ def lnsrch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, trajectory=
 	float
 		alpha: backtracking coefficient (alpha = 1 implies no backtracking)
 	"""
-	if trajectory is None:
-		trajectory = lambda x0, p, t: x0 + t * p
+	
 	dg = np.inner(g, p)
 	if dg > 0:
 		raise Exception('Descent direction p is not a descent direction: p^T g = %g >= 0' % (dg, ))
@@ -69,7 +73,8 @@ def lnsrch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, trajectory=
 	return x, alpha, fx
 
 
-def gn(f, F, x0, tol=1e-5, tol_normdx=1e-12, maxiter=100, fdcheck=False, linesearch=None, verbose=0, trajectory=None, gnsolver = None):
+def gn(f, F, x0, tol=1e-5, tol_normdx=1e-12, 
+	maxiter=100, fdcheck=False, linesearch=None, verbose=0, trajectory=None, gnsolver = None):
 	"""Gauss-Newton Solver (Dense) via QR Decomp
 	
 		min_x || f(x) ||
@@ -124,7 +129,7 @@ def gn(f, F, x0, tol=1e-5, tol_normdx=1e-12, maxiter=100, fdcheck=False, linesea
 		trajectory = lambda x0, p, t: x0 + t * p
 
 	if linesearch is None:
-		linesearch = lnsrch_armijo
+		linesearch = linesearch_armijo
 
 	x = x0
 	grad = F(x).T.dot(f(x))

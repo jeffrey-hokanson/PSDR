@@ -16,7 +16,7 @@ class SubspaceBasedDimensionReduction(object):
 
 	Given a function :math:`f : \mathcal{D} \to \mathbb{R}`, 
 	subspace-based dimension reduction identifies a subspace, 
-	described by a matrix :math:`\mathbf{U} \in \mathbb{R}^{n\times m}`
+	described by a matrix :math:`\mathbf{U} \in \mathbb{R}^{m\times n}`
 	with orthonormal columns for some :math:`n \le m`.
 
 	"""
