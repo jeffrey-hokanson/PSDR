@@ -28,6 +28,7 @@ class PolynomialRidgeFunction(Function):
 		self.basis = basis
 		self.coef = np.copy(coef)
 		self.U = np.array(U)
+		self.domain = BoxDomain(-np.inf*np.ones(U.shape[0]), np.inf*np.ones(U.shape[0]))
 
 	def eval(self, X):
 		Y = np.dot(U.T, X.T).T
@@ -35,16 +36,13 @@ class PolynomialRidgeFunction(Function):
 	
 	def grad(self, X):
 		Y = np.dot(U.T, X.T).T
-		
+		Vp = self.basis.DV(Y)
+		# Compute gradient on projected space
+		Df = np.tensordot(Vp, self.coef, axes = (1,0))
+		# Inflate back to whole space
+		Df = Df.dot(U.T)
+		return Df
 
-
-
-# Now PolynomialRidgeApproximation inherits from PolynomialRidgeFunction
-# to provide access to call/predict 
-
-################################################################################
-# EDIT LINE; edited code above
-################################################################################
 
 
 
@@ -57,6 +55,47 @@ class UnderdeterminedException(Exception):
 
 class IllposedException(Exception):
 	pass
+
+
+
+
+
+class PolynomialRidgeApproximation(PolynomialRidgeFunction):
+	r"""
+
+	"""
+
+	def __init__(self, degree = None, subspace_dimension = None, basis = 'legendre', 
+		n_init = 1, scale = True, keep_data = True, norm = 2):
+
+
+		assert isinstance(keep_data, bool)
+		self.keep_data = keep_data
+
+		assert isinstance(scale, bool)
+		self.scale = scale
+
+		assert norm in [1,2,'inf', np.inf], "Invalid norm specified"
+		if norm == 'inf': norm = np.inf
+		self.norm = norm
+
+
+		
+
+class PolynomialRidgeBound(PolynomialRidgeFunction):
+	pass
+
+
+# Now PolynomialRidgeApproximation inherits from PolynomialRidgeFunction
+# to provide access to call/predict 
+
+################################################################################
+# EDIT LINE; edited code above
+################################################################################
+
+
+
+
 
 
 ################################################################################
