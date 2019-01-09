@@ -9,6 +9,8 @@ from domains import Domain, BoxDomain
 from function import Function
 from subspace import SubspaceBasedDimensionReduction
 from basis import *
+from opt import gauss_newton 
+
 
 class PolynomialRidgeFunction(Function, SubspaceBasedDimensionReduction):
 	r""" A polynomial ridge function
@@ -87,6 +89,7 @@ class PolynomialRidgeFunction(Function, SubspaceBasedDimensionReduction):
 		"""
 		raise NotImplementedError
 
+	# TODO: add plotting of the response surface
 	#def shadow_plot(self, X, fX, dim = 1, ax = None):
 
 
@@ -283,6 +286,9 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U = U_flat.reshape(X.shape[1],-1)
 		m, n = U.shape
 		
+		# set the scaling
+		self._set_scale(self, X, U = U0)
+		
 		V = self._build_V(X, U)
 		c = scipy.linalg.lstsq(V, fX)[0]
 		r = fX - V.dot(c)
@@ -329,6 +335,10 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			# Apply the pseudoinverse
 			Delta_flat = -ZT[:-self.m**2,:].T.dot(np.diag(1/s[:-self.m**2]).dot(Y[:,:-self.m**2].T.dot(r)))
 			return Delta_flat
+
+		U0_flat = U0.flatten() 
+		U_flat, info = gauss_newton(self._varpro_residual, self._varpro_jacobian, 
+			
 
 class PolynomialRidgeBound(PolynomialRidgeFunction):
 	pass
