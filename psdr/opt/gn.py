@@ -1,10 +1,15 @@
 # 2018 (c) Jeffrey M. Hokanson and Caleb Magruder
-
 import fdcheck as fd
 import warnings
 import numpy as np
 import scipy.linalg
 import scipy as sp
+
+
+__all__ = ['linesearch_armijo',
+	'gauss_newton',
+	]
+
 
 class BadStep(Exception):
 	pass
@@ -73,19 +78,49 @@ def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, traject
 	return x, alpha, fx
 
 
-def gn(f, F, x0, tol=1e-5, tol_normdx=1e-12, 
+def gauss_newton(f, F, x0, tol=1e-5, tol_normdx=1e-12, 
 	maxiter=100, fdcheck=False, linesearch=None, verbose=0, trajectory=None, gnsolver = None):
-	"""Gauss-Newton Solver (Dense) via QR Decomp
-	
-		min_x || f(x) ||
+	r"""A Gauss-Newton solver for unconstrained nonlinear least squares problems.
+
+	Given a vector valued function :math:`\mathbf{f}:\mathbb{R}^m \to \mathbb{R}^M`
+	and its Jacobian :math:`\mathbf{F}:\mathbb{R}^m\to \mathbb{R}^{M\times m}`,
+	solve the nonlinear least squares problem:
+
+	.. math::
+
+		\min_{\mathbf{x}\in \mathbb{R}^m} \| \mathbf{f}(\mathbf{x})\|_2^2.
+
+	Normal Gauss-Newton computes a search direction :math:`\mathbf{p}\in \mathbb{R}^m`
+	at each iterate by solving least squares problem
+
+	.. math::
 		
+		\mathbf{p}_k \leftarrow \mathbf{F}(\mathbf{x}_k)^+ \mathbf{f}(\mathbf{x}_k)
+
+	and then computes a new step by solving a line search problem for a step length :math:`\alpha`
+	satisfying the Armijo conditions:
+
+	.. math::
+		
+		\mathbf{x}_{k+1} \leftarrow \mathbf{x}_k + \alpha \mathbf{p}_k.
+		
+	This implementation offers several features that modify this basic outline.
+
+	First, the user can specify a nonlinear *trajectory* along which candidate points 
+	can move; i.e.,
+
+	.. math::
+
+		\mathbf{x}_{k+1} \leftarrow T(\mathbf{x}_k, \mathbf{p}_k, \alpha). 
+	
+	Second, the user can specify a custom solver for computing the search direction :math:`\mathbf{p}_k`.
 
 	Parameters
 	----------
 	f : callable
-		residual, f: R^n -> R^m
+		residual, :math:`\mathbf{f}: \mathbb{R}^m \to \mathbb{R}^M`
 	F : callable
-		Jacobian of residual f, F: R^n -> R^{m x n}
+		Jacobian of residual :math:`\mathbf{f}`; :math:`\mathbf{F}: \mathbb{R}^m \to \mathbb{R}^{M \times m}`
 	tol: float [optional] default = 1e-8
 		gradient norm stopping criterion
 	tol_normdx: float [optional] default = 1e-12
@@ -103,6 +138,7 @@ def gn(f, F, x0, tol=1e-5, tol_normdx=1e-12,
 		Parameters: 
 			F: current Jacobian
 			f: current residual
+
 		Returns:
 			p: search step
 			s: singular values of Jacobian

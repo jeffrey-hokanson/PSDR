@@ -5,7 +5,7 @@ from scipy.linalg import solve, svd
 import scipy.spatial.qhull
 
 from pool import SequentialPool
-from opt import projected_closest_point
+#from opt import projected_closest_point
 
 from scipy.spatial.distance import cdist, pdist, squareform
 from geometry import sample_sphere, voronoi_vertices, candidate_furthest_points, sample_boundary 

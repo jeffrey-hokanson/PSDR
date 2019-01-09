@@ -13,7 +13,6 @@ from scipy.linalg import orth, solve_triangular
 from scipy.spatial import ConvexHull
 
 from opt import *
-#from opt_gurobi import linobj_gurobi
 import cvxpy as cp
 import warnings
 

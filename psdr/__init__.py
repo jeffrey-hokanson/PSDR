@@ -1,4 +1,3 @@
-import util
 import opt
 from domains import *
 from basis import *
