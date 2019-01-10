@@ -370,6 +370,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		V = self._build_V(X, U)
 		self.coef = scipy.linalg.lstsq(V, fX)[0].flatten()
 	
+	def _fit_inf_norm(self, X, fX, U0, **kwargs):
+		pass
 
 class PolynomialRidgeBound(PolynomialRidgeFunction):
 	pass

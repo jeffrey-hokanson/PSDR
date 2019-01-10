@@ -1,5 +1,4 @@
 # 2018 (c) Jeffrey M. Hokanson and Caleb Magruder
-import fdcheck as fd
 import warnings
 import numpy as np
 import scipy.linalg
@@ -8,6 +7,7 @@ import scipy as sp
 
 __all__ = ['linesearch_armijo',
 	'gauss_newton',
+	'trajectory_linear',
 	]
 
 
@@ -79,7 +79,7 @@ def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, traject
 
 
 def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12, 
-	maxiter=100, fdcheck=False, linesearch=None, verbose=0, trajectory=None, gnsolver = None):
+	maxiter=100, linesearch=None, verbose=0, trajectory=None, gnsolver = None):
 	r"""A Gauss-Newton solver for unconstrained nonlinear least squares problems.
 
 	Given a vector valued function :math:`\mathbf{f}:\mathbb{R}^m \to \mathbb{R}^M`
@@ -127,8 +127,6 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 		norm of control update stopping criterion
 	maxiter : int [optional] default = 100
 		maximum number of iterations of Gauss-Newton
-	fdcheck: bool [optional] default = False
-		if True, runs a FD check of F and f; warning: can be a costly operation, used for debugging
 	linesearch: callable, returns new x
 		f : callable, residual, f: R^n -> R^m
 		g : gradient, R^n
@@ -176,10 +174,7 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 	normdx = 1
 	for it in range(maxiter):
 		residual_increased = False
-		if fdcheck == True:
-			fd_error = fd.fdcheck(f=f, fp=lambda x, xp: F(x).dot(xp), dof=n, ord=4)
-			if fd_error > 1e-6:
-				warnings.warn('Gauss-Newton: FD Check Failed, fd_error = %1.2e' % fd_error)
+		
 		f_eval = f(x)
 		F_eval = F(x)
 		
@@ -269,4 +264,4 @@ if __name__ == '__main__':
 	F = lambda p: np.c_[s / (p[1] + s), -p[0] * s / (p[1] + s) ** 2]
 
 	x0 = np.zeros((2,))
-	x = gn(f, F, x0, fdcheck=True, verbose=1)
+	x = gn(f, F, x0, verbose=1)

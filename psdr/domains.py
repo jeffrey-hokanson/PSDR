@@ -17,6 +17,7 @@ import cvxpy as cp
 import warnings
 
 __all__ = ['Domain',
+		'UnboundedDomain',
 		'LinQuadDomain',
 		'LinIneqDomain',
 		'ConvexHullDomain',
@@ -687,7 +688,40 @@ class Domain(object):
 				alpha = min(alpha, min(pos_roots))
 		return alpha
 
+class UnboundedDomain(Domain):
+	r""" A domain without any constraints
+	
+	This class implements a subset of the functionality of the Domain
+	applicable for a domain that is all of :math:`\mathbb{R}^m`.
 
+	Parameters
+	----------
+
+
+	"""
+	def __init__(self, dimension):
+		self._dimension = dimension
+	
+	def __len__(self):
+		return self._dimension
+
+	def _build_constraints_norm(self, x_norm):
+		return []
+
+	def _closest_point(self, x0, L = None, **kwargs):
+		return x0
+
+	def _normalize(self, X):
+		return X
+
+	def _unnormalize(self, X_norm):
+		return X_norm
+
+	def _isinside(self, X):
+		if X.shape[1]== len(self):
+			return np.ones(X.shape[0],dtype = np.bool)
+		else:
+			return np.zeros(X.shape[0],dtype = np.bool)
 
 class LinQuadDomain(Domain):
 	r"""A domain specified by a combination of linear (in)equality constraints and convex quadratic constraints

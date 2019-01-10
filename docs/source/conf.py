@@ -102,11 +102,15 @@ html_static_path = ['_static']
 #
 # html_sidebars = {}
 
+def setup(app):
+	app.add_stylesheet('css/custom.css')
+
 
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'ParameterSpaceDimensionReductiondoc'
+
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -128,6 +132,7 @@ latex_elements = {
     #
     # 'figure_align': 'htbp',
 }
+
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
@@ -178,3 +183,6 @@ texinfo_documents = [
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
+
+
+

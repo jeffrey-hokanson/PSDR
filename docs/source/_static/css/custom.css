@@ -1,0 +1,8 @@
+/* From https://stackoverflow.com/a/52509369 */
+.math {
+    text-align: left;
+}
+.eqno {
+    float: right;
+}
+
