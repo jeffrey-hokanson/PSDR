@@ -22,7 +22,14 @@ Low-Level Optimization
 Gauss-Newton
 ------------
 
-.. autofunction:: psdr.opt.gauss_newton 
+.. autofunction:: psdr.gauss_newton 
+
+
+Line Search
+-----------
+
+.. autofunction:: psdr.linesearch_armijo
+
 
 
 Minimax
@@ -32,8 +39,4 @@ Minimax
 
 
  
-Line Search
------------
-
-.. autofunction:: psdr.opt.linesearch_armijo
  

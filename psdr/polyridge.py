@@ -9,7 +9,7 @@ from domains import Domain, BoxDomain
 from function import Function
 from subspace import SubspaceBasedDimensionReduction
 from basis import *
-from opt import gauss_newton 
+from gn import gauss_newton 
 
 
 class PolynomialRidgeFunction(Function, SubspaceBasedDimensionReduction):

@@ -12,7 +12,6 @@ from scipy.optimize import nnls, minimize
 from scipy.linalg import orth, solve_triangular
 from scipy.spatial import ConvexHull
 
-from opt import *
 import cvxpy as cp
 import warnings
 

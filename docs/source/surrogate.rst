@@ -18,3 +18,15 @@ Polynomial Ridge Approximation
 
 .. autoclass:: psdr.PolynomialRidgeApproximation
    :members: fit
+
+
+Polynomial Ridge Bound
+----------------------
+
+
+
+Gaussian Process Model
+======================
+
+.. autoclass:: psdr.GaussianProcess
+	:members:

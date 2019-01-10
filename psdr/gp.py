@@ -4,7 +4,7 @@ import scipy.linalg
 from scipy.linalg import eigh, expm, logm
 from scipy.optimize import fmin_l_bfgs_b
 from itertools import product
-from opt import check_gradient
+#from opt import check_gradient
 from basis import LegendreTensorBasis
 
 __all__ = [ 'fit_gp', 'GaussianProcess']
@@ -237,10 +237,10 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 			return grad
 
 
-	if _check_gradient:
-		grad = log_marginal_likelihood(ell0, return_grad = True, return_obj = False)
-		err = check_gradient(log_marginal_likelihood, ell0, grad, verbose = True)
-		return err
+#	if _check_gradient:
+#		grad = log_marginal_likelihood(ell0, return_grad = True, return_obj = False)
+#		err = check_gradient(log_marginal_likelihood, ell0, grad, verbose = True)
+#		return err
 
 	grad = lambda x: log_marginal_likelihood(x, return_obj = False, return_grad = True)
 	ell, obj, d = fmin_l_bfgs_b(log_marginal_likelihood, ell0, fprime = grad, disp = verbose)
@@ -251,6 +251,76 @@ def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None,
 	
 	
 class GaussianProcess(object):
+	r""" Fits a Gaussian Process by maximizing the marginal likelihood
+
+	Given :math:`M` pairs of :math:`\mathbf{x}_i \in \mathbb{R}^m` and :math:`y_i \in \mathbb{R}`,
+	this fits a model 
+
+	.. math::
+
+		g(\mathbf{x}) = 
+			\sum_{i=1}^M \alpha_i e^{-\| \mathbf{L}( \mathbf{x} - \mathbf{x}_i) \|_2^2} 
+			+ \sum_{j} \beta_j \psi_j(x)
+
+	where :math:`\mathbf{L}` is a lower triangular matrix,
+	:math:`\lbrace \psi_j \rbrace_j` is a polynomial basis (e.g., linear),
+	and :math:`\boldsymbol{\alpha}, \boldsymbol{\beta}` are vectors of weights.
+
+	Finding the 
+	
+	
+	where the inclusion of a specific (unknown) model for the mean 
+	is discussed in Sec. 2.7 of [RW06]_ and implemented following eq (3) & (4) of [Jon01]_.
+
+	The hyperparameters for kernel, namely the matrix L, are determined
+	via maximizing the marginal likelihood following Algorithm 2.1 of [RW06]_.
+
+	Internally, we optimize with respect to the matrix log of the matrix L, namely,
+		
+		L(ell) = expm(ell).
+
+	In the constant and diagonal cases, this corresponds to the standard practice of
+	optimizing with respect to the (scalar) log of the scaling parameters.  In our experience,
+	working with this logarithmic parameterization increases the accuracy of the derivatives.
+
+	Parameters
+	----------
+	X: np.ndarray(M, m)
+		M input coordinates of dimension m
+	y: np.ndarray(M)
+		y[i] is the output at X[i]
+	structure: ['tril', 'diag', 'const', 'scalar_mult']
+		Structure of the matrix L, either
+		* tril: lower triangular
+		* diag: diagonal	
+		* const: constant * eye
+		* scalar_mult
+	rank: int or None
+		If structure is 'tril', this specifies the rank of L	
+
+
+	Returns
+	-------
+	L: np.ndarray(m,m)
+		Distance matrix
+	alpha: np.ndarray(M)
+		Weights for the Gaussian process kernel
+	beta: np.ndarray(N)
+		Weights for the polynomial component in the LegendreTensorBasis	
+	obj: float
+		Log-likelihood objective function value
+
+	References
+	----------
+	.. [RW06] Gaussian Processes for Machine Learning, Carl Edward Rasmussen and Christopher K. I. Williams,
+		2006 MIT Press
+
+	.. [Jon01] A Taxonomy of Global Optimization Methods Based on Response Surfaces,
+		Donald R. Jones, Journal of Global Optimization, 21, pp. 345--383, 2001.
+
+	.. [MN10] "The complex step approximation to the Frechet derivative of a matrix function", 
+		Awad H. Al-Mohy and Nicholas J. Higham, Numerical Algorithms, 2010 (53), pp. 133--148.
+	"""
 	def __init__(self, structure = 'const', n_init = 1, rank = None, poly_degree = None, L0s = None, **kwargs):
 		self.structure = structure
 		self.rank = rank
