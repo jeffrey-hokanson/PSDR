@@ -68,4 +68,31 @@ def test_scaling():
 	print np.min(Y, axis = 0)
 	print np.max(Y, axis = 0)
 	assert np.all(np.isclose(np.min(Y, axis = 0), -1)) 
-	assert np.all(np.isclose(np.max(Y, axis = 0), 1)) 
+	assert np.all(np.isclose(np.max(Y, axis = 0), 1))
+
+
+def test_exact():
+	np.random.seed(1)
+	M = 100
+	m = 10
+	n = 2
+	p = 5
+	
+	# Samples
+	X = np.random.randn(M,m)
+	
+	# Synthetic function
+	a = np.random.randn(m)
+	b = np.random.randn(m)
+	fX = np.dot(a,X.T)**2 + np.dot(b, X.T)**3
+
+	# Random point
+	U, _ = np.linalg.qr(np.random.randn(m,n))
+	U, _ = np.linalg.qr(np.vstack([a,b]))	
+	
+	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False)
+	pra.fit(X, fX, U0 = U, verbose = 1)
+	# Because the data is an exact ridge function, we should (I think) converge to the global solution
+	for fX1, fX2 in zip(pra(X), fX):
+		print "%10.5e  %10.5e" % (fX1,fX2)
+	assert np.all(np.isclose(pra(X), fX))

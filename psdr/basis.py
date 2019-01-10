@@ -62,26 +62,6 @@ def index_set(n, d):
 		I = np.vstack((I, II))
 	return I[:,::-1].astype(int)
 
-#class MultiIndex:
-#	"""Specifies a multi-index for a polynomial in the monomial basis of fixed total degree 
-#
-#	"""
-#	def __init__(self, dimension, degree):
-#		self.dimension = dimension
-#		self.degree = degree
-#		#self.iterator = product(range(0, degree+1), repeat = dimension)	
-#		self.idx = index_set(degree, dimension)
-#		self.iterator = iter(self.idx)
-#
-#	def __iter__(self):
-#		return self
-#
-#	def next(self):
-#		return self.iterator.next()
-#
-#	def __len__(self):
-#		return int(comb(self.degree + self.dimension, self.degree, exact = True))
-
 
 class PolynomialTensorBasis(Basis):
 	r""" Generic tensor product basis of fixed total degree
@@ -151,6 +131,7 @@ class PolynomialTensorBasis(Basis):
 		"""
 		X = np.array(X)
 		M = X.shape[0]
+		assert X.shape[1] == self.n, "Expected %d dimensions, got %d" % (self.n, X.shape[1])
 		V_coordinate = [self.vander(X[:,k], self.p) for k in range(self.n)]
 		
 		V = np.ones((M, len(self.indices)), dtype = X.dtype)

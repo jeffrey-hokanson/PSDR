@@ -208,7 +208,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			self.domain = deepcopy(domain)
 
 
-	def fit(self, X, fX, U0 = None):
+	def fit(self, X, fX, U0 = None, **kwargs):
 		r""" Given samples, fit the polynomial ridge approximation
 
 		Parameters
@@ -224,7 +224,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		fX = fX.flatten()
 
 		if self.norm == 2:
-			return self._fit_2_norm(X, fX, U0)
+			return self._fit_2_norm(X, fX, U0, **kwargs)
 		else:
 			raise NotImplementedError
 
@@ -323,9 +323,11 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U_new = orth(U_new).flatten()
 		return U_new
 
-	def _fit_2_norm(self, X, fX, U0):
+	def _fit_2_norm(self, X, fX, U0, **kwargs):
 		if U0 is None:
 			U0 = self._fit_affine_2_norm(X, fX)
+			if self.subspace_dimension > 1:
+				U0 = np.hstack([U0, np.random.randn(X.shape[1], self.subspace_dimension-1)])
 		
 		# Setup scaling	
 		self._set_scale(X, U = U0)
@@ -350,7 +352,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 		U0_flat = U0.flatten() 
 		U_flat, info = gauss_newton(residual, jacobian, U0_flat,
-			trajectory = self._trajectory, gnsolver = gn_solver) 
+			trajectory = self._trajectory, gnsolver = gn_solver, **kwargs) 
 		
 		U = U_flat.reshape(-1, self.subspace_dimension)
 		self._U = U
