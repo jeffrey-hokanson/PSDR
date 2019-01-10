@@ -1,0 +1,13 @@
+sphinx
+cloud_sptheme
+alabaster
+numpydoc
+scipy
+numpy
+ecos
+scs
+recommonmark
+fastcache
+cvxpy
+redis
+dill
