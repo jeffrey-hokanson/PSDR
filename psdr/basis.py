@@ -122,7 +122,7 @@ class PolynomialTensorBasis(Basis):
 		"""
 		try:
 			return 2*(X-self._lb[None,:])/(self._ub[None,:] - self._lb[None,:]) - 1
-		except NameError:
+		except AttributeError:
 			return X
 
 	def _dscale(self):
@@ -130,7 +130,7 @@ class PolynomialTensorBasis(Basis):
 		"""
 		try:
 			return (2./(self._ub - self._lb))
-		except NameError:
+		except AttributeError:
 			raise NotImplementedError
 
 	def V(self, X):
@@ -307,13 +307,13 @@ class HermiteTensorBasis(PolynomialTensorBasis):
 	def _scale(self, X):
 		try:
 			return (X - self._mean[None,:])/self._std[None,:]/np.sqrt(2)
-		except NameError:
+		except AttributeError:
 			return X
 
 	def _dscale(self):
 		try:
 			return 1./self._std/np.sqrt(2)
-		except NameError:
+		except AttributeError:
 			raise NotImplementedError
 
 
