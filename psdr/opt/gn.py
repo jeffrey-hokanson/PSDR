@@ -78,7 +78,7 @@ def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, traject
 	return x, alpha, fx
 
 
-def gauss_newton(f, F, x0, tol=1e-5, tol_normdx=1e-12, 
+def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12, 
 	maxiter=100, fdcheck=False, linesearch=None, verbose=0, trajectory=None, gnsolver = None):
 	r"""A Gauss-Newton solver for unconstrained nonlinear least squares problems.
 

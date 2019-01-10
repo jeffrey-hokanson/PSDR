@@ -209,7 +209,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 
 	def fit(self, X, fX, U0 = None, **kwargs):
-		r""" Given samples, fit the polynomial ridge approximation
+		r""" Given samples, fit the polynomial ridge approximation.
 
 		Parameters
 		----------
@@ -220,9 +220,19 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		
 		"""
 		
-		self.m = X.shape[1]
-		fX = fX.flatten()
+		X = np.array(X)
+		fX = np.array(fX).flatten()	
 
+		assert X.shape[0] == fX.shape[0], "Dimensions of input do not match"
+
+		if U0 is not None:
+			U0 = np.array(U0)
+			assert U0.shape[0] == X.shape[1], "U0 has %d rows, expected %d based on X" % (U0.shape[0], X.shape[1])
+			assert U0.shape[1] == self.subspace_dimension, "U0 has %d columns; expected %d" % (U0.shape[1], self.subspace_dimension)
+			U0 = orth(U0)
+
+
+		# TODO Implement multiple initializations
 		if self.norm == 2:
 			return self._fit_2_norm(X, fX, U0, **kwargs)
 		else:

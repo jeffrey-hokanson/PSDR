@@ -88,8 +88,9 @@ def test_exact():
 
 	# Random point
 	U, _ = np.linalg.qr(np.random.randn(m,n))
-	U, _ = np.linalg.qr(np.vstack([a,b]))	
-	
+	# Actual ridge subspace
+	#U, _ = np.linalg.qr(np.vstack([a,b]).T)	
+
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False)
 	pra.fit(X, fX, U0 = U, verbose = 1)
 	# Because the data is an exact ridge function, we should (I think) converge to the global solution
