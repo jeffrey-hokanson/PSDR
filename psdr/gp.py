@@ -329,6 +329,7 @@ class GaussianProcess(object):
 			ell0 = np.array(L0.flatten()[0])
 
 		# Actually do the fitting
+		# TODO: Implement multiple initializations
 		self._fit(ell0)
 
 

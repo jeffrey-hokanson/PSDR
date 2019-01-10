@@ -1,8 +1,0 @@
-#build:
-#	image: 3.0
-#
-#python:
-#	version: 2.7
-#	#setup_py_install: true
-#	pip_install: true
-#	use_system_site_packages: false
