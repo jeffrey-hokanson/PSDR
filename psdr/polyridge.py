@@ -37,7 +37,6 @@ class PolynomialRidgeFunction(Function, SubspaceBasedDimensionReduction):
 				Y = (Y - self._mean[None,:])/self._std[None,:]/np.sqrt(2)
 			else:
 				Y = 2*(Y-self._lb[None,:])/(self._ub[None,:] - self._lb[None,:]) - 1
-				print Y
 		return Y
 	
 	def _set_scale(self, X, U = None):
@@ -242,9 +241,9 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	def _build_DV(self, X, U):
 		if self.scale:
 			if isinstance(self.basis, HermiteTensorBasis):
-				d_scale = 1./self._std
+				d_scale = 1./self._std/np.sqrt(2)
 			else:
-				d_scale = 1./(self._ub - self._lb)
+				d_scale = 2./(self._ub - self._lb)
 		else:
 			d_scale = np.ones(U.shape[1])
 
