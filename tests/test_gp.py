@@ -1,6 +1,6 @@
 import numpy as np
-from psdr import fit_gp
-
+from psdr import GaussianProcess 
+from checkder import check_gradient 
 
 def test_gp_der(m = 5, M = 50):
 	np.random.seed(0)
@@ -15,33 +15,42 @@ def test_gp_der(m = 5, M = 50):
 	L0 = 10e-1*Lfixed
 
 	tol = 1e-4 
-		
-	assert fit_gp(X, y, structure = 'const', L0 = L0, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'const', L0 = L0,poly_degree = 0, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'const', L0 = L0,poly_degree = 1, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'const', L0 = L0,poly_degree = 2, _check_gradient = True) < tol
+	
+	ell0 =  np.array([1.])
+	for degree in [None, 0, 1, 2]:
+		gp = GaussianProcess(structure = 'const', degree = degree)
+		gp._fit_init(X, y)
+		obj = lambda ell: gp._obj(ell, X, y)		
+		grad = lambda ell: gp._grad(ell, X, y)		
 
-	assert fit_gp(X, y, structure = 'scalar_mult', Lfixed = Lfixed, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'scalar_mult', Lfixed = Lfixed, poly_degree = 0, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'scalar_mult', Lfixed = Lfixed, poly_degree = 1, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'scalar_mult', Lfixed = Lfixed, poly_degree = 2, _check_gradient = True) < tol
+		assert check_gradient(ell0, obj, grad) < tol
+	
+	for poly_degree in [None, 0, 1, 2]:
+		gp = GaussianProcess(structure = 'scalar_mult', degree = degree, Lfixed = L0)
+		gp._fit_init(X, y)
+		obj = lambda ell: gp._obj(ell, X, y)		
+		grad = lambda ell: gp._grad(ell, X, y)		
 
-	assert fit_gp(X, y, structure = 'diag', L0 = L0, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'diag', L0 = L0, poly_degree = 0, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'diag', L0 = L0, poly_degree = 1, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'diag', L0 = L0, poly_degree = 2, _check_gradient = True) < tol
+		assert check_gradient(ell0, obj, grad) < tol
 
-	assert fit_gp(X, y, structure = 'tril', L0 = L0, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'tril', L0 = L0, poly_degree = 0, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'tril', L0 = L0, poly_degree = 1, _check_gradient = True) < tol
-	assert fit_gp(X, y, structure = 'tril', L0 = L0, poly_degree = 2, _check_gradient = True) < tol
+	ell0 = np.ones(m)
+	for poly_degree in [None, 0, 1, 2]:
+		gp = GaussianProcess(structure = 'diag', degree = degree)
+		gp._fit_init(X, y)
+		obj = lambda ell: gp._obj(ell, X, y)		
+		grad = lambda ell: gp._grad(ell, X, y)
 
-	# TODO: these currently fail	
-#	assert fit_gp(X, y, structure = 'tril', L0 = L0, _check_gradient = True, rank = 1) < tol
-#	assert fit_gp(X, y, structure = 'tril', L0 = L0, _check_gradient = True, rank = 2) < tol
-#	assert fit_gp(X, y, structure = 'tril', L0 = L0, _check_gradient = True, rank = 3) < tol
-#	print  fit_gp(X, y, structure = 'tril', L0 = L0, _check_gradient = True, rank = None, poly_degree = None)
-#	assert fit_gp(X, y, structure = 'tril', L0 = L0, _check_gradient = True, rank = 3, poly_degree = None) < tol
+		gp._fit_init(X, y)
+		assert check_gradient(ell0, obj, grad) < tol
+
+	ell0 = np.array([ L0[i,j] for i, j in zip(*np.tril_indices(m))])
+	for poly_degree in [None, 0, 1, 2]:
+		gp = GaussianProcess(structure = 'tril', degree = degree)
+		gp._fit_init(X, y)
+		obj = lambda ell: gp._obj(ell, X, y)		
+		grad = lambda ell: gp._grad(ell, X, y)
+
+		assert check_gradient(ell0, obj, grad) < tol
 
 
 # TODO: Check solution vs. sklearn

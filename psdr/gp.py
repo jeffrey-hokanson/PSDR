@@ -7,247 +7,8 @@ from itertools import product
 #from opt import check_gradient
 from basis import LegendreTensorBasis
 
-__all__ = [ 'fit_gp', 'GaussianProcess']
+__all__ = ['GaussianProcess']
 
-def fit_gp(X, y, rank = None, poly_degree = None, structure = 'tril', L0 = None, Lfixed = None,
-		_check_gradient = False, verbose = False):
-	""" Fit a Gaussian Process by maximizing the marginal likelihood
-
-	This code fits a model 
-	
-		y[i] = k(X[i]) alpha +  v(X[i]) beta
-
-	where k(x) is the evaluation of the kernel (for a Gaussian process)
-		
-		k(x) = exp(-|| L( x - X[i]) ||^2_2)
-
-	where L is a lower triangular matrix and v(x) corresponds to 
-	a polynomial in a LegendreTensorBasis
-
-		v(x) = [phi_0(x)  phi_1(x) ... phi_N(x)],
-	
-	where the inclusion of a specific (unknown) model for the mean 
-	is discussed in [Sec. 2.7,RW06] and implemented following [eq (3) & (4),Jon01].
-
-	The hyperparameters for kernel, namely the matrix L, are determined
-	via maximizing the marginal likelihood following Algorithm 2.1 of RW06.
-
-	Internally, we optimize with respect to the matrix log of the matrix L, namely,
-		
-		L(ell) = expm(ell).
-
-	In the constant and diagonal cases, this corresponds to the standard practice of
-	optimizing with respect to the (scalar) log of the scaling parameters.  In our experience,
-	working with this logarithmic parameterization increases the accuracy of the derivatives.
-
-	Parameters
-	----------
-	X: np.ndarray(M, m)
-		M input coordinates of dimension m
-	y: np.ndarray(M)
-		y[i] is the output at X[i]
-	structure: ['tril', 'diag', 'const', 'scalar_mult']
-		Structure of the matrix L, either
-		* tril: lower triangular
-		* diag: diagonal	
-		* const: constant * eye
-		* scalar_mult
-	rank: int or None
-		If structure is 'tril', this specifies the rank of L	
-
-
-	Returns
-	-------
-	L: np.ndarray(m,m)
-		Distance matrix
-	alpha: np.ndarray(M)
-		Weights for the Gaussian process kernel
-	beta: np.ndarray(N)
-		Weights for the polynomial component in the LegendreTensorBasis	
-	obj: float
-		Log-likelihood objective function value
-
-	References
-	----------
-	[RW06] Gaussian Processes for Machine Learning, Carl Edward Rasmussen and Christopher K. I. Williams,
-		2006 MIT Press
-	[Jon01] A Taxonomy of Global Optimization Methods Based on Response Surfaces,
-		Donald R. Jones, Journal of Global Optimization, 21, pp. 345--383, 2001.
-	[MN10] "The complex step approximation to the Frechet derivative of a matrix function", 
-		Awad H. Al-Mohy and Nicholas J. Higham, Numerical Algorithms, 2010 (53), pp. 133--148.
-	"""
-	m = X.shape[1]
-	M = len(X)
-	assert len(y) == M, "Number of samples must equal number of function values"
-	assert structure in ['tril', 'diag', 'const', 'scalar_mult'], 'invalid structure parameter'
-
-	if structure is not 'tril': assert rank is None, "Cannot specify rank unless structure='tril'"
-	if rank is not None:
-		print "Low rank estimates currently have numerical instability in gradient; please avoid"
-
-	if structure == 'tril':
-		if rank is None: rank = X.shape[1]
-		# Indices for parameterizing the lower triangular part
-		tril_ij = [ (i,j) for i, j in zip(*np.tril_indices(m)) if i >= (m - rank)]
-		tril_flat = np.array([ i*m + j for i,j in tril_ij])
-
-		# Construct starting lower-triangular matrix
-		if L0 is None:
-			ell0 = np.random.randn(len(tril_ij))
-		else:
-			ell0 = np.array([L0[i,j] for i,j in tril_ij])
-
-		def make_L(ell):
-			# Construct the L matrix	
-			L = np.zeros((m*m,), dtype = ell.dtype)
-			L[tril_flat] = ell
-			L = L.reshape(m,m)
-			return scipy.linalg.expm(L) - np.eye(m)
-
-	elif structure == 'diag':
-		tril_ij = [ (i,i) for i in range(m)]
-		# Construct starting diagonal matrix	
-		if L0 is None:
-			ell0 = np.random.randn(m)
-		else:
-			ell0 = np.array([L0[i,j] for i,j in tril_ij])
-	
-		def make_L(ell):
-			return np.diag(np.exp(ell))	
-
-	elif structure == 'const':
-		# Construct starting constant
-		if L0 is None:
-			ell0 = np.random.randn(1)
-		else:
-			ell0 = L0[0,0].reshape(1)
-
-		def make_L(ell):
-			return np.exp(ell)*np.eye(m)
-
-	elif structure == 'scalar_mult':
-		assert Lfixed is not None, "In order to use structure = 'scalar_mult', Lfixed must be provided"
-		
-		# Construct starting constant
-		if L0 is None:
-			ell0 = np.random.randn(1)
-		else:
-			ell0 = L0[0,0].reshape(1)
-
-		def make_L(ell):
-			return np.exp(ell)*Lfixed
-
-	# Construct the basis for the polynomial part
-	if poly_degree is None:
-		V = np.zeros((M,0))
-	else:
-		basis = LegendreTensorBasis(m, poly_degree)
-		V = basis.V(X)  
-
-
-	def log_marginal_likelihood(ell, return_obj = True, return_grad = False, return_alpha_beta = False):
-		L = make_L(ell)
-		# Compute the squared distance
-		Y = np.dot(L, X.T).T
-		dij = pdist(Y, 'sqeuclidean') 
-
-		# Covariance matrix
-		K = np.exp(-0.5*squareform(dij))
-		ew, ev = eigh(K)
-		
-		# This is so we don't have trouble computing the objective function
-		ew = np.maximum(ew, 5*np.finfo(float).eps)
-
-		# Solve the linear system to compute the coefficients
-		#alpha = np.dot(ev,(1./(ew+tikh))*np.dot(ev.T,y))
-		A = np.vstack([np.hstack([K, V]), np.hstack([V.T, np.zeros((V.shape[1], V.shape[1]))])])
-		b = np.hstack([y, np.zeros(V.shape[1])])
-
-		# As A can be singular, we use an eigendecomposition based inverse
-		ewA, evA = eigh(A)
-		I = (np.abs(ewA) > 5*np.finfo(float).eps)
-		#I = (ewA > 0)
-		x = np.dot(evA[:,I],(1./ewA[I])*np.dot(evA[:,I].T,b))
-
-		alpha = x[:M]
-		beta = x[M:]
-
-		if return_alpha_beta:
-			return alpha, beta
-
-		if return_obj:
-			# Should this be with yhat or y?
-			# yhat = y - np.dot(V, beta)
-			# Doesn't matter because alpha in nullspace of V.T
-			# RW06: (5.8)
-			obj = 0.5*np.dot(y, alpha) + 0.5*np.sum(np.log(ew))
-			if not return_grad:
-				return obj
-		
-		# Now compute the gradient
-		# Build the derivative of the covariance matrix K wrt to L
-
-		if structure == 'tril':
-			dK = np.zeros((M,M, len(ell)))
-			for idx, (k, el) in enumerate(tril_ij):
-				eidx = np.zeros(ell.shape)
-				eidx[idx] = 1.
-				# Approximation of the matrix exponential derivative [MH10]
-				h = 1e-10
-				dL = np.imag(make_L(ell + 1j*h*eidx))/h
-				print "dL", dL
-				dY = np.dot(dL, X.T).T
-				for i in range(M):
-					# Evaluate the dot product
-					# dK[i,j,idx] -= np.dot(Y[i] - Y[j], dY[i] - dY[j])
-					dK[i,:,idx] -= np.sum((Y[i] - Y)*(dY[i] - dY), axis = 1)
-			for idx in range(len(tril_ij)):
-				dK[:,:,idx] *= K
-	
-		elif structure == 'diag':
-			dK = np.zeros((M,M, len(ell)))
-			for idx, (k, el) in enumerate(tril_ij):
-				for i in range(M):
-					dK[i,:,idx] -= (Y[i,k] - Y[:,k])*(Y[i,el] - Y[:,el])
-			for idx in range(len(tril_ij)):
-				dK[:,:,idx] *= K	
-
-		elif structure in ['const', 'scalar_mult']:
-			# In the scalar case everything drops and we 
-			# simply need 
-			# dK[i,j,1] = (Y[i] - Y[j])*(Y[i] - Y[j])*K
-			# which we have already computed
-			dK = -(squareform(dij)*K).reshape(M,M,1)
-				
-		# Now compute the gradient
-		grad = np.zeros(len(ell))
-	
-		for k in range(len(ell)):
-			#Kinv_dK = np.dot(ev, np.dot(np.diag(1./(ew+tikh)),np.dot(ev.T,dK[:,:,k])))
-			#I = (ew > 0.1*np.sqrt(np.finfo(float).eps))
-			I = (ew>5*np.finfo(float).eps)
-			Kinv_dK = np.dot(ev[:,I], (np.dot(ev[:,I].T,dK[:,:,k]).T/ew[I]).T)
-			# Note flipped signs from RW06 eq. 5.9
-			grad[k] = 0.5*np.trace(Kinv_dK)
-			grad[k] -= 0.5*np.dot(alpha, np.dot(alpha, dK[:,:,k]))
-		
-		if return_obj and return_grad:
-			return obj, grad
-		if not return_obj:
-			return grad
-
-
-#	if _check_gradient:
-#		grad = log_marginal_likelihood(ell0, return_grad = True, return_obj = False)
-#		err = check_gradient(log_marginal_likelihood, ell0, grad, verbose = True)
-#		return err
-
-	grad = lambda x: log_marginal_likelihood(x, return_obj = False, return_grad = True)
-	ell, obj, d = fmin_l_bfgs_b(log_marginal_likelihood, ell0, fprime = grad, disp = verbose)
-	L = make_L(ell)
-	alpha, beta = log_marginal_likelihood(ell, return_alpha_beta = True)
-	# TODO: Sometimes this returns outrageously large, negative results, indicative of a bug
-	return L, alpha, beta, obj
 	
 	
 class GaussianProcess(object):
@@ -265,38 +26,80 @@ class GaussianProcess(object):
 	where :math:`\mathbf{L}` is a lower triangular matrix,
 	:math:`\lbrace \psi_j \rbrace_j` is a polynomial basis (e.g., linear),
 	and :math:`\boldsymbol{\alpha}, \boldsymbol{\beta}` are vectors of weights.
+	These parameters are choosen to maximize the log-marginal likelihood (see [RW06]_, Sec. 2.7), 
+	or equivalently minimize
 
-	Finding the 
+	.. math::
+
+		\min_{\mathbf{L}} & \ 
+			\frac12 \mathbf{y}^\top \boldsymbol{\alpha}
+			+ \frac12 \log \det (\mathbf{K} + \tau \mathbf{I}), & \quad 
+			[\mathbf{K}]_{i,j} &= e^{-\frac12 \| \mathbf{L}(\mathbf{x}_i -\mathbf{x}_j)\|_2^2} \\
+		\text{where} & \ 
+			\begin{bmatrix}
+				\mathbf{K} + \tau \mathbf{I} & \mathbf{V} \\ \mathbf{V}^\top & \mathbf{0}
+			\end{bmatrix} 
+			\begin{bmatrix}
+				\boldsymbol{\alpha} \\
+				\boldsymbol{\beta} 
+			\end{bmatrix}
+			= 
+			\begin{bmatrix}
+				\mathbf{y} \\ \mathbf{0}
+			\end{bmatrix},
+			&
+			\quad [\mathbf{V}]_{i,j} &= \psi_j(\mathbf{x}_i).
 	
-	
-	where the inclusion of a specific (unknown) model for the mean 
-	is discussed in Sec. 2.7 of [RW06]_ and implemented following eq (3) & (4) of [Jon01]_.
+	Here :math:`\tau` denotes the nugget--a Tikhonov-like regularization term commonly used to 
+	combat the ill-conditioning of the kernel matrix :math:`\mathbf{K}`.
+	The additional constraint for the polynomial basis is described by Jones
+	([Jon01]_ eq. (3) and (4)).
 
-	The hyperparameters for kernel, namely the matrix L, are determined
-	via maximizing the marginal likelihood following Algorithm 2.1 of [RW06]_.
 
-	Internally, we optimize with respect to the matrix log of the matrix L, namely,
+	This class allows for four kinds of distance matrices :math:`\mathbf{L}`:
+
+	================ 	=============================================
+	scalar   			:math:`\mathbf{L} = \ell \mathbf{I}`
+	scalar multiple 	:math:`\mathbf{L} = \ell \mathbf{L}_0`
+	diagonal 			:math:`\mathbf{L} = \text{diag}(\boldsymbol{\ell})` 
+	lower triangular	:math:`\mathbf{L}` is lower triangular
+	================ 	=============================================
 		
-		L(ell) = expm(ell).
+	Internally, we optimize with respect to the matrix log;
+	specificially, we parameterize :math:`\mathbf{L}` in terms of
+	some scalar or vector :math:`\boldsymbol{\ell}`; i.e., 
+	
+
+	================ 	=============================================
+	scalar   			:math:`\mathbf{L}(\ell) = e^{\ell}\mathbf{I}`
+	scalar multiple 	:math:`\mathbf{L}(\ell) = e^{\ell} \mathbf{L}_0`
+	diagonal 			:math:`\mathbf{L}(\ell) = \text{diag}(\lbrace e^{\ell_i} \rbrace_{i})` 
+	lower triangular	:math:`\mathbf{L}(\ell) = e^{\text{tril}(\boldsymbol{\ell})}`
+	================ 	=============================================
 
 	In the constant and diagonal cases, this corresponds to the standard practice of
-	optimizing with respect to the (scalar) log of the scaling parameters.  In our experience,
-	working with this logarithmic parameterization increases the accuracy of the derivatives.
+	optimizing with respect to the (scalar) log of the scaling parameters. 
+	Our experience suggests that the matrix log similarly increases the accuracy
+	when working with the lower triangular parameterization.  
+	For the first three classes we have simple expressions for the derivatives,
+	but for the lower triangular parameterization we use complex step
+	approximation to compute the derivative [MN10]_. 
+	With this derivative information,
+	we solve the optimization problem using L-BFGS as implemented in scipy.
+	
+
+
 
 	Parameters
 	----------
-	X: np.ndarray(M, m)
-		M input coordinates of dimension m
-	y: np.ndarray(M)
-		y[i] is the output at X[i]
 	structure: ['tril', 'diag', 'const', 'scalar_mult']
 		Structure of the matrix L, either
-		* tril: lower triangular
-		* diag: diagonal	
+
 		* const: constant * eye
 		* scalar_mult
-	rank: int or None
-		If structure is 'tril', this specifies the rank of L	
+		* tril: lower triangular
+		* diag: diagonal	
+
 
 
 	Returns
@@ -321,48 +124,229 @@ class GaussianProcess(object):
 	.. [MN10] "The complex step approximation to the Frechet derivative of a matrix function", 
 		Awad H. Al-Mohy and Nicholas J. Higham, Numerical Algorithms, 2010 (53), pp. 133--148.
 	"""
-	def __init__(self, structure = 'const', n_init = 1, rank = None, poly_degree = None, L0s = None, **kwargs):
+	def __init__(self, structure = 'const', degree = None, nugget = None, Lfixed = None,
+		n_init = 1):
 		self.structure = structure
-		self.rank = rank
-		self.kwargs = kwargs
+		
+		self.rank = None # currently disabled due to conditioning issues
 		self.n_init = n_init
-		self.poly_degree = poly_degree
-		self.L0s = L0s
+		self.degree = degree
 
 		self._best_score = np.inf
 
-	def fit(self, X, y):
+		if nugget is None:
+			nugget = 5*np.finfo(float).eps
+		self.nugget = nugget
+
+		if structure is 'scalar_mult':
+			assert Lfixed is not None, "Must specify 'Lfixed' to use scalar_mult"
+			self.Lfixed = Lfixed
+
+	def _make_L(self, ell):
+		r""" Constructs the L matrix from the parameterization corresponding to the structure
+		"""
+
+
+		if self.structure is 'const':
+			return np.exp(ell)*np.eye(self.m)
+		elif self.structure is 'scalar_mult':
+			return np.exp(ell)*self.Lfixed
+		elif self.structure is 'diag':
+			return np.diag(np.exp(ell))	
+		elif self.structure is 'tril':
+			# Construct the L matrix	
+			L = np.zeros((self.m*self.m,), dtype = ell.dtype)
+			L[self.tril_flat] = ell
+			L = L.reshape(self.m,self.m)
+			return scipy.linalg.expm(L) - np.eye(self.m)
+
+	def _log_marginal_likelihood(self, ell, X = None, y = None, return_obj = True, return_grad = False, return_alpha_beta = False):
+		
+		if X is None: X = self.X
+		if y is None: y = self.y 
+
+		# Extract basic constants
+		M = X.shape[0]	
+		m = X.shape[1]	
+
+
+		L = self._make_L(ell)
+		# Compute the squared distance
+		Y = np.dot(L, X.T).T
+		dij = pdist(Y, 'sqeuclidean') 
+		
+		# Covariance matrix
+		K = np.exp(-0.5*squareform(dij))
+
+		# Solve the linear system to compute the coefficients
+		#alpha = np.dot(ev,(1./(ew+tikh))*np.dot(ev.T,y)) 
+		A = np.vstack([np.hstack([K + self.nugget*np.eye(K.shape[0]), self.V]), 
+					   np.hstack([self.V.T, np.zeros((self.V.shape[1], self.V.shape[1]))])])
+		b = np.hstack([y, np.zeros(self.V.shape[1])])
+
+		# As A can be singular, we use an eigendecomposition based inverse
+		ewA, evA = eigh(A)
+		I = (np.abs(ewA) > 5*np.finfo(float).eps)
+		x = np.dot(evA[:,I],(1./ewA[I])*np.dot(evA[:,I].T,b))
+
+		alpha = x[:M]
+		beta = x[M:]
+
+		if return_alpha_beta:
+			return alpha, beta
+
+		ew, ev = scipy.linalg.eigh(K + self.nugget*np.eye(K.shape[0]))	
+
+		if return_obj:
+			# Should this be with yhat or y?
+			# yhat = y - np.dot(V, beta)
+			# Doesn't matter because alpha in nullspace of V.T
+			# RW06: (5.8)
+			obj = 0.5*np.dot(y, alpha) + 0.5*np.sum(np.log(ew))
+			if not return_grad:
+				return obj
+		
+		# Now compute the gradient
+		# Build the derivative of the covariance matrix K wrt to L
+
+		if self.structure == 'tril':
+			dK = np.zeros((M,M, len(ell)))
+			for idx, (k, el) in enumerate(self.tril_ij):
+				eidx = np.zeros(ell.shape)
+				eidx[idx] = 1.
+				# Approximation of the matrix exponential derivative [MH10]
+				h = 1e-10
+				dL = np.imag(self._make_L(ell + 1j*h*eidx))/h
+				#print "dL", dL
+				dY = np.dot(dL, X.T).T
+				for i in range(M):
+					# Evaluate the dot product
+					# dK[i,j,idx] -= np.dot(Y[i] - Y[j], dY[i] - dY[j])
+					dK[i,:,idx] -= np.sum((Y[i] - Y)*(dY[i] - dY), axis = 1)
+			for idx in range(len(self.tril_ij)):
+				dK[:,:,idx] *= K
+	
+		elif self.structure == 'diag':
+			dK = np.zeros((M,M, len(ell)))
+			for idx, (k, el) in enumerate(self.tril_ij):
+				for i in range(M):
+					dK[i,:,idx] -= (Y[i,k] - Y[:,k])*(Y[i,el] - Y[:,el])
+			for idx in range(len(self.tril_ij)):
+				dK[:,:,idx] *= K	
+
+		elif self.structure in ['const', 'scalar_mult']:
+			# In the scalar case everything drops and we 
+			# simply need 
+			# dK[i,j,1] = (Y[i] - Y[j])*(Y[i] - Y[j])*K
+			# which we have already computed
+			dK = -(squareform(dij)*K).reshape(M,M,1)
+				
+		# Now compute the gradient
+		grad = np.zeros(len(ell))
+	
+		for k in range(len(ell)):
+			#Kinv_dK = np.dot(ev, np.dot(np.diag(1./(ew+tikh)),np.dot(ev.T,dK[:,:,k])))
+			#I = (ew > 0.1*np.sqrt(np.finfo(float).eps))
+			#I = (ew>5*np.finfo(float).eps)
+			#print "k", k, "dK", dK.shape
+
+			Kinv_dK = np.dot(ev, (np.dot(ev.T,dK[:,:,k]).T/ew).T)
+			# Note flipped signs from RW06 eq. 5.9
+			grad[k] = 0.5*np.trace(Kinv_dK)
+			grad[k] -= 0.5*np.dot(alpha, np.dot(alpha, dK[:,:,k]))
+		
+		if return_obj and return_grad:
+			return obj, grad
+		if not return_obj:
+			return grad
+
+
+	def _obj(self, ell, X = None, y = None):
+		return self._log_marginal_likelihood(ell, X, y, 
+			return_obj = True, return_grad = False, return_alpha_beta = False)
+	
+	def _grad(self, ell, X = None, y = None):
+		return self._log_marginal_likelihood(ell, X, y, 
+			return_obj = False, return_grad = True, return_alpha_beta = False)
+
+	
+	def _fit_init(self, X, y):
+		m = self.m = X.shape[1]
+		self.X = X
+		self.y = y
+		# Setup structure based properties
+		if self.structure == 'tril':
+			if self.rank is None: rank = m
+			else: rank = self.rank
+			
+			self.tril_ij = [ (i,j) for i, j in zip(*np.tril_indices(m)) if i >= (m - rank)]
+			self.tril_flat = np.array([ i*m + j for i,j in self.tril_ij])
+
+		elif self.structure == 'diag':
+			self.tril_ij = [ (i,i) for i in range(m)]
+
+
+		# Cache Vandermonde matrix on sample points
+		if self.degree is not None:
+			self.basis = LegendreTensorBasis(X.shape[1], self.degree)
+			self.basis.set_scale(X)
+			self.V = self.basis.V(X)
+		else:
+			self.V = np.zeros((X.shape[0],0))
+		
+
+
+	def fit(self, X, y, L0 = None):
 		""" Fit a Gaussian process model
 
+		Parameters
+		----------
+		X: array-like (M, m)
+			M input coordinates of dimension m
+		y: array-like (M,)
+			y[i] is the output at X[i]
 		"""
-		self.X = np.copy(X)
-		self.y = np.copy(y)
-		self.refine(X, y, 	n_init = self.n_init, L0s = self.L0s)	
+		X = np.array(X)
+		y = np.array(y)
+	
+		# Initialized cached values for fit
+		self._fit_init(X, y)	
 
-	def refine(self, X, y, n_init = 1, L0s = None):
-		if L0s is None:
-			L0s = [ np.random.randn(X.shape[1], X.shape[1]) for i in range(n_init)]
-		
-		res = [ fit_gp(X, y, rank = self.rank, structure = self.structure, L0 = L0, poly_degree = self.poly_degree, **self.kwargs) for L0 in L0s ]
-		# Remove excessively small solutions
-		res = [res_i for res_i in res if np.max(np.abs(res_i[0])) > 1e-10]
-		#print [res_i[-1] for res_i in res]
-		#print [res_i[0] for res_i in res]
-		k = np.argmin([res_i[-1] for res_i in res])
-		if res[k][-1] < self._best_score:
-			self.L = res[k][0]
-			self.alpha = res[k][1]
-			self.beta = res[k][2]
-			self._best_score = res[k][3]
+	
+		if L0 is None:
+			L0 = np.eye(m)
+
+		if self.structure == 'tril':
+			ell0 = np.array([L0[i,j] for i, j in self.tril_ij])
+		elif self.structure == 'diag':
+			if len(L0.shape) == 1:
+				ell0 = L0.flatten()
+			else:
+				ell0 = np.array([L0[i,i] for i, j in self.tril_ij])
+		elif self.structure == 'scalar_mult':
+			ell0 = np.array(L0.flatten()[0])
+		elif self.structure == 'const':
+			ell0 = np.array(L0.flatten()[0])
+
+		# Actually do the fitting
+		self._fit(ell0)
+
+
+	def _fit(self, ell0):
+		ell, obj, d = fmin_l_bfgs_b(self._obj, ell0, fprime = self._grad, disp = False)
+		self.L = self._make_L(ell)
+		self.alpha, self.beta = self._log_marginal_likelihood(ell, 
+			return_obj = False, return_grad = False, return_alpha_beta = True)
+
+			
 
 	def predict(self, Xnew, return_cov = False):
 		Y = np.dot(self.L, self.X.T).T
 		Ynew = np.dot(self.L, Xnew.T).T
 		dij = cdist(Ynew, Y, 'sqeuclidean')	
 		K = np.exp(-0.5*dij)
-		if self.poly_degree is not None:
-			basis = LegendreTensorBasis(self.X.shape[1], self.poly_degree)
-			V = basis.V(Xnew)
+		if self.degree is not None:
+			V = self.basis.V(Xnew)
 		else:
 			V = np.zeros((Xnew.shape[0],0))
 
@@ -387,9 +371,9 @@ if __name__ == '__main__':
 	a = 2*np.ones(m)
 	y = np.dot(a.T, X.T).T**2 + 1
 
-	gp = GaussianProcess(poly_degree = 1, n_init = 10, structure = 'const')
+	gp = GaussianProcess(degree = 1, structure = 'const')
 	gp.fit(X, y)
-	Xnew = np.random.randn(int(1e5),m)
+	Xnew = np.random.randn(int(1e3),m)
 	gp.predict(Xnew)
 	#yhat, cov = gp.predict(Xnew, return_cov = True)
 	#print y

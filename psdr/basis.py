@@ -106,6 +106,33 @@ class PolynomialTensorBasis(Basis):
 			ej[j] = 1.
 			self.Dmat[j,:] = self.der(ej)
 
+	def set_scale(self, X):
+		r""" Construct an affine transformation of the domain to improve the conditioning
+		"""
+		self._set_scale(np.array(X))
+
+	def _set_scale(self, X):
+		r""" default scaling to [-1,1]
+		"""
+		self._lb = np.min(X, axis = 0)
+		self._ub = np.max(X, axis = 0)
+
+	def _scale(self, X):
+		r""" Apply the scaling to the input coordinates
+		"""
+		try:
+			return 2*(X-self._lb[None,:])/(self._ub[None,:] - self._lb[None,:]) - 1
+		except NameError:
+			return X
+
+	def _dscale(self):
+		r""" returns the scaling associated with the scaling transform
+		"""
+		try:
+			return (2./(self._ub - self._lb))
+		except NameError:
+			raise NotImplementedError
+
 	def V(self, X):
 		r""" Builds the Vandermonde matrix associated with this basis
 
@@ -129,7 +156,7 @@ class PolynomialTensorBasis(Basis):
 		V: np.array
 			Vandermonde matrix
 		"""
-		X = np.array(X)
+		X = self._scale(np.array(X))
 		M = X.shape[0]
 		assert X.shape[1] == self.n, "Expected %d dimensions, got %d" % (self.n, X.shape[1])
 		V_coordinate = [self.vander(X[:,k], self.p) for k in range(self.n)]
@@ -162,7 +189,7 @@ class PolynomialTensorBasis(Basis):
 		Vc: np.array (M,)
 			Product of Vandermonde matrix and :math:`\mathbf c`
 		"""
-		X = np.array(X)
+		X = self._scale(np.array(X))
 		M = X.shape[0]
 		c = np.array(c)
 		assert len(self.indices) == c.shape[0]
@@ -212,7 +239,7 @@ class PolynomialTensorBasis(Basis):
 		Vp: np.array
 			Column-wise derivative of Vandermonde matrix
 		"""
-		X = np.array(X)
+		X = self._scale(np.array(X))
 		M = X.shape[0]
 		V_coordinate = [self.vander(X[:,k], self.p) for k in range(self.n)]
 		
@@ -221,6 +248,12 @@ class PolynomialTensorBasis(Basis):
 		N = len(self.indices)
 		DV = np.ones((M, N, self.n), dtype = X.dtype)
 
+		try:
+			dscale = self._dscale()
+		except NotImplementedError:
+			dscale = np.ones(X.shape[1])	
+
+
 		for k in range(self.n):
 			for j, alpha in enumerate(self.indices):
 				for q in range(self.n):
@@ -228,6 +261,8 @@ class PolynomialTensorBasis(Basis):
 						DV[:,j,k] *= np.dot(V_coordinate[q][:,0:-1], self.Dmat[alpha[q],:])
 					else:
 						DV[:,j,k] *= V_coordinate[q][:,alpha[q]]
+			# Correct for transform
+			DV[:,:,k] *= dscale[k] 		
 
 		return DV
 
@@ -265,7 +300,21 @@ class HermiteTensorBasis(PolynomialTensorBasis):
 	def __init__(self, n, p):
 		PolynomialTensorBasis.__init__(self, n, p, hermvander, hermder)
 
+	def _set_scale(self, X):
+		self._mean = np.mean(X, axis = 0)
+		self._std = np.std(X, axis = 0)
 
+	def _scale(self, X):
+		try:
+			return (X - self._mean[None,:])/self._std[None,:]/np.sqrt(2)
+		except NameError:
+			return X
+
+	def _dscale(self):
+		try:
+			return 1./self._std/np.sqrt(2)
+		except NameError:
+			raise NotImplementedError
 
 
 
