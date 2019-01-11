@@ -1,3 +1,5 @@
+__all__ = ['Function', 'WrapperFunction']
+
 
 class Function(object):
 	r""" Abstract base class for functions
@@ -15,9 +17,6 @@ class Function(object):
 		else:
 			return self.eval(X)
 
-	def __get__(self, i):
-		"""Get a particular sub-function as another Function"""
-		raise NotImplemented
 
 class WrapperFunction(Function):
 	r"""Wrapper around function specifying the domain
@@ -46,5 +45,10 @@ class WrapperFunction(Function):
 	def __init__(self, funs, domain, grad = None, vectorized = False, fun_kwargs = None):
 		self.funs = funs
 		self.domain = domain
-
 	
+	def __get__(self, i):
+		"""Get a particular sub-function as another Function"""
+		raise NotImplemented
+
+
+	#TODO: implement this class		

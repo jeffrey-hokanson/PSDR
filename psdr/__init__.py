@@ -1,6 +1,6 @@
 from .domains import *
 from .basis import *
-from .function import Function
+from .function import *
 from .subspace import *
 from .polyridge import *
 from .gp import * 
