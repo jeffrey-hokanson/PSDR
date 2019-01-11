@@ -34,7 +34,7 @@ def test_varpro_jacobian():
 
 	# Check with scaling on
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True)
-	pra._set_scale(X, U)
+	pra.set_scale(X, U)
 	res = lambda U: pra._varpro_residual(X, fX, U)
 	jac = lambda U: pra._varpro_jacobian(X, fX, U)
 
@@ -44,31 +44,13 @@ def test_varpro_jacobian():
 
 	# Check with scaling on for Hermite basis
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True, basis = 'hermite')
-	pra._set_scale(X, U)
+	pra.set_scale(X, U)
 	res = lambda U: pra._varpro_residual(X, fX, U)
 	jac = lambda U: pra._varpro_jacobian(X, fX, U)
 
 	err = check_jacobian(U_flat, res, jac)	
 	assert err < 1e-6
 
-
-def test_scaling():
-	M = 100
-	m = 10
-	n = 1
-	p = 5
-
-	X = np.random.randn(M,m)
-	U = np.random.randn(m, n)
-	U, _ = np.linalg.qr(U)
-
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True)
-	pra._set_scale(X, U)
-	Y = pra._UX(X, U)
-	print np.min(Y, axis = 0)
-	print np.max(Y, axis = 0)
-	assert np.all(np.isclose(np.min(Y, axis = 0), -1)) 
-	assert np.all(np.isclose(np.max(Y, axis = 0), 1))
 
 
 def test_exact():

@@ -39,38 +39,38 @@ class PolynomialRidgeFunction(Function, SubspaceBasedDimensionReduction):
 				Y = 2*(Y-self._lb[None,:])/(self._ub[None,:] - self._lb[None,:]) - 1
 		return Y
 	
-	def _set_scale(self, X, U = None):
+	def set_scale(self, X, U = None):
 		""" Set the normalization map
 		"""
+		# TODO: Migrate to scaling internal to basis
 		if U is None: U = self.U
 
 		if self.scale:
 			Y = np.dot(U.T, X.T).T
-			if isinstance(self.basis, HermiteTensorBasis):
-				self._mean = np.mean(Y, axis = 0)
-				self._std = np.std(Y, axis = 0)
-				# In numpy, 'hermite' is physicist Hermite polynomials
-				# so we scale by 1/sqrt(2) to convert to the 'statisticians' Hermite 
-				# polynomials which are orthogonal with respect to the standard normal
-				#Y = (Y - mean[None,:])/std[None,:]/np.sqrt(2)
-			else:	
-				self._lb = np.min(Y, axis = 0)
-				self._ub = np.max(Y, axis = 0)
+			self.basis.set_scale(Y)
+
+	def V(self, X, U = None):
+		if U is None: U = self.U
+		
+		Y = U.T.dot(X.T).T
+		return self.basis.V(Y)
+
+	def DV(self, X, U = None):
+		if U is None: U = self.U
+		
+		Y = U.T.dot(X.T).T
+		return self.basis.DV(Y)
 
 	def eval(self, X):
-		#Y = np.dot(U.T, X.T).T
-		Y = self._UX(X)
-		V = self.basis.V(Y)
+		V = self.V(X)
 		return V.dot(self.coef)
-		#return self.basis.VC(Y, self.coef)
 	
 	def grad(self, X):
 		#Y = np.dot(U.T, X.T).T
-		Y = self._UX(X)
 		
-		Vp = self.basis.DV(Y)
+		DV = self.DV(X)
 		# Compute gradient on projected space
-		Df = np.tensordot(Vp, self.coef, axes = (1,0))
+		Df = np.tensordot(DV, self.coef, axes = (1,0))
 		# Inflate back to whole space
 		Df = Df.dot(U.T)
 		return Df
@@ -104,9 +104,6 @@ def orth(U):
 	U, R = np.linalg.qr(U, mode = 'reduced')
 	U = np.dot(U, np.diag(np.sign(np.diag(R)))) 
 	return U
-
-		
-
 
 
 class PolynomialRidgeApproximation(PolynomialRidgeFunction):
@@ -240,40 +237,11 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 
 
-	def _build_V(self, X, U):
-		""" Build the Vandermonde matrix
-		"""
-
-		Y = self._UX(X, U)
-		V = self.basis.V(Y)
-		return V
-
-	def _build_DV(self, X, U):
-		if self.scale:
-			if isinstance(self.basis, HermiteTensorBasis):
-				d_scale = 1./self._std/np.sqrt(2)
-			else:
-				d_scale = 2./(self._ub - self._lb)
-		else:
-			d_scale = np.ones(U.shape[1])
-
-		# normalized projected coordinates
-		Y = self._UX(X, U)
-		# Construct derivative matrix
-		DV = self.basis.DV(Y)
-		# Scale derivative matrix appropreatly
-		for ell in range(len(d_scale)):
-			DV[:,:,ell] *= d_scale[ell]
-
-		return DV
-		
-
 	def _fit_fixed_U_2_norm(self, X, fX, U):
 		self.U = orth(U)
-		self._set_scale(X, U)
-		V = self._build_V(X, U)
+		self.set_scale(X)
+		V = self.V(X)
 		self.coef = scipy.linalg.lstsq(V, fX)[0].flatten()
-
 
 
 	def _fit_affine_2_norm(self, X, fX):
@@ -286,7 +254,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	def _varpro_residual(self, X, fX, U_flat):
 		U = U_flat.reshape(X.shape[1],-1)
 
-		V = self._build_V(X, U)
+		V = self.V(X, U)
 		c = scipy.linalg.lstsq(V, fX)[0]
 		r = fX - V.dot(c)
 		return r
@@ -297,10 +265,10 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U = U_flat.reshape(X.shape[1],-1)
 		m, n = U.shape
 		
-		V = self._build_V(X, U)
+		V = self.V(X, U)
 		c = scipy.linalg.lstsq(V, fX)[0].flatten()
 		r = fX - V.dot(c)
-		DV = self._build_DV(X, U)
+		DV = self.DV(X, U)
 	
 		Y, s, ZT = scipy.linalg.svd(V, full_matrices = False) 
 	
@@ -340,7 +308,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 				U0 = np.hstack([U0, np.random.randn(X.shape[1], self.subspace_dimension-1)])
 		
 		# Setup scaling	
-		self._set_scale(X, U = U0)
+		self.set_scale(X, U = U0)
 		
 		# Define trajectory
 
@@ -354,7 +322,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		def jacobian(U_flat):
 			# set the scaling
 			U = U_flat.reshape(X.shape[1],-1)
-			self._set_scale(X, U = U0)
+			self.set_scale(X, U = U0)
 			return self._varpro_jacobian(X, fX, U_flat)
 
 		def residual(U_flat):
@@ -367,7 +335,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U = U_flat.reshape(-1, self.subspace_dimension)
 		self._U = U
 		# Find coefficients
-		V = self._build_V(X, U)
+		V = self.V(X, U)
 		self.coef = scipy.linalg.lstsq(V, fX)[0].flatten()
 	
 	def _fit_inf_norm(self, X, fX, U0, **kwargs):
