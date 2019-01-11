@@ -1,4 +1,6 @@
 # 2018 (c) Jeffrey M. Hokanson and Caleb Magruder
+from __future__ import print_function, division
+
 import warnings
 import numpy as np
 import scipy.linalg
@@ -190,11 +192,8 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 			dx, s = gnsolver(F_eval, f_eval)
 
 		if not np.all(np.isfinite(dx)):
-			print "dx", dx
-			print "sing vals", s
-			print "F_eval", F_eval.shape, np.all(np.isfinite(F_eval))
-			print "f_eval", f_eval.shape, np.all(np.isfinite(f_eval))
-			np.savez('breaking_lstsq.npz', A = F_eval, b = -f_eval)
+			raise RuntimeError("Non-finite search direction returned") 
+
 		if s[-1] == 0:
 			cond = np.inf
 		else:	
@@ -220,13 +219,16 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 				'    %3d  |  %1.4e  |  %8.2e  |  %8.2e  |  %8.2e  |  %8.2e' % (
 				it, normf, normdx, cond, alpha, normgrad))
 		if normgrad < tol:
-			if verbose: print "norm gradient %1.3e less than tolerance %1.3e" % (normgrad, tol)
+			if verbose: print("norm gradient %1.3e less than tolerance %1.3e" % 
+				(normgrad, tol))
 			break
 		if normdx < tol_normdx:
-			if verbose: print "norm dx %1.3e less than tolerance %1.3e" % (normdx, tol_normdx)
+			if verbose: print("norm dx %1.3e less than tolerance %1.3e" % 
+				(normdx, tol_normdx))
 			break
 		if residual_increased:
-			if verbose: print "residual increased during line search from %1.5e to %1.5e" % (np.linalg.norm(f_eval), f_eval_new)
+			if verbose: print("residual increased during line search from %1.5e to %1.5e" % 
+				(np.linalg.norm(f_eval), f_eval_new))
 			break
 
 	if normgrad <= tol:

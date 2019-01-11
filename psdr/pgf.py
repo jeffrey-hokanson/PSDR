@@ -1,4 +1,5 @@
 #provides a class for dumping tab separated files for PGF
+from __future__ import print_function
 import matplotlib as mpl
 from matplotlib.path import Path
 
@@ -97,6 +98,6 @@ def save_contour(fname, cs, fmt = 'matlab', simplify = 1e-3, **kwargs):
 						x_vec.append(x_vec[0])
 						y_vec.append(y_vec[0])
 					else:
-						print "received code", code
+						print("received code", code)
 
 				write_path(fout, x_vec, y_vec, z)

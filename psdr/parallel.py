@@ -7,6 +7,8 @@ Note there are several options depending on level of complexity:
 
 
 """
+from __future__ import print_function
+
 import numpy as np
 try:
 	from tqdm import tqdm
@@ -94,6 +96,6 @@ if __name__ == '__main__':
 
 	args = [ (Dummy(np.random.randn(10000, 100)),) for i in range(100)]
 	
-	print pmap(f, args, progress = True, parallel = True)
+	print(pmap(f, args, progress = True, parallel = True))
 
 

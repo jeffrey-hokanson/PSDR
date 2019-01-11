@@ -24,6 +24,9 @@ FAQ
 
 """
 
+from __future__ import print_function
+
+
 from redis import Redis
 import time
 import uuid
@@ -576,22 +579,22 @@ Commands
 			args.worker_name = petname.Generate(3)
 		with runnable_worker(pool, worker_name = args.worker_name, max_jobs = args.max_jobs) as worker:
 			worker.run()
-		print "worker done"
+		print("worker done")
 
 	elif args.command == 'info':
 		parser.add_argument('pool_name', help = 'name of pool')
 		args = parser.parse_args()
 
 		pool = RedisPool(name = args.pool_name, host = args.host, port = args.port, password = args.password)
-		print "Pool: %s" % (args.pool_name,)
+		print("Pool: %s" % (args.pool_name,))
 		
-		print "------Workers-------"
+		print("------Workers-------")
 		for worker in pool.workers:
-			print "\t %20s %10s %04d" % (worker.worker_name, worker.state,  worker.run_time)	
+			print("\t %20s %10s %04d" % (worker.worker_name, worker.state,  worker.run_time))
 
-		print "------Jobs----------"
+		print("------Jobs----------")
 		for job in pool.jobs:
-			print "\t %20s %10s %5d" % (job.job_name, job.state, job.elapsed_time)
+			print("\t %20s %10s %5d" % (job.job_name, job.state, job.elapsed_time))
 
 	elif args.command == 'kill':
 		parser.add_argument('pool_name', help = 'name of pool')

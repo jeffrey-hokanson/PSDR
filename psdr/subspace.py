@@ -1,5 +1,5 @@
 # Subspace based dimension reduction techniques
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 import scipy.linalg
 import matplotlib.pyplot as plt
@@ -243,8 +243,8 @@ if __name__ == '__main__':
 	fX = np.dot(X, a).flatten()
 	grads = np.tile(a, (X.shape[0], 1))
 	lip = LipschitzMatrix(grads = grads)
-	print lip.M
-	print lip.L
+	print(lip.M)
+	print(lip.L)
 	lip.shadow_plot(X = X, fX = fX)
 	#act = ActiveSubspace(grads)
 	#act.shadow_plot(X, fX)

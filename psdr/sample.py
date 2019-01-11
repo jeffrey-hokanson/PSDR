@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 import time
 import scipy.linalg
@@ -280,5 +281,5 @@ if __name__ == '__main__':
 	samp.sample(2)
 	for k in range(2,1000):
 		samp.sample()
-		print "%3d %5.2e" % (k, samp.fill_dist)
+		print("%3d %5.2e" % (k, samp.fill_dist))
 		 

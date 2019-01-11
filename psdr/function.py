@@ -43,7 +43,7 @@ class WrapperFunction(Function):
 	fun_kwargs: dict, default: empty
 		Keyword arguments to pass to the functions when evaluating function 
 	"""
-	def __init__(self, funs, domain, vectorized = False, fun_kwargs = None):
+	def __init__(self, funs, domain, grad = None, vectorized = False, fun_kwargs = None):
 		self.funs = funs
 		self.domain = domain
 

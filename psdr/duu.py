@@ -1,7 +1,7 @@
 import numpy as np
-from domains import EmptyDomain
+from .domains import EmptyDomain
 from sklearn.neighbors import KernelDensity
-from pgf import PGF
+from .pgf import PGF
 
 
 def forward_propagation_pdf(random_domain, pra_rand_norm, Nsamp = int(1e4), npoints = 100):
