@@ -9,6 +9,8 @@ Welcome to Parameter Space Dimension Reduction's documentation!
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
+
+   tutorial
    
    domain 
    basis
