@@ -6,6 +6,7 @@ from psdr import (MonomialTensorBasis,
 	LaguerreTensorBasis, 
 	HermiteTensorBasis)
 
+from checkder import check_jacobian 
 
 
 def test_equivalence(m = 3, p = 5):
@@ -29,7 +30,25 @@ def test_equivalence(m = 3, p = 5):
 			print scipy.linalg.svdvals(U1.T.dot(U2))
 			assert np.all(np.isclose(scipy.linalg.svdvals(U1.T.dot(U2)), 1.))
 
+
+def test_der(m = 3, p = 5, M = 10):
+	X = np.random.randn(M, m)
 		
 
+	bases = [MonomialTensorBasis(m, p),
+		LegendreTensorBasis(m, p),
+		ChebyshevTensorBasis(m, p),
+		LaguerreTensorBasis(m, p),
+		HermiteTensorBasis(m, p),
+		]
 
+	for basis in bases:
+		obj = lambda x: basis.V(x.reshape(1,-1)).reshape(-1)
+		grad = lambda x: basis.DV(x.reshape(1,-1)).reshape(-1, m)
+		assert check_jacobian(X[0], obj, grad) < 1e-7
+		
+		basis.set_scale(X)
+		obj = lambda x: basis.V(x.reshape(1,-1)).reshape(-1)
+		grad = lambda x: basis.DV(x.reshape(1,-1)).reshape(-1, m)
+		assert check_jacobian(X[0], obj, grad) < 1e-7
 

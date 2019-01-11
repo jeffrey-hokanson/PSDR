@@ -226,7 +226,8 @@ class PolynomialTensorBasis(Basis):
 
 		.. math::
 
-			[\mathbf{V}]_{i,j} = \phi_j'(\mathbf x_i)
+			[\mathbf{V}]_{i,j} = \left. \frac{\partial}{\partial x_k} \psi_j(\mathbf{x}) 
+				\right|_{\mathbf{x} = \mathbf{x}_i}.
 
 		Parameters
 		----------
@@ -236,15 +237,14 @@ class PolynomialTensorBasis(Basis):
 
 		Returns
 		-------
-		Vp: np.array
-			Column-wise derivative of Vandermonde matrix
+		Vp: np.array (M, N, n)
+			Derivative of Vandermonde matrix where :code:`Vp[i,j,:]`
+			is the gradient of :code:`V[i,j]`. 
 		"""
 		X = self._scale(np.array(X))
 		M = X.shape[0]
 		V_coordinate = [self.vander(X[:,k], self.p) for k in range(self.n)]
 		
-		#mi = MultiIndex(self.n, self.p)
-		#N = len(mi)
 		N = len(self.indices)
 		DV = np.ones((M, N, self.n), dtype = X.dtype)
 
