@@ -127,7 +127,8 @@ class Domain(object):
 			if not provided, the standard 2-norm is used.
 		kwargs: dict, optional
 			Additional arguments to pass to the optimizer
-		
+		def _sample(self, draw = 1):
+		return self.domain_norm._sample(draw)	
 		Returns
 		-------
 		x: array-like
@@ -223,13 +224,21 @@ class Domain(object):
 			Samples in rows of X
 		"""
 		# Make this a 2-d array
+		X = np.atleast_1d(X)
 		if len(X.shape) == 1:
+			# Check for dimension mismatch
+			if X.shape[0] != len(self):
+				return False
 			X = X.reshape(-1, len(self)) 	
 			return self._isinside(X).flatten()
 		else:
+			# Check if the dimensions match
+			if X.shape[1] != len(self):
+				return np.zeros(X.shape[0], dtype = np.bool)
 			return self._isinside(X)
 
-
+	def _isinside(self, X):
+		raise NotImplementedError
 
 	def normalize(self, X):
 		""" Given a points in the application space, convert it to normalized units
@@ -249,6 +258,9 @@ class Domain(object):
 		else:
 			return self._normalize(X)
 
+	def _normalize(self, X):
+		raise NotImplementedError
+
 	def unnormalize(self, X_norm):
 		""" Convert points from normalized units into application units
 		
@@ -263,6 +275,9 @@ class Domain(object):
 			return self._unnormalize(X_norm).flatten()
 		else:
 			return self._unnormalize(X_norm)
+	
+	def _unnormalize(self, X_norm):
+		raise NotImplementedError
 	
 	def normalized_domain(self):
 		""" Return a domain with units normalized corresponding to this domain
@@ -397,11 +412,6 @@ class Domain(object):
 		self._hit_and_run_state = None
 		return self._hit_and_run(_recurse = _recurse - 1)
 
-
-	def __mul__(self, other):
-		r""" Create a tensor product domain
-		"""
-		return TensorProductDomain([self, other])
 
 	################################################################################		
 	# Simple properties
