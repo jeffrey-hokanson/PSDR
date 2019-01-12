@@ -154,11 +154,16 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 			
 		self._weights = np.array(weights)
 		self._U, self._s, VT = np.linalg.svd(np.sqrt(self._weights)*self._grads.T)
-		
+	
+		# TODO: Fix +/- scaling so average gradient is positive	
 
 	@property
 	def U(self):
 		return np.copy(self._U)
+
+	# TODO: Plot of eigenvalues (with optional boostrapped estimate)
+
+	# TODO: Plot of eigenvector angles with bootstrapped replicates.
 
 
 class LipschitzMatrix(SubspaceBasedDimensionReduction):
