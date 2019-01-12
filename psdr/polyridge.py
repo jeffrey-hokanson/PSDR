@@ -3,14 +3,16 @@
 
 import numpy as np
 import scipy.linalg
+import cvxpy as cp
+import warnings
 from copy import deepcopy, copy
 
-from .domains import Domain, BoxDomain
-from .function import BaseFunction
-from .subspace import SubspaceBasedDimensionReduction
-from .ridge import RidgeFunction
-from .basis import *
-from .gn import gauss_newton 
+from domains import Domain, BoxDomain
+from function import BaseFunction
+from subspace import SubspaceBasedDimensionReduction
+from ridge import RidgeFunction
+from basis import *
+from gn import gauss_newton 
 
 
 class PolynomialRidgeFunction(RidgeFunction):
@@ -27,7 +29,6 @@ class PolynomialRidgeFunction(RidgeFunction):
 	def set_scale(self, X, U = None):
 		""" Set the normalization map
 		"""
-		# TODO: Migrate to scaling internal to basis
 		if U is None: U = self.U
 
 		if self.scale:
@@ -69,9 +70,6 @@ class PolynomialRidgeFunction(RidgeFunction):
 		r""" Compute the roots of the derivative of the polynomial
 		"""
 		raise NotImplementedError
-
-	# TODO: add plotting of the response surface
-	#def shadow_plot(self, X, fX, dim = 1, ax = None):
 
 
 ################################################################################
@@ -322,7 +320,49 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		# Find coefficients
 		V = self.V(X, U)
 		self.coef = scipy.linalg.lstsq(V, fX)[0].flatten()
-	
+
+	def _fit_fixed_U_inf_norm(self, X, fX, U):
+		self._U = U
+		V = self.V(X, U)
+		# Setup minimax problem for coeffiecients
+		with warnings.catch_warnings():
+			warnings.simplefilter('ignore', PendingDeprecationWarning)
+			c = cp.Variable(V.shape[1])
+			obj = cp.norm_inf( fX - c.__rmatmul__(V))
+			problem = cp.Problem(cp.Minimize(obj))
+			problem.solve()
+			self.coef = c.value
+
+	def _inf_residual_grad(self, X, fX, U_flat, c = None, return_grad = False):
+		U = U_flat.reshape(X.shape[1], -1)	
+		m = U.shape[0]
+		n = U.shape[1]
+		M = X.shape[0]
+
+		V = self.V(X, U)
+		if c is None:
+			with warnings.catch_warnings():
+				warnings.simplefilter('ignore', PendingDeprecationWarning)
+				c = cp.Variable(V.shape[1])
+				obj = cp.norm_inf( fX - c.__rmatmul__(V))
+				problem = cp.Problem(cp.Minimize(obj))
+				problem.solve()
+				c = c.value
+		
+		res = V.dot(c) - fX
+
+		if not return_grad:
+			return res
+
+		# Derivative of V with respect to U with c fixed	
+		DVDUc = np.zeros((M,m,n))
+		DV = self.DV(X, U) 	# Size (M, N, n)
+		for k in range(m):
+			for ell in range(n):
+				DVDUc[:,k,ell] = X[:,k]*np.dot(DV[:,:,ell], c)
+		
+		return res, DVDUc.reshape(M, -1)
+			
 	def _fit_inf_norm(self, X, fX, U0, **kwargs):
 		pass
 
@@ -346,7 +386,9 @@ if __name__ == '__main__':
 
 	U0 = orth(np.random.randn(m,n))
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  =n)
-	pra.fit(X, fX)
+	#pra.fit(X, fX)
+	pra._fit_fixed_U_inf_norm(X, fX, U)
+	
 
 	# TODO: Fix bug in scaling
 

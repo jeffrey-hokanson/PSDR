@@ -3,8 +3,8 @@
 
 import numpy as np
 
-from .function import BaseFunction
-from .subspace import SubspaceBasedDimensionReduction
+from function import BaseFunction
+from subspace import SubspaceBasedDimensionReduction
 
 class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
 	

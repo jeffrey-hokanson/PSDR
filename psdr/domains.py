@@ -714,6 +714,9 @@ class UnboundedDomain(Domain):
 	def __len__(self):
 		return self._dimension
 
+	def _build_constraints(self, x):
+		return [] 
+	
 	def _build_constraints_norm(self, x_norm):
 		return []
 

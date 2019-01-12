@@ -1,6 +1,6 @@
 import numpy as np
 
-from .domains import Domain
+from domains import Domain
 
 
 __all__ = ['Function', 'BaseFunction']
