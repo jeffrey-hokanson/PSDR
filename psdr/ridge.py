@@ -3,87 +3,79 @@
 
 import numpy as np
 
+from .function import BaseFunction
+from .subspace import SubspaceBasedDimensionReduction
 
-class RidgeApproximation(object):
+class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
 	
-	def predict(self, Xnew):
-		raise NotImplementedError
+	@property
+	def U(self):
+		return self._U
 
-	def predict_ridge(self, Ynew):
-		raise NotImplementedError
-	
-	def plot(self, axes = None, X = None, y = None, domain = None):
-		from matplotlib import pyplot as plt
-		if X is None or y is None:
-			X = self.X
-			y = self.y
-		
-		if axes is None:
-			fig, axes = plt.subplots(figsize = (6,6))
-
-		if self.subspace_dimension == 1:
-			Y = np.dot(self.U.T, X.T).flatten()
-			lb = np.min(Y)
-			ub = np.max(Y)
-			
-			axes.plot(Y, y, 'k.', markersize = 6)
-			xx = np.linspace(lb, ub, 100)
-			XX = np.array([self.U.flatten()*x for x in xx])
-			axes.plot(xx, self.predict(XX), 'r-', linewidth = 2)
-
-			if domain is not None:
-				ridge_domain = build_ridge_domain(domain, self.U)
-				axes.axvspan(ridge_domain.lb[0], ridge_domain.ub[0], color = 'b', alpha = 0.15)
-
-		elif self.subspace_dimension == 2:
-			Y = np.dot(self.U.T, X.T).T
-			# Construct grid
-			x = np.linspace(np.min(Y[:,0]), np.max(Y[:,0]), 100)	
-			y = np.linspace(np.min(Y[:,1]), np.max(Y[:,1]), 100)
-			xx, yy = np.meshgrid(x, y)
-			# Sample the ridge function
-			UXX = np.vstack([xx.flatten(), yy.flatten()])
-			XX = np.dot(self.U, UXX).T
-			YY = self.predict(XX)
-			YY = np.reshape(YY, xx.shape)
-			
-			axes.contour(xx, yy, YY, 
-				levels = np.linspace(np.min(self.y), np.max(self.y), 20), 
-				vmin = np.min(self.y), vmax = np.max(self.y),
-				linewidths = 0.5)
-			
-			# Plot points
-			axes.scatter(Y[:,0], Y[:,1], c = self.y, s = 3)
-
-			# plot boundary
-			if domain is not None:
-				ridge_domain = build_ridge_domain(domain, self.U)	
-				Y = ridge_domain.X
-				for simplex in ridge_domain.hull.simplices:
-					axes.plot(Y[simplex,0], Y[simplex,1], 'k-')
+	def shadow_plot(self, X = None, fX = None, dim = None, ax = None):
+		if dim is None:
+			dim = self.U.shape[1]
 		else:
-			raise NotImplementedError
+			assert dim == self.U.shape[1]
 
-		return axes
+		ax = SubspaceBasedDimensionReduction.shadow_plot(self, X, fX, dim, ax)
 
-	def plot_pgf(self, base_name, X = None, y = None):
-		if X is None or y is None:
-			X = self.X
-			y = self.y
-
-		if self.subspace_dimension == 1:
-			Y = np.dot(self.U.T, X.T).flatten()
+		# Draw the response surface
+		if dim == 1:
+			Y = np.dot(self.U.T, X.T).T
 			lb = np.min(Y)
 			ub = np.max(Y)
-		
-			pgf = PGF()
-			pgf.add('Ux', Y.flatten())
-			pgf.add('fx', y) 
-			pgf.write('%s_data.dat' % base_name)
 			
-			xx = np.linspace(lb, ub, 100)
-			XX = np.array([self.U.flatten()*x for x in xx])
-			pgf = PGF()
-			pgf.add('Ux', xx)
-			pgf.add('predict', self.predict(XX))
-			pgf.write('%s_fit.dat' % base_name)
+			xx = np.linspace(lb, ub, 500)
+			Uxx = np.hstack([self.U*xxi for xxi in xx]).T
+			yy = self.eval(Uxx)
+
+			ax.plot(xx, yy, 'r-')
+
+		elif dim == 2:	
+			Y = np.dot(self.U.T, X.T).T
+			lb0 = np.min(Y[:,0])
+			ub0 = np.max(Y[:,0])
+
+			lb1 = np.min(Y[:,1])
+			ub1 = np.max(Y[:,1])
+
+			# Constuct mesh on the domain
+			xx0 = np.linspace(lb0, ub0, 50)
+			xx1 = np.linspace(lb1, ub1, 50)
+			XX0, XX1 = np.meshgrid(xx0, xx1)
+			UXX = np.vstack([XX0.flatten(), XX1.flatten()])
+			XX = np.dot(self.U, UXX).T
+			YY = self.eval(XX).reshape(XX0.shape)
+			
+			ax.contour(xx0, xx1, YY, 
+				levels = np.linspace(np.min(fX), np.max(fX), 20), 
+				vmin = np.min(fX), vmax = np.max(fX),
+				linewidths = 0.5)
+		
+
+			
+		
+
+
+#	def plot_pgf(self, base_name, X = None, y = None):
+#		if X is None or y is None:
+#			X = self.X
+#			y = self.y
+#
+#		if self.subspace_dimension == 1:
+#			Y = np.dot(self.U.T, X.T).flatten()
+#			lb = np.min(Y)
+#			ub = np.max(Y)
+#		
+#			pgf = PGF()
+#			pgf.add('Ux', Y.flatten())
+#			pgf.add('fx', y) 
+#			pgf.write('%s_data.dat' % base_name)
+#			
+#			xx = np.linspace(lb, ub, 100)
+#			XX = np.array([self.U.flatten()*x for x in xx])
+#			pgf = PGF()
+#			pgf.add('Ux', xx)
+#			pgf.add('predict', self.predict(XX))
+#			pgf.write('%s_fit.dat' % base_name)

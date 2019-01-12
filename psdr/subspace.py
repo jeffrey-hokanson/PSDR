@@ -26,7 +26,7 @@ class SubspaceBasedDimensionReduction(object):
 
 		Returns
 		-------
-		np.ndarray (n,m):
+		np.ndarray (m, n):
 			Matrix with orthonormal columns defining the important directions in decreasing order
 			of precidence.
 		"""
@@ -47,14 +47,35 @@ class SubspaceBasedDimensionReduction(object):
 			Dimension of shadow plot
 		ax: matplotlib.pyplot.axis
 			Axis on which to draw the shadow plot
+
+		Returns
+		-------
+		ax: matplotlib.pyplot.axis
+			Axis on which the plot is drawn
 		"""
 		if ax is None:
-			fig, ax = plt.subplots()
+			if dim == 1:
+				fig, ax = plt.subplots(figsize = (6,6))
+			else:
+				# Hack so that plot is approximately square after adding colorbar 
+				fig, ax = plt.subplots(figsize = (7.5,6))
+	
+		if X is None:
+			X = self.X
 		
 		if dim == 1:
 			ax.plot(X.dot(self.U[:,0]), fX, 'k.')
 			ax.set_xlabel(r'active coordinate $\mathbf{u}^\top \mathbf{x}$')
 			ax.set_ylabel(r'$f(\mathbf{x})$')
+
+		elif dim == 2:
+			Y = self.U[:,0:2].T.dot(X.T).T
+			sc = ax.scatter(Y[:,0], Y[:,1], c = fX.flatten(), s = 3)
+			ax.set_xlabel(r'active coordinate 1 $\mathbf{u}_1^\top \mathbf{x}$')
+			ax.set_ylabel(r'active coordinate 2 $\mathbf{u}_2^\top \mathbf{x}$')
+
+			plt.colorbar(sc).set_label('f(x)')
+
 		else:
 			raise NotImplementedError		
 
@@ -106,17 +127,24 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 
 		\mathbf{C} \approx \sum_{i=1}^N w_i \nabla f(\mathbf{x}_i) \nabla f(\mathbf{x}_i)^\top.
 
-	
-	Parameters
-	----------
-	grads: array-like (N,m)
-		Gradient samples of function (tacitly assumed to be uniform on the domain
-		or from a quadrature rule with corresponding weight).
-	weights: array-like (N,), optional
-		Weights corresponding to a quadrature rule associated with the samples of the gradient.
-
 	"""
-	def __init__(self, grads, weights = None):
+	def __init__(self):
+		self._U = None
+		self._s = None
+
+
+	def fit(self, grads, weights = None):
+		r""" Find the active subspace
+
+		Parameters
+		----------
+		grads: array-like (N,m)
+			Gradient samples of function (tacitly assumed to be uniform on the domain
+			or from a quadrature rule with corresponding weight).
+		weights: array-like (N,), optional
+			Weights corresponding to a quadrature rule associated with the samples of the gradient.
+
+		"""
 		self._init_dim(grads = grads)
 
 		self._grads = np.array(grads).reshape(-1,len(self))
@@ -126,7 +154,7 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 			
 		self._weights = np.array(weights)
 		self._U, self._s, VT = np.linalg.svd(np.sqrt(self._weights)*self._grads.T)
-
+		
 
 	@property
 	def U(self):
@@ -154,14 +182,31 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		\text{such that} & \ |f(\mathbf{x}_i) - f(\mathbf{x}_j)|^2 \le (\mathbf{x}_i - \mathbf{x}_j)^\top \mathbf{M} (\mathbf{x}_i - \mathbf{x}_j) \\
 		& \ \nabla f(\mathbf{x}_k) \nabla f(\mathbf{x}_k)^\top \preceq \mathbf{M}
 
-
 	Parameters
 	----------
-	X : array-like (N, m), optional
-		Input coordinates for function samples 
-
+	**kwargs: dict (optional)
+		Additional parameters to pass to cvxpy
 	"""
-	def __init__(self, X = None, fX = None, grads = None, **kwargs):
+	def __init__(self, **kwargs):
+		self._U = None
+		self._L = None
+		self.kwargs = kwargs
+
+	def fit(self, X = None, fX = None, grads = None):
+		r""" Find the Lipschitz matrix
+
+
+
+		Parameters
+		----------
+		X : array-like (N, m), optional
+			Input coordinates for function samples 
+		fX: array-like (N,), optional
+			Values of the function at X[i]
+		grads: array-like (N,m), optional
+			Gradients of the function evaluated anywhere	
+		"""
+		kwargs = self.kwargs
 		self._init_dim(X = X, grads = grads)
 
 		if X is not None and fX is not None:

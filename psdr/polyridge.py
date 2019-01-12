@@ -5,14 +5,15 @@ import numpy as np
 import scipy.linalg
 from copy import deepcopy, copy
 
-from domains import Domain, BoxDomain
-from function import Function
-from subspace import SubspaceBasedDimensionReduction
-from basis import *
-from gn import gauss_newton 
+from .domains import Domain, BoxDomain
+from .function import BaseFunction
+from .subspace import SubspaceBasedDimensionReduction
+from .ridge import RidgeFunction
+from .basis import *
+from .gn import gauss_newton 
 
 
-class PolynomialRidgeFunction(Function, SubspaceBasedDimensionReduction):
+class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function
 	"""
 	def __init__(self, basis, coef, U):
@@ -22,22 +23,6 @@ class PolynomialRidgeFunction(Function, SubspaceBasedDimensionReduction):
 		self.domain = None
 		self.scale = False
 
-	@property
-	def U(self):
-		return self._U
-
-	# These functions allow scaling on the interior to remove conditioning issues
-	def _UX(self, X, U = None):
-		""" Evaluate the product Y = (U.T@X.T).T and scale appropriately 
-		"""
-		if U is None: U = self.U
-		Y = np.dot(U.T, X.T).T
-		if self.scale:
-			if isinstance(self.basis, HermiteTensorBasis):
-				Y = (Y - self._mean[None,:])/self._std[None,:]/np.sqrt(2)
-			else:
-				Y = 2*(Y-self._lb[None,:])/(self._ub[None,:] - self._lb[None,:]) - 1
-		return Y
 	
 	def set_scale(self, X, U = None):
 		""" Set the normalization map
@@ -51,7 +36,7 @@ class PolynomialRidgeFunction(Function, SubspaceBasedDimensionReduction):
 
 	def V(self, X, U = None):
 		if U is None: U = self.U
-		
+		X = np.array(X)	
 		Y = U.T.dot(X.T).T
 		return self.basis.V(Y)
 
