@@ -357,7 +357,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		M, m = X.shape
 		n = self.subspace_dimension
 		N = len(self.basis.indices)
-		U = orth(U_c[:m*n].reshape(m,n))
+		U = U_c[:m*n].reshape(m,n)
 		c = U_c[m*n:].reshape(N)
 
 		V = self.V(X, U)
