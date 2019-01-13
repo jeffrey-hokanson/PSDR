@@ -178,7 +178,7 @@ texinfo_documents = [
 #	}
 #}
 
-
+nbsphinx_allow_errors = True
 
 # -- Options for todo extension ----------------------------------------------
 
