@@ -114,6 +114,9 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 	assert isinstance(domain, Domain), "Must provide a domain for the space"
 	assert domain.isinside(x0), "Starting point must be inside the domain"
 
+	if 'solver' not in kwargs:
+		kwargs['solver'] = 'CVXOPT'
+
 
 	# Start of optimization loop
 	x = np.copy(x0)

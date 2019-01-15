@@ -547,7 +547,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			return constraints
 
 		# Perform optimization
-		U_c = minimax(obj, U_c0, trajectory = trajectory, trust_region = True,
+		U_c = minimax(obj, U_c0, trajectory = trajectory, trust_region = False,
 			search_constraints = search_constraints, **kwargs)	
 	
 		# Store solution	
@@ -584,12 +584,3 @@ if __name__ == '__main__':
 	pra.shadow_plot(X, fX)
 	plt.show()
 
-	# TODO: Fix bug in scaling
-
-#	print pra.U
-#	print U
-#
-#	print pra.coef
-#	print prf.coef
-#	print pra(X) - prf(X)
-	#V =	pra._build_V(X, U)
