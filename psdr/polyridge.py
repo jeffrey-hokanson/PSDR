@@ -219,6 +219,16 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			raise NotImplementedError
 
 
+	################################################################################	
+	# Specialized Affine fits
+	################################################################################	
+	
+	def _fit_affine_2_norm(self, X, fX):
+		XX = np.hstack([X, np.ones((X.shape[0],1))])
+		b = scipy.linalg.lstsq(XX, fX)[0]
+		U = b[0:-1].reshape(-1,1)
+		return U	
+
 
 	def _fit_fixed_U_2_norm(self, X, fX, U):
 		self.U = orth(U)
@@ -227,11 +237,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		self.coef = scipy.linalg.lstsq(V, fX)[0].flatten()
 
 
-	def _fit_affine_2_norm(self, X, fX):
-		XX = np.hstack([X, np.ones((X.shape[0],1))])
-		b = scipy.linalg.lstsq(XX, fX)[0]
-		U = b[0:-1].reshape(-1,1)
-		return U	
 
 
 	def _varpro_residual(self, X, fX, U_flat):
