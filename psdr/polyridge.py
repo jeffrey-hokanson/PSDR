@@ -13,7 +13,7 @@ from subspace import SubspaceBasedDimensionReduction
 from ridge import RidgeFunction
 from basis import *
 from gn import gauss_newton 
-
+from minimax import minimax
 
 class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function
@@ -88,6 +88,22 @@ def orth(U):
 	U = np.dot(U, np.diag(np.sign(np.diag(R)))) 
 	return U
 
+def inf_norm_fit(A, b):
+	r""" Solve inf-norm linear optimization problem
+
+	.. math::
+
+		\min_{x} \| \mathbf{A} \mathbf{x} - \mathbf{b}\|_\infty
+
+	"""
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore', PendingDeprecationWarning)
+		x = cp.Variable(A.shape[1])
+		obj = cp.norm_inf(x.__rmatmul__(A) - b)
+		problem = cp.Problem(cp.Minimize(obj))
+		problem.solve()
+		return x.value
+
 
 class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	r""" Constructs a ridge approximation using a total degree approximation
@@ -134,7 +150,9 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 	References
 	----------
-	.. [HC18] J. M. Hokanson and Paul G. Constantine. Data-driven Polynomial Ridge Approximation Using Variable Projection. SIAM J. Sci. Comput. Vol 40, No 3, pp A1566--A1589, DOI:10.1137/17M1117690.
+	.. [HC18] J. M. Hokanson and Paul G. Constantine. 
+		Data-driven Polynomial Ridge Approximation Using Variable Projection. 
+		SIAM J. Sci. Comput. Vol 40, No 3, pp A1566--A1589, DOI:10.1137/17M1117690.
 	"""
 
 	def __init__(self, degree, subspace_dimension, basis = 'legendre', 
@@ -215,6 +233,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		# TODO Implement multiple initializations
 		if self.norm == 2:
 			return self._fit_2_norm(X, fX, U0, **kwargs)
+		elif self.norm == np.inf:
+			return self._fit_inf_norm(X, fX, U0, **kwargs)
 		else:
 			raise NotImplementedError
 
@@ -310,7 +330,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		def jacobian(U_flat):
 			# set the scaling
 			U = U_flat.reshape(X.shape[1],-1)
-			self.set_scale(X, U = U0)
+			self.set_scale(X, U = U)
 			return self._varpro_jacobian(X, fX, U_flat)
 
 		def residual(U_flat):
@@ -338,21 +358,14 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			problem.solve()
 			self.coef = c.value
 
-	def _inf_residual_grad(self, X, fX, U_flat, c = None, return_grad = False):
-		U = U_flat.reshape(X.shape[1], -1)	
-		m = U.shape[0]
-		n = U.shape[1]
-		M = X.shape[0]
+	def _inf_residual_grad(self, X, fX, U_c, return_grad = False):
+		M, m = X.shape
+		n = self.subspace_dimension
+		N = len(self.basis.indices)
+		U = U_c[:m*n].reshape(m,n)
+		c = U_c[m*n:].reshape(N)
 
 		V = self.V(X, U)
-		if c is None:
-			with warnings.catch_warnings():
-				warnings.simplefilter('ignore', PendingDeprecationWarning)
-				c = cp.Variable(V.shape[1])
-				obj = cp.norm_inf( fX - c.__rmatmul__(V))
-				problem = cp.Problem(cp.Minimize(obj))
-				problem.solve()
-				c = c.value
 		
 		res = V.dot(c) - fX
 
@@ -365,11 +378,71 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		for k in range(m):
 			for ell in range(n):
 				DVDUc[:,k,ell] = X[:,k]*np.dot(DV[:,:,ell], c)
+		grad = np.hstack([DVDUc.reshape(M,-1), V])
+		return res, grad
 		
-		return res, DVDUc.reshape(M, -1)
+	def _inf_trajectory(self, X, fX, U_c, pU_pc, alpha):
+		r""" For the trajectory through the sup-norm space, we automatically compute optimal c
+		and advance U along the geodesic
+
+		"""
+		M, m = X.shape
+		n = self.subspace_dimension
+		N = len(self.basis.indices)
+		U = orth(U_c[:m*n].reshape(m,n))
+		c = U_c[m*n:].reshape(N)
+		Delta = pU_pc[:m*n].reshape(m,n)
+		pc = pU_pc[m*n:].reshape(N)
+	
+		#self.set_scale(X, U = U)
+		# Orthogonalize	
+		Delta = Delta - U.dot(U.T.dot(Delta))
+
+		# Compute the step along the Geodesic	
+		Y, s, ZT = scipy.linalg.svd(Delta, full_matrices = False, lapack_driver = 'gesvd')
+		U = np.dot(np.dot(U,ZT.T), np.diag(np.cos(s*alpha))) + np.dot(Y, np.diag(np.sin(s*alpha)))
+
+		# Solve a convex problem to actually compute optimal c
+		V = self.V(X, U)
+		c = inf_norm_fit(V, fX)
+
+		return np.hstack([U.flatten(), c.flatten()])		
 			
 	def _fit_inf_norm(self, X, fX, U0, **kwargs):
-		pass
+		M, m = X.shape
+		n = self.subspace_dimension
+		N = len(self.basis.indices)
+		
+		if U0 is None:
+			U0 = self._fit_affine_2_norm(X, fX)
+			if self.subspace_dimension > 1:
+				U0 = np.hstack([U0, np.random.randn(X.shape[1], self.subspace_dimension-1)])
+
+		# Setup the objective function
+		def objfun(U_c, **kwargs):
+			return self._inf_residual_grad(X, fX, U_c, **kwargs)
+		
+		obj = BaseFunction()
+		obj.__call__ = objfun
+	
+		# Trajectory setup
+		trajectory = lambda U_c, p, alpha: self._inf_trajectory(X, fX, U_c, p, alpha)
+
+		# Initialize parameter values
+		self.set_scale(X, U0)
+		V = self.V(X, U0)
+		c = inf_norm_fit(V, fX)	
+		U_c0 = np.hstack([U0.flatten(), c])
+
+		#TODO: Add orthogonality constraints to search direction
+
+		# Perform optimization
+		U_c = minimax(obj, U_c0, trajectory = trajectory, trust_region = True, **kwargs)	
+	
+		# Store solution	
+		self._U = U_c[:m*n].reshape(m,n)
+		self.coef = U_c[m*n:].reshape(N)
+		
 
 class PolynomialRidgeBound(PolynomialRidgeFunction):
 	pass
@@ -377,6 +450,7 @@ class PolynomialRidgeBound(PolynomialRidgeFunction):
 
 
 if __name__ == '__main__':
+	np.random.seed(0)
 	p = 5
 	m = 4
 	n = 1
@@ -390,9 +464,9 @@ if __name__ == '__main__':
 	fX = prf.eval(X)
 
 	U0 = orth(np.random.randn(m,n))
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  =n)
-	#pra.fit(X, fX)
-	pra._fit_fixed_U_inf_norm(X, fX, U)
+	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = np.inf)
+	pra.fit(X, fX)
+	#pra._fit_fixed_U_inf_norm(X, fX, U)
 	
 
 	# TODO: Fix bug in scaling

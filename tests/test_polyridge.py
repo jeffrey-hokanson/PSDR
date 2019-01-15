@@ -54,10 +54,10 @@ def test_varpro_jacobian():
 
 def test_minimax_gradient():
 	np.random.seed(1)
-	M = 10
-	m = 3
+	M = 50
+	m = 5
 	n = 2
-	p = 3
+	p = 5
 	
 	# Samples
 	X = np.random.uniform(-1,1, size = (M,m))
@@ -70,22 +70,21 @@ def test_minimax_gradient():
 	# Random point
 	U, _ = np.linalg.qr(np.random.randn(m,n))
 
-	U_flat = U.flatten()
-
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False)
 	pra.set_scale(X, U)
 	pra._fit_fixed_U_inf_norm(X, fX, U)
 	c = pra.coef	
-
-	res = lambda U: pra._inf_residual_grad(X, fX, U, c = c, return_grad = False)
-	jac = lambda U: pra._inf_residual_grad(X, fX, U, c = c, return_grad = True)[1]
 	
-	print res(U_flat)
-	print jac(U_flat)
+	U_c = np.hstack([U.flatten(), c])
 
-	err = check_jacobian(U_flat, res, jac)	
+	res = lambda U_c: pra._inf_residual_grad(X, fX, U_c, return_grad = False)
+	jac = lambda U_c: pra._inf_residual_grad(X, fX, U_c, return_grad = True)[1]
+	
+	print res(U_c)
+	print jac(U_c)
+
+	err = check_jacobian(U_c, res, jac)	
 	assert err < 1e-6
-
 
 def test_exact():
 	np.random.seed(1)

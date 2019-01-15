@@ -11,10 +11,10 @@ class BaseFunction(object):
 
 	"""
 	def eval(self, X):
-		return self.__call__(self, X, return_grad = False)
+		return self.__call__(X, return_grad = False)
 
 	def grad(self, X):
-		return self.__call__(self, X, return_grad = True)[1]
+		return self.__call__(X, return_grad = True)[1]
 
 	def __call__(self, X, return_grad = False):
 		if return_grad:

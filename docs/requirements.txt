@@ -2,8 +2,9 @@ sphinx
 cloud_sptheme
 alabaster
 ipykernel
-nbsphinx<0.4.0
+git+https://github.com/spatialaudio/nbsphinx.git@master
 numpydoc
+matplotlib
 scipy>=1.1.0
 numpy>=1.15
 ecos
