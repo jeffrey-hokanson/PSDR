@@ -5,7 +5,8 @@ python:
 
 # https://stackoverflow.com/a/48185032
 before_install:
- - pip install -U --only-binary=numpy, scipy numpy
+# Currently there is an issue with 1.16 and SCS
+ - pip install -U --only-binary=numpy, scipy numpy==1.15.4
 
 install:
  - pip install pytest
