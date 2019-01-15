@@ -10,7 +10,7 @@ __all__ = ['minimax',
 	]
 
 def minimax(f, x0, domain = None, trajectory = trajectory_linear, 
-	c_armijo = 0.5, maxiter = 100, trust_region = True, search_constraints = None,
+	c_armijo = 0.01, maxiter = 100, trust_region = True, search_constraints = None,
 	tol_dx = 1e-10, tol_df = 1e-10,
 	verbose = False, bt_maxiter = 30, **kwargs):
 	r""" Solves a minimax optimization problem via sequential linearization and line search
@@ -190,7 +190,6 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 
 		if verbose:
 			print '%4d | %+14.10e | %8.2e | %8.2e |  %8.2e |' % (it+1, t, np.linalg.norm(px), alpha, Delta)
-			print x	
 
 		if stop:
 			break

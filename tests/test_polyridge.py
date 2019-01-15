@@ -71,14 +71,15 @@ def test_minimax_gradient():
 	U, _ = np.linalg.qr(np.random.randn(m,n))
 
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False)
-	pra.set_scale(X, U)
-	pra._fit_fixed_U_inf_norm(X, fX, U)
-	c = pra.coef	
-	
+	#pra.set_scale(X, U)
+	#pra._fit_fixed_U_inf_norm(X, fX, U)
+	#c = pra.coef	
+	c = np.random.randn(len(pra.basis))	
+
 	U_c = np.hstack([U.flatten(), c])
 
-	res = lambda U_c: pra._inf_residual_grad(X, fX, U_c, return_grad = False)
-	jac = lambda U_c: pra._inf_residual_grad(X, fX, U_c, return_grad = True)[1]
+	res = lambda U_c: pra._residual(X, fX, U_c)
+	jac = lambda U_c: pra._jacobian(X, fX, U_c)
 	
 	print res(U_c)
 	print jac(U_c)
@@ -106,9 +107,10 @@ def test_exact():
 	# Actual ridge subspace
 	#U, _ = np.linalg.qr(np.vstack([a,b]).T)	
 
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False)
+	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True)
 	pra.fit(X, fX, U0 = U, verbose = 1)
 	# Because the data is an exact ridge function, we should (I think) converge to the global solution
 	for fX1, fX2 in zip(pra(X), fX):
 		print "%10.5e  %10.5e" % (fX1,fX2)
 	assert np.all(np.isclose(pra(X), fX))
+	

@@ -97,6 +97,9 @@ class PolynomialTensorBasis(Basis):
 		self.indices = index_set(p, n).astype(int)
 		self._build_Dmat()
 
+	def __len__(self):
+		return len(self.indices)
+
 	def _build_Dmat(self):
 		""" Constructs the (scalar) derivative matrix
 		"""
