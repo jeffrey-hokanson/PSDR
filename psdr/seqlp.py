@@ -23,6 +23,12 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 	this function solves this problem by linearizing both the objective and constraints
 	and solving a sequence of linear programs.
 
+	
+	References
+	----------
+	.. FS89
+
+
 	"""
 
 	assert norm in [1,2,np.inf, None], "Invalid norm specified."
