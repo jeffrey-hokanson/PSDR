@@ -496,6 +496,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			c = inf_norm_fit(V, fX)
 		elif self.norm == 1:
 			c = one_norm_fit(V, fX)
+		elif self.norm == 2:
+			c = two_norm_fit(V, fX) 
 
 		return np.hstack([U.flatten(), c.flatten()])		
 			
