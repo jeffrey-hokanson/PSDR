@@ -1,5 +1,6 @@
 import numpy as np
-from psdr import PolynomialRidgeApproximation
+import scipy.linalg
+from psdr import PolynomialRidgeApproximation, LegendreTensorBasis, PolynomialRidgeFunction
 from checkder import check_jacobian
 
 
@@ -112,5 +113,28 @@ def test_exact():
 	# Because the data is an exact ridge function, we should (I think) converge to the global solution
 	for fX1, fX2 in zip(pra(X), fX):
 		print "%10.5e  %10.5e" % (fX1,fX2)
+	assert np.all(np.isclose(pra(X), fX))
+
+def exact_data(M = 100, m = 10, n = 1, p = 3):
+	U = scipy.linalg.orth(np.random.randn(m,n))
+	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
+	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
+	
+	X = np.random.randn(M,m)
+	fX = prf.eval(X) 
+	return X, fX
+
+def test_fit_inf():
+	X, fX = exact_data()
+
+	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = np.inf)
+	pra.fit(X, fX)
+	assert np.all(np.isclose(pra(X), fX))
+
+def test_fit_one():
+	X, fX = exact_data()
+
+	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 1)
+	pra.fit(X, fX)
 	assert np.all(np.isclose(pra(X), fX))
 	

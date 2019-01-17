@@ -2,6 +2,7 @@
 """
 
 import numpy as np
+import scipy.optimize
 import cvxpy as cp
 from domains import UnboundedDomain
 import warnings
@@ -68,7 +69,7 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 			# Find the active constraints (which have non-zero Lagrange multipliers)
 			I = np.abs(con) < 1e-10
 			lam, kkt_norm = scipy.optimize.nnls(con_grad[I,:].T, -obj_grad)
-		elif norm == 1.:
+		elif norm == 1:
 			t = np.abs(fx)
 			obj_grad = np.zeros(len(x) + len(fx))
 			obj_grad[len(x):] = 1.
@@ -80,8 +81,10 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 			con_grad[len(fx):,len(x):] = -1.
 			I = np.abs(con) == 0.
 			lam, kkt_norm = scipy.optimize.nnls(con_grad[I,:].T, -obj_grad)
-		elif norm == 2.:
-			kkt_norm = np.linalg.norm(jacx.dot(fx))
+
+		elif norm == 2:
+			kkt_norm = np.linalg.norm(jacx.T.dot(fx))
+
 		# TODO: Should really orthogonalize against unallowed search directions
 		#err = con_grad[I,:].T.dot(lam) + obj_grad
 		#print err
@@ -163,7 +166,7 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 				x = x_new
 				fx = fx_new
 				objval = objval_new
-				Delta = max(1., Delta*2)
+				Delta = max(1., np.linalg.norm(px))
 				break
 
 			Delta *=0.5
@@ -191,7 +194,7 @@ if __name__ == '__main__':
 	M = 100
 
 	norm = np.inf
-	norm = 1
+	norm = 2
 	U = orth(np.random.randn(m,n))
 	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
 	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)

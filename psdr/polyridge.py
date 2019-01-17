@@ -14,6 +14,7 @@ from ridge import RidgeFunction
 from basis import *
 from gn import gauss_newton 
 from minimax import minimax
+from seqlp import sequential_lp
 
 class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function
@@ -268,8 +269,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		# TODO Implement multiple initializations
 		if self.norm == 2:
 			return self._fit_2_norm(X, fX, U0, **kwargs)
-		elif self.norm == np.inf:
-			return self._fit_inf_norm(X, fX, U0, **kwargs)
+		elif self.norm == np.inf or self.norm == 1:
+			return self._fit_alternating(X, fX, U0, **kwargs)
 		else:
 			raise NotImplementedError
 
@@ -302,15 +303,19 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		return U0
 
 	def _fit_coef(self, X, fX, U):
+		r""" Returns the linear coefficients
+		"""
 		self._U = U
 		self.set_scale(X)
 		V = self.V(X)
 		if self.norm == 1:
-			self.coef = one_norm_fit(V, fX)
+			return one_norm_fit(V, fX)
 		elif self.norm == 2:
-			self.coef = two_norm_fit(V, fX)
+			return two_norm_fit(V, fX)
 		elif self.norm == np.inf:
-			self.coef = inf_norm_fit(V, fX)
+			return inf_norm_fit(V, fX)
+		else:
+			raise NotImplementedError
 
 	def _finish(self, X, fX, U):
 		r""" Given final U, rotate and find coefficients
@@ -319,18 +324,18 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		# Step 1: Apply active subspaces to the profile function at samples X
 		# to rotate onto the most important directions
 		if U.shape[1] > 1:
-			self._fit_coef(X, fX, U)
+			self.coef = self._fit_coef(X, fX, U)
 			grads = self.profile_grad(X)
 			Ur = scipy.linalg.svd(grads.T)[0]
 			U = U.dot(Ur)
 		
 		# Step 2: Flip signs such that average slope is positive in the coordinate directions
-		self._fit_coef(X, fX, U)
+		self.coef = self._fit_coef(X, fX, U)
 		grads = self.profile_grad(X)
 		U = U.dot(np.diag(np.sign(np.mean(grads, axis = 0))))
 		
 		# Step 3: final fit	
-		self._fit_coef(X, fX, U)
+		self.coef = self._fit_coef(X, fX, U)
 		grads = self.profile_grad(X)
 
 	################################################################################	
@@ -491,17 +496,11 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U = np.dot(np.dot(U,ZT.T), np.diag(np.cos(s*alpha))) + np.dot(Y, np.diag(np.sin(s*alpha)))
 
 		# Solve a convex problem to actually compute optimal c
-		V = self.V(X, U)
-		if self.norm == np.inf:
-			c = inf_norm_fit(V, fX)
-		elif self.norm == 1:
-			c = one_norm_fit(V, fX)
-		elif self.norm == 2:
-			c = two_norm_fit(V, fX) 
-
+		c = self._fit_coef(X, fX, U)
+ 
 		return np.hstack([U.flatten(), c.flatten()])		
 			
-	def _fit_inf_norm(self, X, fX, U0, **kwargs):
+	def _fit_alternating(self, X, fX, U0, **kwargs):
 		M, m = X.shape
 		n = self.subspace_dimension
 		N = len(self.basis.indices)
@@ -509,34 +508,26 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		if U0 is None:
 			U0 = self._init_U(X, fX)
 	
-		# Define the objective function	
-		# We use two copies with flipped signs so that the minimax problem
-		# minimizes the maximum (absolute) deviation
-		obj = BaseFunction()
 		def residual(U_c):
 			r = self._residual(X, fX, U_c)
-			return np.hstack([r, -r])
+			return r
 		
-		obj.eval = residual
-
 		def jacobian(U_c):
 			m = X.shape[1]
 			n = self.subspace_dimension
 			U = U_c[:m*n].reshape(m,n)
 			self.set_scale(X, U)
 			J = self._jacobian(X, fX, U_c)
-			return np.vstack([J, -J])
-	
-		obj.grad = jacobian	
-	
+			return J
+
 		# Trajectory
 		trajectory = lambda U_c, p, alpha: self._trajectory(X, fX, U_c, p, alpha)
 
 		# Initialize parameter values
 		self.set_scale(X, U0)
-		V = self.V(X, U0)
-		c = inf_norm_fit(V, fX)	
-		U_c0 = np.hstack([U0.flatten(), c])
+		c0 = self._fit_coef(X, fX, U0)
+
+		U_c0 = np.hstack([U0.flatten(), c0])
 
 		# Add orthogonality constraints to search direction
 		# Recall pU.T @ U == 0 is a requirement for Grassmann optimization
@@ -549,8 +540,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			return constraints
 
 		# Perform optimization
-		U_c = minimax(obj, U_c0, trajectory = trajectory, trust_region = False,
-			search_constraints = search_constraints, **kwargs)	
+		U_c = sequential_lp(residual, U_c0, jacobian, trajectory = trajectory,
+			search_constraints = search_constraints, norm = self.norm, **kwargs)	
 	
 		# Store solution	
 		U = U_c[:m*n].reshape(m,n)
@@ -569,16 +560,17 @@ if __name__ == '__main__':
 	p = 3
 	m = 4
 	n = 1
-	M = 100
+	M = 500
 
 	U = orth(np.random.randn(m,n))
 	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
 	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
 
 	X = np.random.randn(M,m)
-	fX = prf.eval(X)
+	fX = prf.eval(X) 
+	#fX += 1*np.random.uniform(-1,1, size = fX.shape)
 
-	U0 = orth(np.random.randn(m,n))
+	#U0 = orth(np.random.randn(m,n))
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = np.inf)
 	pra.fit(X, fX, verbose = True)
 	
