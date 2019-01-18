@@ -160,8 +160,9 @@ def bound_fit(A, b, norm = 2):
 		constraint = [residual >= 0] 
 		#constraint = [x.__rmatmul__(A) - b >= 0]
 		problem = cp.Problem(cp.Minimize(obj), constraint)
-		problem.solve()
-
+		problem.solve(feastol = 1e-10, solver = cp.ECOS)
+		#problem.solve(eps = 1e-10, solver = cp.SCS)
+		#problem.solve(feastol = 1e-10, solver = cp.CVXOPT)
 		# TODO: The solution doesn't obey the constraints for 1 and inf norm, but does for 2-norm.
 		return x.value
 
@@ -360,7 +361,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		else:
 			raise NotImplementedError		
 		
-		print fX - V.dot(c) 
+		#print fX - V.dot(c) 
 		
 		return c
 	
@@ -571,7 +572,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		# Initialize parameter values
 		self.set_scale(X, U0)
 		c0 = self._fit_coef(X, fX, U0)
-		print "initial fit"
 		U_c0 = np.hstack([U0.flatten(), c0])
 
 		# Add orthogonality constraints to search direction
@@ -609,7 +609,7 @@ if __name__ == '__main__':
 	p = 3
 	m = 4
 	n = 1
-	M = 50
+	M = 500
 
 	U = orth(np.random.randn(m,n))
 	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
@@ -620,7 +620,7 @@ if __name__ == '__main__':
 	fX += 1*np.random.uniform(-1,1, size = fX.shape)
 
 	#U0 = orth(np.random.randn(m,n))
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = 2, bound = 'lower')
+	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = 1, bound = 'lower')
 	pra.fit(X, fX, verbose = True)
 	
 
