@@ -11,7 +11,7 @@ from gn import trajectory_linear
 def sequential_lp(f, x0, jac, search_constraints = None,
 	norm = 2, trajectory = trajectory_linear, obj_lb = None, obj_ub = None, 
 	maxiter = 100, bt_maxiter = 50, domain = None,
-	tol_dx = 1e-10, c_armijo = 0.01,  verbose = False, **kwargs):
+	tol_dx = 1e-10, tol_obj = 1e-10,  verbose = False, **kwargs):
 	r""" Solves a nonlinear optimization by sequential least squares
 
 
@@ -99,9 +99,9 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 
 	
 	if verbose:
-		print 'iter |     objective     |  norm px | TR radius | KKT norm |'
-		print '-----|-------------------|----------|-----------|----------|'
-		print '%4d | %+14.10e |          |           | %8.2e |' % (0, objval, kkt_norm(fx, jacx)) 
+		print 'iter |     objective     |  norm px | TR radius | KKT norm | violation |'
+		print '-----|-------------------|----------|-----------|----------|-----------|'
+		print '%4d | %+14.10e |          |           | %8.2e |           |' % (0, objval, kkt_norm(fx, jacx)) 
 
 	Delta = 1.
 
@@ -119,30 +119,31 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 		elif norm == None: obj = f_lin
 
 		# Now setup constraints
-		constraints = []
+		nonlinear_constraints = []
 
 		# First, constraints on "f"
-		#if obj_lb is not None:
-		#	constraints.append(obj_lb <= f_lin)
-		#if obj_ub is not None:
-		#	constraints.append(f_lin <= obj_ub)  
+		if obj_lb is not None:
+			nonlinear_constraints.append(obj_lb <= f_lin)
+		if obj_ub is not None:
+			nonlinear_constraints.append(f_lin <= obj_ub)  
 		
 
 		# Constraints on the search direction specified by user
-		constraints += search_constraints(x, p)
+		search_step_constraints = search_constraints(x, p)
 
 		# Append constraints from the domain of x
-		constraints += domain._build_constraints(p - x)
+		domain_constraints = domain._build_constraints(p - x)
 
 		# TODO: Add additional user specified constraints following scipy.optimize.NonlinearConstraint (?)
 
 		stop = False
 		for it2 in range(bt_maxiter):
 			trust_region_constraints = [cp.norm(p) <= Delta]
+			active_constraints = nonlinear_constraints + trust_region_constraints + domain_constraints + search_step_constraints
 			# Solve for the search direction
 			with warnings.catch_warnings():
 				warnings.simplefilter('ignore', PendingDeprecationWarning)
-				problem = cp.Problem(cp.Minimize(obj), constraints + trust_region_constraints)
+				problem = cp.Problem(cp.Minimize(obj), active_constraints)
 				problem.solve(**kwargs)
 			
 			if problem.status in ['infeasible', 'unbounded']:
@@ -161,10 +162,22 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 			fx_new = np.array(f(x_new))
 			objval_new = objfun(fx_new)
 
+
+			constraint_violation = 0.
+			if obj_lb is not None:
+				I = ~(obj_lb <= fx_new)
+				constraint_violation += np.linalg.norm((fx_new - obj_lb)[I], 1)
+			if obj_ub is not None:
+				I = ~(fx_new <= obj_ub)
+				constraint_violation += np.linalg.norm((fx_new - obj_ub)[I], 1)
+
 			#if objval_new - objval <= c_armijo*(pred_objval_new - objval):
 			if objval_new < objval:
 				x = x_new
 				fx = fx_new
+
+				if np.abs(objval_new - objval) < tol_obj:
+					stop = True
 				objval = objval_new
 				Delta = max(1., np.linalg.norm(px))
 				break
@@ -178,7 +191,7 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 		jacx = jac(x)
 
 		if verbose:
-			print '%4d | %+14.10e | %8.2e |  %8.2e | %8.2e |' % (it+1, objval, np.linalg.norm(px), Delta, kkt_norm(fx, jacx))
+			print '%4d | %+14.10e | %8.2e |  %8.2e | %8.2e |  %8.2e |' % (it+1, objval, np.linalg.norm(px), Delta, kkt_norm(fx, jacx), constraint_violation)
 		if stop:
 			break	
 

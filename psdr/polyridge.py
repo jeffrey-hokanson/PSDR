@@ -134,11 +134,36 @@ def two_norm_fit(A,b):
 
 	.. math::
 
-		\min_{x} \| \mathbf{a} \mathbf{x} - \mathbf{b}\|_2
+		\min_{x} \| \mathbf{A} \mathbf{x} - \mathbf{b}\|_2
 
 	"""
 	return scipy.linalg.lstsq(A, b)[0]
 
+def bound_fit(A, b, norm = 2):
+	r""" solve a norm constrained problem
+
+	.. math:: 
+
+		\min_{x} \| \mathbf{A}\mathbf{x} - \mathbf{b}\|_p
+		\text{such that} \mathbf{A}	\mathbf{x} -\mathbf{b} \ge 0
+	"""
+	with warnings.catch_warnings():
+		warnings.simplefilter('ignore', PendingDeprecationWarning)
+		x = cp.Variable(A.shape[1])
+		residual = x.__rmatmul__(A) - b
+		if norm == 1:
+			obj = cp.norm1(residual)
+		elif norm == 2:
+			obj = cp.norm(residual)
+		elif norm == np.inf:
+			obj = cp.norm_inf(residual)
+		constraint = [residual >= 0] 
+		#constraint = [x.__rmatmul__(A) - b >= 0]
+		problem = cp.Problem(cp.Minimize(obj), constraint)
+		problem.solve()
+
+		# TODO: The solution doesn't obey the constraints for 1 and inf norm, but does for 2-norm.
+		return x.value
 
 
 class PolynomialRidgeApproximation(PolynomialRidgeFunction):
@@ -183,6 +208,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	scale: bool (default:True)
 		Scale the coordinates along the ridge to ameliorate ill-conditioning		
 	
+	bound: [None, 'lower', 'upper']
+		If 'lower' or 'upper' construct a lower or upper bound
 
 	References
 	----------
@@ -192,7 +219,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	"""
 
 	def __init__(self, degree, subspace_dimension, basis = 'legendre', 
-		norm = 2, n_init = 1, scale = True, keep_data = True, domain = None):
+		norm = 2, n_init = 1, scale = True, keep_data = True, domain = None,
+		bound = None):
 
 		assert isinstance(degree, int)
 		assert degree >= 0
@@ -242,6 +270,10 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			self.domain = deepcopy(domain)
 
 
+		assert bound in [None, 'lower', 'upper'], "Invalid bound specified"
+		self.bound = bound
+
+
 	def fit(self, X, fX, U0 = None, **kwargs):
 		r""" Given samples, fit the polynomial ridge approximation.
 
@@ -267,12 +299,10 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 
 		# TODO Implement multiple initializations
-		if self.norm == 2:
-			return self._fit_2_norm(X, fX, U0, **kwargs)
-		elif self.norm == np.inf or self.norm == 1:
+		if self.norm == 2 and self.bound == None:
+			return self._fit_varpro(X, fX, U0, **kwargs)
+		else:	
 			return self._fit_alternating(X, fX, U0, **kwargs)
-		else:
-			raise NotImplementedError
 
 
 	################################################################################	
@@ -284,12 +314,18 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		"""
 		# TODO: There is often a scaling issue 
 		XX = np.hstack([X, np.ones((X.shape[0],1))])
-		if self.norm == 1:
-			b = one_norm_fit(XX, fX)
-		elif self.norm == 2:
-			b = two_norm_fit(XX, fX)
-		elif self.norm == np.inf:
-			b = inf_norm_fit(XX, fX)
+		if self.bound is None:
+			if self.norm == 1:
+				b = one_norm_fit(XX, fX)
+			elif self.norm == 2:
+				b = two_norm_fit(XX, fX)
+			elif self.norm == np.inf:
+				b = inf_norm_fit(XX, fX)
+		elif self.bound == 'lower':
+			# fX >= XX b
+			b = bound_fit(XX, fX, norm = self.norm)
+		elif self.bound == 'upper':
+			b = bound_fit(-XX, -fX, norm = self.norm)	 	
 
 		U = b[0:-1].reshape(-1,1)
 		return U	
@@ -305,18 +341,29 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	def _fit_coef(self, X, fX, U):
 		r""" Returns the linear coefficients
 		"""
-		self._U = U
-		self.set_scale(X)
-		V = self.V(X)
-		if self.norm == 1:
-			return one_norm_fit(V, fX)
-		elif self.norm == 2:
-			return two_norm_fit(V, fX)
-		elif self.norm == np.inf:
-			return inf_norm_fit(V, fX)
+		#self._U = U
+		self.set_scale(X, U = U)
+		V = self.V(X, U = U)
+		if self.bound is None:
+			if self.norm == 1:
+				c = one_norm_fit(V, fX)
+			elif self.norm == 2:
+				c = two_norm_fit(V, fX)
+			elif self.norm == np.inf:
+				c = inf_norm_fit(V, fX)
+			else:
+				raise NotImplementedError
+		elif self.bound == 'lower':
+			c = bound_fit(-V, -fX, norm = self.norm)
+		elif self.bound == 'upper':
+			c = bound_fit(V, fX, norm = self.norm)
 		else:
-			raise NotImplementedError
-
+			raise NotImplementedError		
+		
+		print fX - V.dot(c) 
+		
+		return c
+	
 	def _finish(self, X, fX, U):
 		r""" Given final U, rotate and find coefficients
 		"""
@@ -324,22 +371,24 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		# Step 1: Apply active subspaces to the profile function at samples X
 		# to rotate onto the most important directions
 		if U.shape[1] > 1:
+			self._U = U
 			self.coef = self._fit_coef(X, fX, U)
 			grads = self.profile_grad(X)
 			Ur = scipy.linalg.svd(grads.T)[0]
 			U = U.dot(Ur)
 		
 		# Step 2: Flip signs such that average slope is positive in the coordinate directions
+		self._U = U
 		self.coef = self._fit_coef(X, fX, U)
 		grads = self.profile_grad(X)
-		U = U.dot(np.diag(np.sign(np.mean(grads, axis = 0))))
+		self._U = U = U.dot(np.diag(np.sign(np.mean(grads, axis = 0))))
 		
 		# Step 3: final fit	
 		self.coef = self._fit_coef(X, fX, U)
 		grads = self.profile_grad(X)
 
 	################################################################################	
-	# Two norm functions
+	# VarPro based solution for the 2-norm without bound constraints 
 	################################################################################	
 	
 	def _varpro_residual(self, X, fX, U_flat):
@@ -392,7 +441,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U_new = orth(U_new).flatten()
 		return U_new
 	
-	def _fit_2_norm(self, X, fX, U0, **kwargs):
+	def _fit_varpro(self, X, fX, U0, **kwargs):
 		if U0 is None:
 			U0 = self._init_U(X, fX)	
 	
@@ -422,13 +471,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U = U_flat.reshape(-1, self.subspace_dimension)
 		
 		self._finish(X, fX, U)	
-
-
-	def _fit_fixed_U_2_norm(self, X, fX, U):
-		self.U = orth(U)
-		self.set_scale(X)
-		V = self.V(X)
-		self.coef = scipy.linalg.lstsq(V, fX)[0].flatten()
 
 	################################################################################	
 	# Generic residual and Jacobian
@@ -493,12 +535,15 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 		# Compute the step along the Geodesic	
 		Y, s, ZT = scipy.linalg.svd(Delta, full_matrices = False, lapack_driver = 'gesvd')
-		U = np.dot(np.dot(U,ZT.T), np.diag(np.cos(s*alpha))) + np.dot(Y, np.diag(np.sin(s*alpha)))
+		U_new= np.dot(np.dot(U,ZT.T), np.diag(np.cos(s*alpha))) + np.dot(Y, np.diag(np.sin(s*alpha)))
+
+		# TODO: align U and U_new to minimize Frobenius norm error 
+		# right the small step termination criteria is never triggering because U_new and U have different orientations
 
 		# Solve a convex problem to actually compute optimal c
-		c = self._fit_coef(X, fX, U)
+		c = self._fit_coef(X, fX, U_new)
  
-		return np.hstack([U.flatten(), c.flatten()])		
+		return np.hstack([U_new.flatten(), c.flatten()])		
 			
 	def _fit_alternating(self, X, fX, U0, **kwargs):
 		M, m = X.shape
@@ -526,7 +571,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		# Initialize parameter values
 		self.set_scale(X, U0)
 		c0 = self._fit_coef(X, fX, U0)
-
+		print "initial fit"
 		U_c0 = np.hstack([U0.flatten(), c0])
 
 		# Add orthogonality constraints to search direction
@@ -539,19 +584,23 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			constraints = [ pU_pc[k*m:(k+1)*m].__rmatmul__(U.T) == np.zeros(n) for k in range(n)]
 			return constraints
 
+		# setup lower/upper bound into SLP solver
+		obj_lb = None
+		obj_ub = None
+		if self.bound == 'lower':
+			obj_ub = np.zeros(fX.shape)
+		elif self.bound == 'upper':
+			obj_lb = np.zeros(fX.shape)
+
 		# Perform optimization
 		U_c = sequential_lp(residual, U_c0, jacobian, trajectory = trajectory,
+			obj_lb = obj_lb, obj_ub = obj_ub,
 			search_constraints = search_constraints, norm = self.norm, **kwargs)	
 	
 		# Store solution	
 		U = U_c[:m*n].reshape(m,n)
 		self._finish(X, fX, U)
 	
-
-class PolynomialRidgeBound(PolynomialRidgeFunction):
-	pass
-
-
 
 if __name__ == '__main__':
 	import matplotlib.pyplot as plt
@@ -560,7 +609,7 @@ if __name__ == '__main__':
 	p = 3
 	m = 4
 	n = 1
-	M = 500
+	M = 50
 
 	U = orth(np.random.randn(m,n))
 	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
@@ -568,10 +617,10 @@ if __name__ == '__main__':
 
 	X = np.random.randn(M,m)
 	fX = prf.eval(X) 
-	#fX += 1*np.random.uniform(-1,1, size = fX.shape)
+	fX += 1*np.random.uniform(-1,1, size = fX.shape)
 
 	#U0 = orth(np.random.randn(m,n))
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = np.inf)
+	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = 2, bound = 'lower')
 	pra.fit(X, fX, verbose = True)
 	
 
