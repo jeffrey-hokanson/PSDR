@@ -10,17 +10,10 @@ Welcome to Parameter Space Dimension Reduction's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   install
    tutorial
+   api
    
-   domain 
-   basis
-   function
-   pools
-   samplers
-   subspace
-   surrogate
-   opt
-   demos
 
 Indices and tables
 ==================

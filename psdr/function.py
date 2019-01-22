@@ -47,16 +47,19 @@ class Function(BaseFunction, Domain):
 	fun_kwargs: dict, default: empty
 		Keyword arguments to pass to the functions when evaluating function 
 	"""
+
+	# TODO: Implement fancy pool-features
+
 	def __init__(self, funs, domain, grads = None, fd_grad = None, vectorized = False, fun_kwargs = None):
 		self.funs = funs
-		self.domain = domain
+		self.domain_app = domain
 		self.domain_norm = domain.normalized_domain()
 		self.fd_grad = fd_grad
 
 
 	def eval(self, X_norm):
 		X_norm = np.atleast_1d(X_norm)
-		X = self.domain.unnormalize(X_norm)
+		X = self.domain_app.unnormalize(X_norm)
 
 		if len(X.shape) == 1:
 			x = X.flatten()

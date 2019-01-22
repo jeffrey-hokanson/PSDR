@@ -54,7 +54,8 @@ class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
 				linewidths = 0.5)
 		
 
-			
+		else: 
+			raise NotImplementedError("Cannot draw shadow plots in more than two dimensions")	
 		
 
 

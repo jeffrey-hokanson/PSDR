@@ -190,7 +190,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	leaving an optimization problem posed over the Grassmann manifold alone.
 
 	For both the 1-norm and the :math:`\infty`-norm,
-	this implementation uses ........
+	this implementation uses a sequential linear program with a trust region
+	coupled with a nonlinear trajectory through the search space.
 
 	Parameters
 	----------

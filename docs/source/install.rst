@@ -3,9 +3,9 @@ Installation
 
 
 As this project is currently in active development, I recommend installing from
-github directly:
+github directly
 
-code ::
+::
 	
 	pip install git+https://github.com/jeffrey-hokanson/PSDR#egg=psdr
 
