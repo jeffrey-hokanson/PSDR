@@ -5,10 +5,6 @@ from _multif_linear_constraints import piecewiseBilinearAxial
 from _multif_linear_constraints import baffles
 from _multif_linear_constraints import cleanupConstraintMatrix
 
-# Hack to import domain
-# https://stackoverflow.com/questions/6323860/sibling-package-imports
-import sys, os
-sys.path.insert(0, os.path.abspath('../../'))
 from psdr import LinIneqDomain, UniformDomain, LogNormalDomain, TensorProductDomain
 
 def buildDesignDomain(output='verbose'):

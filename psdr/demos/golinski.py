@@ -1,11 +1,6 @@
 import numpy as np
 
-# Hack to import domain
-# https://stackoverflow.com/questions/6323860/sibling-package-imports
-import sys, os
-sys.path.insert(0, os.path.abspath('../../'))
-from psdr import BoxDomain, NormalDomain, TensorProductDomain
-
+from psdr import BoxDomain, NormalDomain, TensorProductDomain, Function
 
 __all__ = ['golinski_volume', 
 	'golinski_constraint1',
@@ -50,6 +45,36 @@ def expand_variables(x):
 		x6 = x6 + x[10]
 		x7 = x7 + x[11]
 	return x1, x2, x3, x4, x5, x6, x7
+
+
+
+class GolinskiGearbox(Function):
+	r""" The Golinski Gearbox Optimization Test Problem
+
+
+	This test problem originally descibed by Golinski [Gol70]_ and subsequently 
+	appearing in, for example, [Ray03]_ and [MDO]_,
+	seeks to design a gearbox (speedreducer) to minimize volume subject to a number of constraints.
+
+
+	References
+	----------
+	.. [MDO] Langley Research Center: Multidisciplinary Optimization Test Suite,
+		`Golinski's Speed Reducer <http://www.eng.buffalo.edu/Research/MODEL/mdo.test.orig/class2prob4.html>`_	
+
+	.. [Gol70] "Optimal Synthesis Problems Solved by Means of Nonlinear Programming and Random Methods",
+		Jan Golinski, J. Mech. 5, 1970, pp.287--309
+
+	.. [Ray03] "Golinski's Speed Reducer Problem Revisited", Tapabrata Ray, AIAA Journal,
+			41(3), 2003, pp 556--558
+
+	"""
+	def __init__(self):
+		domain = build_golinski_design_domain() 
+		funs = [golinski_volume]	
+
+		Function.__init__(self, funs, domain)
+
 
 
 def golinski_volume(x, return_grad = False):
@@ -297,6 +322,8 @@ def golinski_constraint25(x, return_grad = False):
 # Units of cm
 def build_golinski_design_domain():
 	return BoxDomain([2.6,0.7, 7.3, 7.3, 2.9, 5.0], [3.6, 0.8, 8.3, 8.3, 3.9, 5.5])
+
+
 # Taken from table 3 of Hu, Zhou, Chen, Parks, 2017 in AIAA journal 
 def build_golinski_random_domain(clip = None):
 	return TensorProductDomain([NormalDomain(0,21e-4**2, clip = clip),
@@ -307,18 +334,13 @@ def build_golinski_random_domain(clip = None):
 				NormalDomain(0, 30e-4**2, clip = clip)])
 	#return NormalDomain(np.zeros((6,1)), np.diag(np.array([21e-4, 1e-4, 30e-4, 30e-4,21e-4, 30e-4])**2), clip = clip)
 
+
+
+
+
+
 if __name__ == '__main__':
-	from ridge import PolynomialRidgeApproximation
-	import matplotlib.pyplot as plt
-
-	dom = build_golinski_design_domain()
-	
-	X = dom.sample(draw = 100)
-	fX = np.array([golinski_volume(x) for x in X])
-	X_norm = dom.normalize(X)
-		
-	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, n_init = 10)
-	pra.fit(X, fX)
-	pra.plot()
-	plt.show()
-
+	golinski = GolinskiGearbox()
+	x = golinski.sample()
+	print x
+	print golinski(x)
