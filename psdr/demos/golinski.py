@@ -57,6 +57,7 @@ class GolinskiGearbox(Function):
 				golinski_constraint8,
 				golinski_constraint9,
 				golinski_constraint24,
+				golinski_constraint25,
 				]	
 		grads = [golinski_volume_grad,
 				golinski_constraint1_grad,
@@ -69,6 +70,7 @@ class GolinskiGearbox(Function):
 				golinski_constraint8_grad,
 				golinski_constraint9_grad,
 				golinski_constraint24_grad,
+				golinski_constraint25_grad,
 				]
 		Function.__init__(self, funs, domain, grads = grads)
 	
@@ -317,17 +319,5 @@ def build_golinski_random_domain(clip = None):
 				NormalDomain(0, 30e-4**2, clip = clip),
 				NormalDomain(0, 21e-4**2, clip = clip),
 				NormalDomain(0, 30e-4**2, clip = clip)])
-	#return NormalDomain(np.zeros((6,1)), np.diag(np.array([21e-4, 1e-4, 30e-4, 30e-4,21e-4, 30e-4])**2), clip = clip)
 
 
-
-
-
-
-if __name__ == '__main__':
-	golinski = GolinskiGearbox()
-	x = golinski.sample()
-	print x
-	print golinski(x)
-	print golinski.grad(x)
-	print golinski(x, return_grad = True)
