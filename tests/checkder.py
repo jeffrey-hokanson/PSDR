@@ -50,9 +50,9 @@ def check_derivative(x, obj, grad):
 	for i in range(n):
 		ei = np.zeros(x.shape, dtype = np.float)
 		ei[i] = 1.
-		err = [ np.abs( ( obj(x+ei*h) - obj(x-ei*h) )/(2*h) - g[i]) for h in hvec]
-		max_err = max(min(err), max_err)
-		print "%3d: err:%5.5e" % (i, min(err))
+		err = [ np.linalg.norm( ( obj(x+ei*h) - obj(x-ei*h) )/(2*h) - g[i], np.inf) for h in hvec]
+		max_err = max(np.min(err), max_err)
+		print "%3d: err:%5.5e" % (i, np.min(err))
 
 	return max_err
 

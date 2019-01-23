@@ -18,11 +18,17 @@ class RidgeOptimization:
 		\text{such that} & \ f_i(\mathbf{x}) \le 0
 
 	by constructing a sequence of bounding surrogates.
+	[This sign convention follows Ch. 5, [BV04]_ ]
+
 
 	Parameters
 	----------
 	func : Function
 		Function to optimize	
+
+	References
+	----------
+	.. [BV04] Convex Optimization. Stephen Boyd and Lieven Vandenberghe. Cambridge University Press. 2004. 
 
 	"""
 	def __init__(self, func, X = None, fX = None, pool = None):

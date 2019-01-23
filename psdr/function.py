@@ -51,10 +51,21 @@ class Function(BaseFunction, Domain):
 	# TODO: Implement fancy pool-features
 
 	def __init__(self, funs, domain, grads = None, fd_grad = None, vectorized = False, fun_kwargs = None):
-		self.funs = funs
+		if callable(funs):
+			self._funs = [funs]
+		else:
+			self._funs = funs
+		
+		if grads is not None:
+			if callable(grads):
+				grads = [grads]
+			assert len(grads) == len(self._funs), "Must provide the same number of functions and gradients"
+			self._grads = grads
+			
 		self.domain_app = domain
 		self.domain_norm = domain.normalized_domain()
 		self.fd_grad = fd_grad
+
 
 
 	def eval(self, X_norm):
@@ -63,16 +74,16 @@ class Function(BaseFunction, Domain):
 
 		if len(X.shape) == 1:
 			x = X.flatten()
-			if callable(self.funs):
-				return self.funs(x)
+			if callable(self._funs):
+				return self._funs(x)
 			else:
-				return np.hstack([fun(x) for fun in self.funs])
+				return np.hstack([fun(x) for fun in self._funs])
 
 		elif len(X.shape) == 2:
-			if callable(self.funs):
-				return np.vstack([self.funs(x) for x in X])
+			if callable(self._funs):
+				return np.vstack([self._funs(x) for x in X])
 			else:
-				return np.vstack([ np.hstack([fun(x) for fun in self.funs]) for x in X])
+				return np.vstack([ np.hstack([fun(x) for fun in self._funs]) for x in X])
 					
 		else:
 			raise NotImplementedError
@@ -80,6 +91,7 @@ class Function(BaseFunction, Domain):
 	def grad(self, X_norm):
 		X_norm = np.atleast_1d(X_norm)
 
+		# If we've asked to use a finite difference gradient
 		if self.fd_grad:
 			h = 1e-7
 			grads = []
@@ -97,8 +109,36 @@ class Function(BaseFunction, Domain):
 			else:
 				return np.array(grads)
 
-		else:
-			raise NotImplementedError			
+		X = self.domain_app.unnormalize(X_norm)
+		D = self.domain_app._unnormalize_der() 	
+		
+		# Return gradient if specified
+		if self._grads is not None: 
+			if len(X.shape) == 1:
+				grad = np.vstack([grad(X) for grad in self._grads])
+			elif len(X.shape) == 2:
+				grad = np.vstack([np.hstack([grad(x) for grad in self._grads]) for x in X])
+			
+			grad = D.dot(grad.T).T
+			#if len(X.shape) == 1: 
+			#	return grad.reshape(1,-1)
+			
+			return grad
+
+		# Try return_grad the function definition
+		
+
+	def __call__(self, X_norm, return_grad = False):
+		if not return_grad:
+			return self.eval(X_norm)
+
+		if return_grad:
+			try: 
+				# TODO: Implement support for calling function with return_grad
+				raise TypeError	
+
+			except TypeError:
+				return self.eval(X_norm), self.grad(X_norm)					
 	
 	def __get__(self, i):
 		"""Get a particular sub-function as another Function"""
