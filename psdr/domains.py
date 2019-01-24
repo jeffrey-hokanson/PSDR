@@ -976,6 +976,34 @@ class LinQuadDomain(Domain):
 		return constraints
 	
 
+	def _build_constraints(self, x):
+		r""" Build the constraints corresponding to the domain given a vector x
+		"""
+		constraints = []
+		
+		# Numerical issues emerge with unbounded constraints
+		I = np.isfinite(self.lb)
+		if np.sum(I) > 0:
+			constraints.append( self.lb[I] <= x[I])
+		
+		I = np.isfinite(self.ub)
+		if np.sum(I) > 0:
+			constraints.append( x[I] <= self.ub[I])
+		
+		if self.A.shape[0] > 0:	
+			constraints.append( x.__rmatmul__(self.A) <= self.b)
+		if self.A_eq.shape[0] > 0:
+			constraints.append( x.__rmatmul__(self.A_eq) == self.b_eq)
+
+		for L, y, rho in zip(self.Ls, self.ys, self.rhos):
+			if len(L) > 1:
+				constraints.append( cp.norm(x.__rmatmul__(L) - L.dot(y)) <= rho )
+			elif len(L) == 1:
+				constraints.append( cp.norm(L*x - L.dot(y)) <= rho)
+
+		return constraints
+	
+
 	def _closest_point(self, x0, L = None, **kwargs):
 		if len(kwargs) == 0:
 			kwargs = self.kwargs
