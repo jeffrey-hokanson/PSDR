@@ -8,8 +8,16 @@ from domains import UnboundedDomain
 import warnings
 from gn import trajectory_linear
 
+class InfeasibleException(Exception):
+	pass
+
+class UnboundedException(Exception):
+	pass
+
+
 def sequential_lp(f, x0, jac, search_constraints = None,
-	norm = 2, trajectory = trajectory_linear, obj_lb = None, obj_ub = None, 
+	norm = 2, trajectory = trajectory_linear, obj_lb = None, obj_ub = None,
+	constraints = None, constraint_grads = None, constraints_lb = None, constraints_ub = None,
 	maxiter = 100, bt_maxiter = 50, domain = None,
 	tol_dx = 1e-10, tol_obj = 1e-10,  verbose = False, **kwargs):
 	r""" Solves a nonlinear optimization by sequential least squares
@@ -20,10 +28,17 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 	.. math::
 
 		\min{\mathbf{x} \in \mathbb{R}^m} &\ \| \mathbf{f}(\mathbf{x}) \|_p \\
-		\text{such that} & \  \text{lb} \le \mathbf{f} \le \text{ub}
+		\text{such that} & \  \text{lb} \le \mathbf{f} \le \text{ub} \\
+			& \ \text{constraint_lb} \le \mathbf{g} \le \text{constraint_ub}
 
 	this function solves this problem by linearizing both the objective and constraints
-	and solving a sequence of linear programs.
+	and solving a sequence of disciplined convex problems.
+
+
+	Parameters
+	----------
+	norm: [1,2, np.inf, None, 'hinge']
+		If hinge, sum of values of the objective exceeding 0.
 
 	
 	References
@@ -32,11 +47,7 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 
 
 	"""
-	
-	if 'solver' not in kwargs:
-		kwargs['solver'] = 'ECOS'
-
-	assert norm in [1,2,np.inf, None], "Invalid norm specified."
+	assert norm in [1,2,np.inf, None, 'hinge'], "Invalid norm specified."
 
 	if search_constraints is None:
 		search_constraints = lambda x, p: []
@@ -44,10 +55,29 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 	if domain is None:
 		domain = UnboundedDomain(len(x0))
 
+	if constraints is None:
+		constraints = []
+	if constraint_grads is None:
+		constraint_grads = []
+
+	assert len(constraints) == len(constraint_grads), "Must provide same number of constraints as constraint gradients"
+
+	if constraints_lb is None:
+		constraints_lb = -np.inf*np.ones(len(constraints))
+	
+	if constraints_ub is None:
+		constraints_ub = np.inf*np.ones(len(constraints))
+
+
+	# The default solver for 1/inf-norm doesn't converge sharp enough, but ECOS does.	
+	if 'solver' not in kwargs:
+		kwargs['solver'] = 'ECOS'
 
 
 	if norm in [1,2, np.inf]:
 		objfun = lambda fx: np.linalg.norm(fx, ord = norm)
+	elif norm == 'hinge':
+		objfun = lambda fx: np.sum(np.maximum(fx, 0))
 	else:
 		objfun = lambda fx: float(fx)
 
@@ -93,11 +123,18 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 
 	# Start optimizaiton loop
 	x = np.copy(x0)
-	fx = np.array(f(x))
-	objval = objfun(fx)
-	jacx = jac(x)
+	try:
+		fx = np.array(f(x))
+	except TypeError:
+		fx = np.array([fi(x) for fi in f]).reshape(-1,)
 
-	
+	objval = objfun(fx)
+
+	try:
+		jacx = jac(x)
+	except TypeError:
+		jacx = np.array([jaci(x) for jaci in jac]).reshape(len(fx), len(x))
+
 	if verbose:
 		print 'iter |     objective     |  norm px | TR radius | KKT norm | violation |'
 		print '-----|-------------------|----------|-----------|----------|-----------|'
@@ -116,8 +153,9 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 		if norm == 1: obj = cp.norm1(f_lin)
 		elif norm == 2: obj = cp.norm(f_lin)
 		elif norm == np.inf: obj = cp.norm_inf(f_lin)
+		elif norm == 'hinge': obj = cp.sum(cp.pos(f_lin))
 		elif norm == None: obj = f_lin
-
+		else: raise NotImplementedError
 		# Now setup constraints
 		nonlinear_constraints = []
 
@@ -127,68 +165,93 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 		if obj_ub is not None:
 			nonlinear_constraints.append(f_lin <= obj_ub)  
 		
+		# Next, we add other nonlinear constraints
+		for con, congrad, con_lb, con_ub in zip(constraints, constraint_grads, constraints_lb, constraints_ub):
+			conx = con(x)
+			congradx = congrad(x)
+			#print "conx", conx, congradx
+			if np.isfinite(con_lb):
+				nonlinear_constraints.append(con_lb <= conx + p.__rmatmul__(congradx) )
+			if np.isfinite(con_ub):
+				nonlinear_constraints.append(conx + p.__rmatmul__(congradx) <= con_ub )
 
 		# Constraints on the search direction specified by user
 		search_step_constraints = search_constraints(x, p)
 
 		# Append constraints from the domain of x
-		domain_constraints = domain._build_constraints(p - x)
-
-		# TODO: Add additional user specified constraints following scipy.optimize.NonlinearConstraint (?)
+		domain_constraints = domain._build_constraints(x + p)
 
 		stop = False
 		for it2 in range(bt_maxiter):
-			trust_region_constraints = [cp.norm(p) <= Delta]
-			active_constraints = nonlinear_constraints + trust_region_constraints + domain_constraints + search_step_constraints
+			active_constraints = nonlinear_constraints + domain_constraints + search_step_constraints
+
+			if it2 > 0:
+				trust_region_constraints = [cp.norm(p) <= Delta]
+				active_constraints += trust_region_constraints
+
 			# Solve for the search direction
+
 			with warnings.catch_warnings():
 				warnings.simplefilter('ignore', PendingDeprecationWarning)
 				problem = cp.Problem(cp.Minimize(obj), active_constraints)
 				problem.solve(**kwargs)
-			
-			if problem.status in ['infeasible', 'unbounded']:
-				raise Exception(problem.status)
 
-			px = p.value	
-	
-			x_new = trajectory(x, px, 1.)
+			if (problem.status == 'unbounded' or problem.status == 'unbounded_inaccurate') and it2 == 0:
+				# On the first step, the trust region is off, allowing a potentially unbounded domain
+				pass
+			elif problem.status in ['optimal', 'optimal_inaccurate']:
+				# Otherwise, we've found a feasible step
+				px = p.value	
+				# Evaluate new point along the trajectory
+				x_new = trajectory(x, px, 1.)
 
-			# If we haven't moved that far, stop
-			if np.all(np.isclose(x, x_new, rtol = tol_dx, atol = 0)):
-				stop = True
-				break
-
-			# Evaluate value at new point
-			fx_new = np.array(f(x_new))
-			objval_new = objfun(fx_new)
-
-
-			constraint_violation = 0.
-			if obj_lb is not None:
-				I = ~(obj_lb <= fx_new)
-				constraint_violation += np.linalg.norm((fx_new - obj_lb)[I], 1)
-			if obj_ub is not None:
-				I = ~(fx_new <= obj_ub)
-				constraint_violation += np.linalg.norm((fx_new - obj_ub)[I], 1)
-
-			#if objval_new - objval <= c_armijo*(pred_objval_new - objval):
-			if objval_new < objval:
-				x = x_new
-				fx = fx_new
-
-				if np.abs(objval_new - objval) < tol_obj:
+				# Check for movement of the point
+				if np.all(np.isclose(x, x_new, rtol = tol_dx, atol = 0)):
 					stop = True
-				objval = objval_new
-				Delta = max(1., np.linalg.norm(px))
-				break
+					break
 
-			Delta *=0.5
-		
+				# Evaluate value at new point
+				try:
+					fx_new = np.array(f(x_new))
+				except TypeError:
+					fx_new = np.array([fi(x_new) for fi in f]).reshape(-1,)
+				objval_new = objfun(fx_new)
+
+				constraint_violation = 0.
+				if obj_lb is not None:
+					I = ~(obj_lb <= fx_new)
+					constraint_violation += np.linalg.norm((fx_new - obj_lb)[I], 1)
+				if obj_ub is not None:
+					I = ~(fx_new <= obj_ub)
+					constraint_violation += np.linalg.norm((fx_new - obj_ub)[I], 1)
+
+				if objval_new < objval and np.isclose(constraint_violation, 0., rtol = 1e-10, atol = 1e-10):
+					x = x_new
+					fx = fx_new
+
+					if np.abs(objval_new - objval) < tol_obj:
+						stop = True
+					objval = objval_new
+					Delta = max(1., np.linalg.norm(px))
+					break
+
+				Delta *=0.5
+
+			elif problem.status in ['unbounded', 'unbounded_inaccurate']:
+				raise UnboundedException
+			elif problem.status in ['infeasible']:
+				raise InfeasibleException 
+			else:
+				raise Exception(problem.status)
+	
 		if it2 == bt_maxiter-1:
 			stop = True
 
 		# Update the jacobian information
-		jacx = jac(x)
+		try:
+			jacx = jac(x)
+		except TypeError:
+			jacx = np.array([jaci(x) for jaci in jac]).reshape(len(fx), len(x))
 
 		if verbose:
 			print '%4d | %+14.10e | %8.2e |  %8.2e | %8.2e |  %8.2e |' % (it+1, objval, np.linalg.norm(px), Delta, kkt_norm(fx, jacx), constraint_violation)
