@@ -193,8 +193,17 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 
 			with warnings.catch_warnings():
 				warnings.simplefilter('ignore', PendingDeprecationWarning)
-				problem = cp.Problem(cp.Minimize(obj), active_constraints)
-				problem.solve(**kwargs)
+				try:
+					problem = cp.Problem(cp.Minimize(obj), active_constraints)
+					problem.solve(**kwargs)
+				except cp.SolverError:
+					# 
+					print "failure", it2 
+					if it2 == 0:
+						problem.status = 'unbounded'
+					else:
+						problem.status = 'error'								
+
 
 			if (problem.status == 'unbounded' or problem.status == 'unbounded_inaccurate') and it2 == 0:
 				# On the first step, the trust region is off, allowing a potentially unbounded domain

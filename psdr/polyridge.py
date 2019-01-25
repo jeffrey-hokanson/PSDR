@@ -110,7 +110,7 @@ def inf_norm_fit(A, b):
 		x = cp.Variable(A.shape[1])
 		obj = cp.norm_inf(x.__rmatmul__(A) - b)
 		problem = cp.Problem(cp.Minimize(obj))
-		problem.solve()
+		problem.solve(solver = 'ECOS')
 		return x.value
 
 def one_norm_fit(A, b):
@@ -126,7 +126,7 @@ def one_norm_fit(A, b):
 		x = cp.Variable(A.shape[1])
 		obj = cp.norm1(x.__rmatmul__(A) - b)
 		problem = cp.Problem(cp.Minimize(obj))
-		problem.solve()
+		problem.solve(solver = 'ECOS')
 		return x.value
 
 def two_norm_fit(A,b):
