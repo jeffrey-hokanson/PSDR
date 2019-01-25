@@ -16,6 +16,9 @@ class BaseFunction(object):
 	def grad(self, X):
 		return self.__call__(X, return_grad = True)[1]
 
+	def hessian(self, X):
+		raise NotImplementedError
+
 	def __call__(self, X, return_grad = False):
 		if return_grad:
 			return self.eval(X), self.grad(X)
