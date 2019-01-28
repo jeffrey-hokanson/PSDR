@@ -68,7 +68,7 @@ def test_hessian(m = 2, p = 5):
 			print "i", i
 			obj = lambda x: basis.V(x.reshape(1,-1))[0,i]
 			hess = lambda x: basis.DDV(x.reshape(1,-1))[0,i]
-			assert check_hessian(X[0], obj, hess) < 1e-5
+			assert check_hessian(X[0], obj, hess) < 5e-5
 		
 		
 		basis.set_scale(X)
@@ -76,5 +76,5 @@ def test_hessian(m = 2, p = 5):
 			print "i", i
 			obj = lambda x: basis.V(x.reshape(1,-1))[0,i]
 			hess = lambda x: basis.DDV(x.reshape(1,-1))[0,i]
-			assert check_hessian(X[0], obj, hess) < 1e-5
+			assert check_hessian(X[0], obj, hess) < 5e-5
 
