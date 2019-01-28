@@ -23,6 +23,7 @@ def check_jacobian(x, residual, jacobian):
 
 	return max_err
 
+
 def check_gradient(x, residual, jacobian):
 	n = x.shape[0]
 	hvec = np.logspace(-14,-1,100)
@@ -54,6 +55,29 @@ def check_derivative(x, obj, grad):
 		max_err = max(np.min(err), max_err)
 		print "%3d: err:%5.5e" % (i, np.min(err))
 
+	return max_err
+
+
+def check_hessian(x, obj, hess):
+	n = x.shape[0]
+	H = hess(x)
+
+	hvec = np.logspace(-7,-1,10)
+	max_err = 0.
+
+	for i in range(n):	
+		ei = np.zeros(n)
+		ei[i] = 1.
+		for j in range(n):
+			ej = np.zeros(n)
+			ej[j] = 1.
+			min_err = np.inf
+			for h in hvec:
+				Hij_est = ( (obj(x + h*ei + h*ej) - obj(x - h*ei + h*ej)) - (obj(x + h*ei - h*ej) - obj(x - h*ei - h*ej)) )/(4*h**2)
+				err = np.max(np.abs(Hij_est - H[i,j]))
+				min_err = np.min([min_err, err])
+			print "%d %d %5.2e : %5.2e %5.2e" % (i,j,min_err, H[i,j], Hij_est)
+			max_err = max(min_err, max_err)
 	return max_err
 
 #if __name__ == '__main__':

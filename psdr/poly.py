@@ -8,6 +8,7 @@ from copy import copy
 from basis import *
 from function import BaseFunction
 
+__all__ = ['PolynomialFunction', 'PolynomialApproximation']
 
 
 def linear_fit(A, b, norm = 2, bound = None):
@@ -39,16 +40,20 @@ def linear_fit(A, b, norm = 2, bound = None):
 
 
 class PolynomialFunction(BaseFunction):
+	def __init__(self, dimension, degree, coef):
+		self.basis = LegendreTensorBasis(dimension, degree) 
+		self.coef = coef
 
 	def eval(self, X):
 		V = self.basis.V(X)
 		return V.dot(self.coef) 
 
 	def grad(self, X):
-		pass
+		return np.tensordot(self.basis.DV(X), self.coef, axes = (1,0))
 
 	def hessian(self, X):
-		pass
+		return np.tensordot(self.basis.DDV(X), self.coef, axes = (1,0))
+	
 
 class PolynomialApproximation(PolynomialFunction):
 	def __init__(self, degree, basis = 'legendre', norm = 2, bound = None):
@@ -99,4 +104,5 @@ if __name__ == '__main__':
 
 	poly = PolynomialApproximation(degree = 2)
 	poly.fit(X, fX)
-	print poly.eval(X) - fX
+	print poly.eval(X).shape
+	print poly.grad(X).shape

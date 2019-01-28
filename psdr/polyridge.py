@@ -48,19 +48,49 @@ class PolynomialRidgeFunction(RidgeFunction):
 		Y = U.T.dot(X.T).T
 		return self.basis.DV(Y)
 
+	def DDV(self, X, U = None):
+		if U is None: U = self.U
+		Y = U.T.dot(X.T).T
+		return self.basis.DDV(Y)
+
 	def eval(self, X):
-		V = self.V(X)
-		return V.dot(self.coef)
+		if len(X.shape) == 1:
+			return self.V(X.reshape(1,-1)).dot(self.coef).reshape(1)
+		else:
+			return self.V(X).dot(self.coef)
 	
 	def grad(self, X):
-		#Y = np.dot(U.T, X.T).T
+		if len(X.shape) == 1:
+			one_d = True
+			X = X.reshape(1,-1)	
+		else:
+			one_d = False	
 		
 		DV = self.DV(X)
 		# Compute gradient on projected space
 		Df = np.tensordot(DV, self.coef, axes = (1,0))
 		# Inflate back to whole space
 		Df = Df.dot(self.U.T)
-		return Df
+		if one_d:
+			return Df.reshape(X.shape[1])
+		else:
+			return Df
+
+	def hessian(self, X):
+		if len(X.shape) == 1:
+			one_d = True
+			X = X.reshape(1,-1)	
+		else:
+			one_d = False
+	
+		DDV = self.DDV(X)
+		DDf = np.tensordot(DDV, self.coef, axes = (1,0))
+		# Inflate back to proper dimensions
+		DDf = np.tensordot(np.tensordot(DDf, self.U, axes = (2,1)) , self.U, axes = (1,1)) 
+		if one_d:
+			return DDf.reshape(X.shape[1], X.shape[1])
+		else:
+			return DDf
 
 	def profile_grad(self, X):
 		r""" gradient of the profile function g
@@ -622,6 +652,7 @@ if __name__ == '__main__':
 	U = orth(np.random.randn(m,n))
 	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
 	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
+
 
 	X = np.random.randn(M,m)
 	fX = prf.eval(X) 

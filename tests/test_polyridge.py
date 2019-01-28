@@ -1,8 +1,28 @@
 import numpy as np
 import scipy.linalg
 from psdr import PolynomialRidgeApproximation, LegendreTensorBasis, PolynomialRidgeFunction
-from checkder import check_jacobian
+from checkder import *
 
+
+def test_polyridge_der():
+	m = 5
+	n = 1
+	p = 3
+	
+	U = scipy.linalg.orth(np.random.randn(m,n))
+	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
+	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
+
+	x = np.random.randn(m)
+
+	print prf.eval(x)
+	print prf.grad(x)
+	print prf.hessian(x)
+	
+	assert check_derivative(x, prf.eval, lambda x: prf.grad(x) ) < 1e-7
+	assert check_hessian(x, prf.eval, lambda x: prf.hessian(x) ) < 1e-5
+		
+	
 
 def test_varpro_jacobian():
 	np.random.seed(1)

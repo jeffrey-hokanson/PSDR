@@ -159,6 +159,7 @@ class PolynomialTensorBasis(Basis):
 		V: np.array
 			Vandermonde matrix
 		"""
+		X = X.reshape(-1, self.n)
 		X = self._scale(np.array(X))
 		M = X.shape[0]
 		assert X.shape[1] == self.n, "Expected %d dimensions, got %d" % (self.n, X.shape[1])
@@ -192,6 +193,7 @@ class PolynomialTensorBasis(Basis):
 		Vc: np.array (M,)
 			Product of Vandermonde matrix and :math:`\mathbf c`
 		"""
+		X = X.reshape(-1, self.n)
 		X = self._scale(np.array(X))
 		M = X.shape[0]
 		c = np.array(c)
@@ -244,6 +246,7 @@ class PolynomialTensorBasis(Basis):
 			Derivative of Vandermonde matrix where :code:`Vp[i,j,:]`
 			is the gradient of :code:`V[i,j]`. 
 		"""
+		X = X.reshape(-1, self.n)
 		X = self._scale(np.array(X))
 		M = X.shape[0]
 		V_coordinate = [self.vander(X[:,k], self.p) for k in range(self.n)]
@@ -268,6 +271,66 @@ class PolynomialTensorBasis(Basis):
 			DV[:,:,k] *= dscale[k] 		
 
 		return DV
+	
+	def DDV(self, X):
+		r""" Column-wise second derivative of the Vandermonde matrix
+
+		Given points :math:`\mathbf x_i \in \mathbb{R}^n`, 
+		this creates the Vandermonde-like matrix whose entries
+		correspond to the derivatives of each of basis elements;
+		i.e., 
+
+		.. math::
+
+			[\mathbf{V}]_{i,j} = \left. \frac{\partial^2}{\partial x_k\partial x_\ell} \psi_j(\mathbf{x}) 
+				\right|_{\mathbf{x} = \mathbf{x}_i}.
+
+		Parameters
+		----------
+		X: array-like (M, n)
+			Points at which to evaluate the basis at where :code:`X[i]` is one such point in 
+			:math:`\mathbf{R}^m`.
+
+		Returns
+		-------
+		Vpp: np.array (M, N, n, n)
+			Second derivative of Vandermonde matrix where :code:`Vpp[i,j,:,:]`
+			is the Hessian of :code:`V[i,j]`. 
+		"""
+		X = X.reshape(-1, self.n)
+		X = self._scale(np.array(X))
+		M = X.shape[0]
+		V_coordinate = [self.vander(X[:,k], self.p) for k in range(self.n)]
+		
+		N = len(self.indices)
+		DDV = np.ones((M, N, self.n, self.n), dtype = X.dtype)
+
+		try:
+			dscale = self._dscale()
+		except NotImplementedError:
+			dscale = np.ones(X.shape[1])	
+
+
+		for k in range(self.n):
+			for ell in range(k, self.n):
+				for j, alpha in enumerate(self.indices):
+					for q in range(self.n):
+						if q == k == ell:
+							# We need the second derivative
+							eq = np.zeros(self.p+1)
+							eq[alpha[q]] = 1.
+							der2 = self.der(eq, 2)
+							#print "q", q, "der2", der2, eq
+							DDV[:,j,k,ell] *= V_coordinate[q][:,0:-2].dot(der2)
+						elif q == k or q == ell:
+							DDV[:,j,k,ell] *= np.dot(V_coordinate[q][:,0:-1], self.Dmat[alpha[q],:])
+						else:
+							DDV[:,j,k,ell] *= V_coordinate[q][:,alpha[q]]
+
+				# Correct for transform
+				DDV[:,:,k, ell] *= dscale[k]*dscale[ell]
+				DDV[:,:,ell, k] = DDV[:,:,k, ell]
+		return DDV
 
 
 class MonomialTensorBasis(PolynomialTensorBasis):
@@ -320,4 +383,6 @@ class HermiteTensorBasis(PolynomialTensorBasis):
 			raise NotImplementedError
 
 
-
+if __name__ == '__main__':
+	basis = MonomialTensorBasis(2,5)
+	X = np.random.randn(1,2)

@@ -2,9 +2,10 @@ from .domains import *
 from .basis import *
 from .function import *
 from .subspace import *
-from .polyridge import *
 from .gp import * 
 from .sample import *
+from .polyridge import *
+from .poly import *
 
 # Optimization
 from .minimax import *
