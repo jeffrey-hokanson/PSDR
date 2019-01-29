@@ -305,6 +305,9 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		assert bound in [None, 'lower', 'upper'], "Invalid bound specified"
 		self.bound = bound
 
+	def __len__(self):
+		return U.shape[0]
+
 
 	def fit(self, X, fX, U0 = None, **kwargs):
 		r""" Given samples, fit the polynomial ridge approximation.
