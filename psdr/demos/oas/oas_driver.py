@@ -34,7 +34,7 @@ null_stream = open(os.devnull, 'w')
 
 def driver(X):
 
-	assert len(X[0]) == (2*N_CP + 6) 
+	assert len(X[0]) == (2*N_CP + 6), "Found dimension %d, expected %d" % (len(X[0]), (2*N_CP + 6))
 	
    # Set problem type
 	prob_dict = {'type' : 'aerostruct',

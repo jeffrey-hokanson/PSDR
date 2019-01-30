@@ -54,6 +54,7 @@ class Function(BaseFunction, Domain):
 	# TODO: Implement fancy pool-features
 
 	def __init__(self, funs, domain, grads = None, fd_grad = None, vectorized = False, fun_kwargs = None):
+		self.vectorized = vectorized
 		if callable(funs):
 			self._funs = [funs]
 		else:
@@ -84,9 +85,15 @@ class Function(BaseFunction, Domain):
 
 		elif len(X.shape) == 2:
 			if callable(self._funs):
-				return np.vstack([self._funs(x) for x in X])
+				if self.vectorized:
+					return self._funs(X)
+				else:
+					return np.vstack([self._funs(x) for x in X])
 			else:
-				return np.vstack([ np.hstack([fun(x) for fun in self._funs]) for x in X])
+				if self.vectorized:
+					return np.hstack([fun(X) for fun in self._funs])
+				else:
+					return np.vstack([ np.hstack([fun(x) for fun in self._funs]) for x in X])
 					
 		else:
 			raise NotImplementedError

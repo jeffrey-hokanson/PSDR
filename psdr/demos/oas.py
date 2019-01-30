@@ -1,6 +1,14 @@
+from __future__ import print_function
 import numpy as np
 
-from psdr import BoxDomain, TensorProductDomain, UniformDomain
+from psdr import BoxDomain, TensorProductDomain, UniformDomain, Function
+
+
+
+class OAS(Function):
+	def __init__(self):
+		domain = build_oas_design_domain() * build_oas_robust_domain() * build_oas_random_domain()
+		Function.__init__(self, oas_func, domain, vectorized = True)
 
 
 def build_oas_design_domain(n_cp = 3):
@@ -26,7 +34,61 @@ def build_oas_random_domain():
 	return TensorProductDomain([E,G,rho])
 
 
-def oas(x, version = 'v1'):
-	import numpy as np
-	pass
+def oas_func(x, version = 'v1', workdir = None, verbose = True):
+	r"""
 
+
+
+	"""
+	# If we use this inside the RedisPool, we need to load the modules
+	# internal to this file
+	import shutil, subprocess, os, tempfile, shlex, platform
+	import numpy as np
+	from subprocess import Popen, PIPE, STDOUT
+
+	if workdir is None:
+		# Docker cannot access /var by default, so we move the temporary file to
+		# /tmp on MacOS
+		if platform.system() == 'Darwin':
+			workdir = tempfile.mkdtemp(dir = '/tmp')
+		else:
+			workdir = tempfile.mkdtemp()
+	else:
+		workdir = os.path.abspath(workdir)
+		os.makedirs(workdir)
+
+	# Copy the inputs to a file
+	np.savetxt(workdir + '/my.input', x, fmt = '%.15e')
+	
+	call = "docker run -t --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/oas:%s /workdir/my.input" % (workdir, version)
+	args = shlex.split(call)
+	with open(workdir + '/output.log', 'a') as log:
+		p = Popen(args, stdout = PIPE, stderr = STDOUT)
+		while True:
+			# Read output from pipe
+			# TODO: this should buffer to end of line rather than fixed size
+			output = p.stdout.readline()
+			log.write(output)
+
+			if verbose:
+				print(output, end ='')
+
+			# Check for termination
+			if p.poll() is not None:
+				break
+		if p.returncode != 0:
+			print("exited with error code %d" % p.returncode)
+
+	Y = np.loadtxt(workdir + '/my.output')
+
+	#shutil.rmtree(workdir) 
+	return Y	
+	
+
+
+
+if __name__ == '__main__':
+	oas = OAS()
+	X = oas.sample(10)
+	Y = oas(X)	
+	print(Y)
