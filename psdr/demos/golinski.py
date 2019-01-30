@@ -72,7 +72,7 @@ class GolinskiGearbox(Function):
 				golinski_constraint24_grad,
 				golinski_constraint25_grad,
 				]
-		Function.__init__(self, funs, domain, grads = grads)
+		Function.__init__(self, funs, domain, grads = grads, vectorized = True)
 	
 
 
