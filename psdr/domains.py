@@ -377,7 +377,12 @@ class Domain(object):
 			x0 = sum([self.corner(np.random.randn(len(self))) for i in range(N)])/N
 			x0 = self.closest_point(x0)
 			self._hit_and_run_state = x0
-				
+			
+	
+		# Sometimes we may have a point that is slightly outside due to numerical issues
+		# so we push it back in
+		if not self.isinside(x0):
+			x0 = self.closest_point(x0) 	
 
 		# See if there is an orthongonal basis for the equality constraints
 		# This is necessary so we can generate random directions that satisfy the equality constraint.
