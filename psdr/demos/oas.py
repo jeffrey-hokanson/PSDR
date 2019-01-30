@@ -13,24 +13,24 @@ class OAS(Function):
 
 def build_oas_design_domain(n_cp = 3):
 	# Twist
-	domain_twist = BoxDomain(-1*np.ones(n_cp), 1*np.ones(n_cp))
+	domain_twist = BoxDomain(-1*np.ones(n_cp), 1*np.ones(n_cp), names = ['twist %d' % (i,) for i in range(1,4)] )
 	# Thick
-	domain_thick = BoxDomain(0.005*np.ones(n_cp), 0.05*np.ones(n_cp))
+	domain_thick = BoxDomain(0.005*np.ones(n_cp), 0.05*np.ones(n_cp), names = ['thickness %d' % (i,) for i in range(1,4)] )
 	# Root Chord
-	domain_root_chord = BoxDomain(0.7, 1.3)
+	domain_root_chord = BoxDomain(0.7, 1.3, names = ['root chord'])
 	# Taper ratio
-	domain_taper_ratio = BoxDomain(0.75, 1.25)
+	domain_taper_ratio = BoxDomain(0.75, 1.25, names = ['taper ratio'])
 
 	return TensorProductDomain([domain_twist, domain_thick, domain_root_chord, domain_taper_ratio])
 
 def build_oas_robust_domain():
 	# alpha - Angle of Attack
-	return BoxDomain(2.0, 5.0)
+	return BoxDomain(2.0, 5.0, names = ['angle of attack'])
 
 def build_oas_random_domain():
-	E = UniformDomain(0.8*70e9, 1.2*70e9)	 
-	G = UniformDomain(0.8*30e9, 1.2*30e9)
-	rho = UniformDomain(0.8*3e3, 1.2*3e3)
+	E = UniformDomain(0.8*70e9, 1.2*70e9, names = ["Young's modulus of the spar [Pa]"])	 
+	G = UniformDomain(0.8*30e9, 1.2*30e9, names = ["sheear modulus of the spar [Pa]"])
+	rho = UniformDomain(0.8*3e3, 1.2*3e3, names = ["material density [kg/m^3]"] )
 	return TensorProductDomain([E,G,rho])
 
 
@@ -90,5 +90,6 @@ def oas_func(x, version = 'v1', workdir = None, verbose = True):
 if __name__ == '__main__':
 	oas = OAS()
 	X = oas.sample(10)
+	print(oas.domain_app.names)
 	Y = oas(X)	
 	print(Y)

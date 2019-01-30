@@ -2,6 +2,7 @@
 from __future__ import print_function, division
 
 import types
+import itertools
 import numpy as np
 from scipy.optimize import newton, brentq
 from copy import deepcopy
@@ -99,6 +100,14 @@ class Domain(object):
 	This specifies a domain :math:`\mathcal{D}\subset \mathbb{R}^m`.
 
 	"""
+
+	@property
+	def names(self):
+		try:
+			return self._names
+		except AttributeError:
+			self._names = ['x%d' % i for i in range(len(self))]
+			return self._names
 	
 	def __len__(self):
 		raise NotImplementedError
@@ -713,8 +722,11 @@ class UnboundedDomain(Domain):
 
 
 	"""
-	def __init__(self, dimension):
+	def __init__(self, dimension, names = None):
 		self._dimension = dimension
+		if names is not None:
+			assert len(names) == len(self), "Domain has %d dimensions, recieved %d names for the coordinates" % (len(self), len(names))
+			self._names = names
 	
 	def __len__(self):
 		return self._dimension
@@ -784,7 +796,7 @@ class LinQuadDomain(Domain):
 		lb = None, ub = None, 
 		A_eq = None, b_eq = None, 
 		Ls = None, ys = None, rhos = None,
-		**kwargs):
+		names = None, **kwargs):
 
 		self.tol = 1e-6
 		# Determine dimension of space
@@ -801,6 +813,10 @@ class LinQuadDomain(Domain):
 			#kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False}
 			kwargs ={} 
 		self.kwargs = kwargs
+		
+		if names is not None:
+			assert len(names) == len(self), "Domain has %d dimensions, recieved %d names for the coordinates" % (len(self), len(names))
+			self._names = names
 	
 	################################################################################		
 	# Initialization helpers 
@@ -1113,8 +1129,8 @@ class LinIneqDomain(LinQuadDomain):
 		Additional parameters to pass to solvers 
 
 	"""
-	def __init__(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None, **kwargs):
-		LinQuadDomain.__init__(self, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, **kwargs)
+	def __init__(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None, names = None, **kwargs):
+		LinQuadDomain.__init__(self, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, names = None, **kwargs)
 
 	def _isinside(self, X):
 		return self._isinside_bounds(X) & self._isinside_ineq(X) & self._isinside_eq(X)
@@ -1255,8 +1271,8 @@ class BoxDomain(LinIneqDomain):
 	ub: array-like (m,)
 		Upper bounds
 	"""
-	def __init__(self, lb, ub):
-		LinQuadDomain.__init__(self, lb = lb, ub = ub)	
+	def __init__(self, lb, ub, names = None):
+		LinQuadDomain.__init__(self, lb = lb, ub = ub, names = names)	
 		assert np.all(np.isfinite(lb)) and np.all(np.isfinite(ub)), "Both lb and ub must be finite to construct a box domain"
 
 	# Due to the simplicity of this domain, we can use a more efficient sampling routine
@@ -1313,8 +1329,13 @@ class PointDomain(BoxDomain):
 	x: array-like (m,)
 		Single point to be contained in the domain
 	"""
-	def __init__(self, x):
+	def __init__(self, x, names = None):
 		self._point = np.array(x).flatten()
+		
+		if names is not None:
+			assert len(names) == len(self), "Domain has %d dimensions, recieved %d names for the coordinates" % (len(self), len(names))
+			self._names = names
+		
 		assert len(self._point.shape) == 1, "Must provide a one-dimensional point"
 
 	def __len__(self):
@@ -1364,20 +1385,20 @@ class ConvexHullDomain(LinIneqDomain):
 	X: array-like (M, m)
 		Points from which to build the convex hull of points.
 	"""
-	def __init__(self, X):
+	def __init__(self, X, names = None):
 		self.X = np.copy(X)
 		if self.X.shape[1] > 1:
 			self.hull = ConvexHull(self.X) 
 			A = self.hull.equations[:,:-1]
 			b = -self.hull.equations[:,-1]
-			LinIneqDomain.__init__(self, A, b)
+			LinIneqDomain.__init__(self, A, b, names = names)
 			self.vertices = np.copy(self.X[self.hull.vertices])
 		else:
 			lb = np.atleast_1d(np.min(X))
 			ub = np.atleast_1d(np.max(X))
 			A = np.zeros((0, 1))
 			b = np.zeros((0,))
-			LinIneqDomain.__init__(self, A, b, lb = lb, ub = ub)
+			LinIneqDomain.__init__(self, A, b, lb = lb, ub = ub, names = names)
 			self.vertices = np.array([lb, ub]).reshape(-1,1)
 
 class TensorProductDomain(Domain):
@@ -1403,6 +1424,9 @@ class TensorProductDomain(Domain):
 			else:
 				self._domains.append(domain)
 
+	@property
+	def names(self):
+		return list(itertools.chain(*[dom.names for dom in self.domains]))
 
 	def _is_linquad(self):
 		return all([isinstance(dom, LinQuadDomain) for dom in self.domains])
