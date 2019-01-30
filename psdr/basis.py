@@ -320,8 +320,7 @@ class PolynomialTensorBasis(Basis):
 							eq = np.zeros(self.p+1)
 							eq[alpha[q]] = 1.
 							der2 = self.der(eq, 2)
-							#print "q", q, "der2", der2, eq
-							DDV[:,j,k,ell] *= V_coordinate[q][:,0:-2].dot(der2)
+							DDV[:,j,k,ell] *= V_coordinate[q][:,0:len(der2)].dot(der2)
 						elif q == k or q == ell:
 							DDV[:,j,k,ell] *= np.dot(V_coordinate[q][:,0:-1], self.Dmat[alpha[q],:])
 						else:

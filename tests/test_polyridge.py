@@ -4,6 +4,17 @@ from psdr import PolynomialRidgeApproximation, LegendreTensorBasis, PolynomialRi
 from checkder import *
 
 
+def test_affine():
+	X = np.random.randn(100, 5)
+	a = np.random.randn(5,)
+	y = X.dot(a)
+		
+	pra = PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1, bound = 'upper')
+	pra.fit(X, y)
+
+	assert np.all(np.isclose(y, pra(X)))
+
+
 def test_polyridge_der():
 	m = 5
 	n = 1

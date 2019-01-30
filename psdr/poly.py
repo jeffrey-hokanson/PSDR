@@ -44,15 +44,50 @@ class PolynomialFunction(BaseFunction):
 		self.basis = LegendreTensorBasis(dimension, degree) 
 		self.coef = coef
 
+	def V(self, X):	
+		return self.basis.V(X)
+
+	def DV(self, X):
+		return self.basis.DV(X)
+
+	def DDV(self, X):
+		return self.basis.DDV(X)
+
 	def eval(self, X):
-		V = self.basis.V(X)
-		return V.dot(self.coef) 
+		if len(X.shape) == 1:
+			return self.V(X.reshape(1,-1)).dot(self.coef).reshape(1)
+		else:
+			return self.V(X).dot(self.coef)
 
 	def grad(self, X):
-		return np.tensordot(self.basis.DV(X), self.coef, axes = (1,0))
+		if len(X.shape) == 1:
+			one_d = True
+			X = X.reshape(1,-1)	
+		else:
+			one_d = False	
+		
+		DV = self.DV(X)
+		# Compute gradient on projected space
+		Df = np.tensordot(DV, self.coef, axes = (1,0))
+		# Inflate back to whole space
+		if one_d:
+			return Df.reshape(X.shape[1])
+		else:
+			return Df
 
 	def hessian(self, X):
-		return np.tensordot(self.basis.DDV(X), self.coef, axes = (1,0))
+		if len(X.shape) == 1:
+			one_d = True
+			X = X.reshape(1,-1)	
+		else:
+			one_d = False
+	
+		DDV = self.DDV(X)
+		DDf = np.tensordot(DDV, self.coef, axes = (1,0))
+		if one_d:
+			return DDf.reshape(X.shape[1], X.shape[1])
+		else:
+			return DDf
 	
 
 class PolynomialApproximation(PolynomialFunction):

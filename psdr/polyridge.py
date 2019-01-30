@@ -354,8 +354,15 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	def _fit_affine(self, X, fX):
 		r""" Solves the affine 
 		"""
-		# TODO: There is often a scaling issue 
-		XX = np.hstack([X, np.ones((X.shape[0],1))])
+		# Normalize the domain 
+		lb = np.min(X, axis = 0)
+		ub = np.max(X, axis = 0)
+		dom = BoxDomain(lb, ub) 
+		XX = np.hstack([dom.normalize(X), np.ones((X.shape[0],1))])
+
+		# Normalize the output
+		fX = (fX - np.min(fX))/(np.max(fX) - np.min(fX))
+
 		if self.bound is None:
 			if self.norm == 1:
 				b = one_norm_fit(XX, fX)
@@ -370,6 +377,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			b = bound_fit(-XX, -fX, norm = self.norm)	 	
 
 		U = b[0:-1].reshape(-1,1)
+		# Correct for transform 
+		U = dom._normalize_der().dot(U)
 		return U	
 
 
