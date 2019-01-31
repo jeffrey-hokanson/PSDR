@@ -336,7 +336,7 @@ if __name__ == '__main__':
 	gg = GolinskiGearbox()
 	
 	params, results = di.read_parameters_file()
-	x = np.array([param['x%d' % i ] for i in range(6)])
+	x = np.array([params['x%d' % (i+1) ] for i in range(6)])
 	y = gg(x)
 	results['f'].function = y[0]
 	for i in range(1,12):
