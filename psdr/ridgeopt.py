@@ -19,10 +19,13 @@ class RidgeOptimization:
 	.. math::
 
 		\min_{\mathbf{x}\in \mathcal{D}} &\ f_0(\mathbf{x}) \\
-		\text{such that} & \ f_i(\mathbf{x}) \le 0
+		\text{such that} & \ f_i(\mathbf{x}) \le 0.
 
-	by constructing a sequence of bounding surrogates.
 	[This sign convention follows Ch. 5, [BV04]_ ]
+
+	The approach taken here is to build a quadratic model of the objective function,
+	using a quadratic ridge approximation if sufficient sample haven't been obtained,
+	and build upper bounding linear surrogates for the constrainsts. 
 
 
 	Parameters
@@ -42,7 +45,10 @@ class RidgeOptimization:
 		A function that takes the output `fx=func(x)`
 		and generates a vector-valued constraint function;
 		by default this yields all but the first outputs;
-		i.e., `constraints = lambda fx: fx[1:]`.
+		i.e., `constraints = lambda fx: fx[1:]`
+.
+	design_domain: Domain; optional
+		If using chance or robust constraints, this partitions the input domain 
 
 	References
 	----------
@@ -59,7 +65,6 @@ class RidgeOptimization:
 		self.domain = func.domain_norm 
 		
 
-		# Convert input into list
 		if X is None:
 			self.X = np.zeros((0,len(self.domain)))
 		else:
@@ -80,6 +85,10 @@ class RidgeOptimization:
 
 		self.constraints = constraints	
 
+		
+
+
+
 	def step(self, maxiter = 1, **kwargs):
 
 		for i in range(maxiter):
@@ -88,9 +97,16 @@ class RidgeOptimization:
 			try:
 				self._build_surrogates()
 				x_new = self._optimize_surrogate()
-			except(UnderdeterminedException, cp.SolverError):
-				x_new = self._underdetermined_sample()
+				# If the new point is too close existing samples, sample randomly
+				if len(self.X) > 0:
+					dist = scipy.spatial.distance.cdist(x_new.reshape(1,-1), self.X).flatten()
+					if np.min(dist) < 1e-5*min(self.tr_radius, 1):
+						x_new = self._random_sample()
 
+			except(UnderdeterminedException, cp.SolverError):
+				x_new = self._random_sample()
+
+				
 			fx_new = self.func(x_new)
 			self.X = np.vstack([self.X, x_new])	
 			if len(self.fX) == 0:
@@ -124,9 +140,13 @@ class RidgeOptimization:
 
 
 
-	def _underdetermined_sample(self):
-		# If we don't have enough points to build surrogates, sample randomly		
-		x_new = self.domain.sample(1)
+	def _random_sample(self):
+		# If we don't have enough points to build surrogates, sample randomly	
+		if np.isfinite(self.tr_radius):
+			domain = self.domain.add_constraints(ys = [self.xc], Ls = [np.eye(self.xc.shape[0])], rhos = [self.tr_radius])
+		else:
+			domain = self.domain
+		x_new = domain.sample(1)
 		# TODO: Use better sampling strategy
 		return x_new
 
@@ -158,15 +178,14 @@ class RidgeOptimization:
 
 	def _find_trust_region(self):
 		dist = scipy.spatial.distance.cdist(self.xc.reshape(1,-1), self.X).flatten()
-		
 		# Number of points to contain
 		M_contain = int( (len(self.domain) + 1) + np.floor(self.it/2))
 		
 		if M_contain >= len(self.X):
 			self.tr_radius = np.inf
 		else:
+			# Sort ascending order
 			self.tr_radius = np.sort(dist)[M_contain]
-
 		return self.tr_radius
 
 
@@ -277,6 +296,26 @@ class RidgeOptimization:
 		return x_new
 
 
+class RidgeOptimizationUnderUncertainty(RidgeOptimization):
+	r""" Ridge-based Optimization Under Uncertainty
+
+
+	
+
+	""" 
+	def __init__(self, func, design_domain, random_domain,
+		X = None, fX = None, objective = None, constraints = None):
+
+		assert len(design_domain)+len(random_domain) == len(func.domain), (
+			"The function provided has %d parameters but the design domain and random domains totaled %d" % (
+				len(func.domain), len(design_domain)+ len(random_domain)))
+		
+
+		RidgeOptimization.__init__(self, func, X = X, fX = fX, objective = objective, constraints = constraints)
+
+		# 
+
+
 	
 if __name__ == '__main__':
 	np.random.seed(1)
@@ -290,4 +329,4 @@ if __name__ == '__main__':
 	#print fX.shape
 
 	opt = RidgeOptimization(gb)
-	opt.step(50)
+	opt.step(200)
