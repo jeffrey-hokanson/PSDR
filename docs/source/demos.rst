@@ -5,7 +5,13 @@ Demo Functions
 Golinski Gearbox
 ----------------
 
+.. autoclass:: psdr.demos.GolinskiGearbox
 
+
+OpenAeroStruct
+--------------
+
+.. autoclass:: psdr.demos.OpenAeroStruct
 
 
 MULTI-F

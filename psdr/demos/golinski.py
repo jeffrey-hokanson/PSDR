@@ -38,7 +38,7 @@ class GolinskiGearbox(Function):
 		`Golinski's Speed Reducer <http://www.eng.buffalo.edu/Research/MODEL/mdo.test.orig/class2prob4.html>`_	
 
 	.. [Gol70] "Optimal Synthesis Problems Solved by Means of Nonlinear Programming and Random Methods",
-		Jan Golinski, J. Mech. 5, 1970, pp.287--309
+		Jan Golinski, J. Mech. 5, 1970, pp.287--309.
 
 	.. [Ray03] "Golinski's Speed Reducer Problem Revisited", Tapabrata Ray, AIAA Journal,
 			41(3), 2003, pp 556--558
@@ -308,7 +308,14 @@ def golinski_constraint25_grad(x):
 
 # Units of cm
 def build_golinski_design_domain():
-	return BoxDomain([2.6,0.7, 7.3, 7.3, 2.9, 5.0], [3.6, 0.8, 8.3, 8.3, 3.9, 5.5])
+	return BoxDomain([2.6,0.7, 7.3, 7.3, 2.9, 5.0], [3.6, 0.8, 8.3, 8.3, 3.9, 5.5], 
+		names = ["width of gear face", 
+				"teeth module", 
+				"shaft 1 length between bearings",
+				"shaft 2 length between bearings",
+				"diameter of shaft 1",
+				"diameter of shaft 2"]
+		 )
 
 
 # Taken from table 3 of Hu, Zhou, Chen, Parks, 2017 in AIAA journal 

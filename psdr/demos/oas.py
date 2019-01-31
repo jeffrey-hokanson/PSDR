@@ -5,7 +5,19 @@ from psdr import BoxDomain, TensorProductDomain, UniformDomain, Function
 
 
 
-class OAS(Function):
+class OpenAeroStruct(Function):
+	r""" A test problem from OpenAeroStruct
+
+	A test problem using OpenAeroStruct similar to that described in [JHM18]_.
+
+	References
+	----------
+	.. [JHM18] Open-source coupled aerostructural optimization using Python.
+		John P. Jasa, John T. Hwang, and Joaquim R. R. A. Martins.
+		Structural and Multidisciplinary Optimization (2018) 57:1815-1827
+		DOI: 10.1007/s00158-018-1912-8
+	
+	"""
 	def __init__(self):
 		domain = build_oas_design_domain() * build_oas_robust_domain() * build_oas_random_domain()
 		Function.__init__(self, oas_func, domain, vectorized = True)
@@ -34,7 +46,7 @@ def build_oas_random_domain():
 	return TensorProductDomain([E,G,rho])
 
 
-def oas_func(x, version = 'v1', workdir = None, verbose = True):
+def oas_func(x, version = 'v1', workdir = None, verbose = False):
 	r"""
 
 
@@ -88,7 +100,7 @@ def oas_func(x, version = 'v1', workdir = None, verbose = True):
 
 
 if __name__ == '__main__':
-	oas = OAS()
+	oas = OpenAeroStruct()
 	X = oas.sample(10)
 	print(oas.domain_app.names)
 	Y = oas(X)	
