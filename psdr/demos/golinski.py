@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 import numpy as np
 
 from psdr import BoxDomain, NormalDomain, TensorProductDomain, Function
@@ -326,5 +327,22 @@ def build_golinski_random_domain(clip = None):
 				NormalDomain(0, 30e-4**2, clip = clip),
 				NormalDomain(0, 21e-4**2, clip = clip),
 				NormalDomain(0, 30e-4**2, clip = clip)])
+
+
+if __name__ == '__main__':
+	# If called, act as a Dakota interface to this function
+	import dakota.interfacing as di
+
+	gg = GolinskiGearbox()
+	
+	params, results = di.read_parameters_file()
+	x = np.array([param['x%d' % i ] for i in range(6)])
+	y = gg(x)
+	results['f'].function = y[0]
+	for i in range(1,12):
+		results['c%d' % i ].function = y[i]	
+
+	results.write()
+
 
 

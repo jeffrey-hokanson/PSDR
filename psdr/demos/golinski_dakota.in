@@ -1,0 +1,23 @@
+method
+	asynch_pattern_search
+
+
+variables,					
+	continuous_design = 6
+	  cdv_lower_bounds   2.6 	0.7		7.3		7.3		2.9		5.0
+	  cdv_initial_point  3  	0.75	8.0		8.0		3.4		5.25
+	  cdv_upper_bounds   3.6  	0.8		8.3		8.3		3.9		5.5
+	  cdv_descriptor     'x1' 	'x2'	'x3'	'x4'	'x5'	'x6'
+
+interface,							
+	fork							
+	  analysis_drivers = 'golinski.py'
+	parameters_file = 'params.in'
+	results_file = 'results.out'
+
+responses,
+	objective_functions = 1
+	nonlinear_inequality_constraints = 11
+	descriptors = 'f' 'c1' 'c2' 'c3' 'c4' 'c5' 'c6' 'c7' 'c8' 'c9' 'c10' 'c11'
+	no_gradients
+	no_hessians	
