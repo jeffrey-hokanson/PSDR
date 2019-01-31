@@ -1,12 +1,18 @@
-method
-	asynch_pattern_search
+# to run execute
+# dakota -i golinski_dakota.in -o golinski_dakota.out
 
+method
+	#asynch_pattern_search
+	coliny_cobyla
 
 variables,					
 	continuous_design = 6
-	  cdv_lower_bounds   2.6 	0.7		7.3		7.3		2.9		5.0
-	  cdv_initial_point  3  	0.75	8.0		8.0		3.4		5.25
-	  cdv_upper_bounds   3.6  	0.8		8.3		8.3		3.9		5.5
+	  #cdv_lower_bounds   2.6 	0.7		7.3		7.3		2.9		5.0
+	  #cdv_initial_point  3  	0.75	8.0		8.0		3.4		5.25
+	  #cdv_upper_bounds   3.6  	0.8		8.3		8.3		3.9		5.5
+	  cdv_lower_bounds   -1 	-1		-1		-1		-1		-1
+	  cdv_initial_point  0  	0		0		0		0		0
+	  cdv_upper_bounds   1  	1		1		1		1		1
 	  cdv_descriptor     'x1' 	'x2'	'x3'	'x4'	'x5'	'x6'
 
 interface,							
