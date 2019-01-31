@@ -6,7 +6,7 @@ import scipy.spatial.distance
 import scipy.special
 import cvxpy as cp
 from function import Function
-from polyridge import PolynomialRidgeApproximation 
+from polyridge import PolynomialRidgeApproximation, UnderdeterminedException 
 from poly import PolynomialApproximation
 from seqlp import sequential_lp, InfeasibleException
 
@@ -28,17 +28,37 @@ class RidgeOptimization:
 	Parameters
 	----------
 	func : Function
-		Function to optimize	
+		Function to optimize
+	X: array-like (M,m); optional
+		Points at which the function has been evaluated
+	fX: array-like (M,n); optional 
+		Vector-valued output of the function
+	objective: callable; optional
+		A function that takes the output `fx=func(x)`
+		and generates the scalar valued objective function.
+		This defaults to the first output;
+		i.e., `objective = lambda fx: fx[0]`.
+	constraints: callable; optional
+		A function that takes the output `fx=func(x)`
+		and generates a vector-valued constraint function;
+		by default this yields all but the first outputs;
+		i.e., `constraints = lambda fx: fx[1:]`.
 
 	References
 	----------
 	.. [BV04] Convex Optimization. Stephen Boyd and Lieven Vandenberghe. Cambridge University Press. 2004. 
 
 	"""
-	def __init__(self, func, X = None, fX = None):
+	def __init__(self, func, X = None, fX = None, 
+		objective = None, constraints = None):
+		
+		# Iteration counter	
+		self.it = 0
+
 		self.func = func
 		self.domain = func.domain_norm 
-			
+		
+
 		# Convert input into list
 		if X is None:
 			self.X = np.zeros((0,len(self.domain)))
@@ -50,18 +70,38 @@ class RidgeOptimization:
 		else:
 			self.fX = np.array(fX)
 
-		# Iteration counter	
-		self.it = 0
-	
-		# number of points to be overdetermined:
-		# TODO: Fix this computation
-		self.M_overdetermined = len(self.domain)+2
+		if objective is None:
+			objective = lambda fx: fx[0]
+
+		self.objective = objective
+
+		if constraints is None:
+			constraints = lambda fx: fx[1:]
+
+		self.constraints = constraints	
 
 	def step(self, maxiter = 1, **kwargs):
 
 		for i in range(maxiter):
-			self._step_sequential(**kwargs)
+			self._find_center()
+			self._find_trust_region()
+			try:
+				self._build_surrogates()
+				x_new = self._optimize_surrogate()
+			except(UnderdeterminedException, cp.SolverError):
+				x_new = self._underdetermined_sample()
+
+			fx_new = self.func(x_new)
+			self.X = np.vstack([self.X, x_new])	
+			if len(self.fX) == 0:
+				self.fX = fx_new.reshape(1,-1)
+			else:
+				self.fX = np.vstack([self.fX, fx_new])	
+			
+			self.it += 1 
 			self._print()
+	
+
 
 	def _print(self):
 		feasible = np.max(self.fX[:,1:], axis = 1) <= 0
@@ -80,87 +120,121 @@ class RidgeOptimization:
 		if self.it == 1:
 			print "iter |     objective    |  infeasibility | # evals | TR Radius |" 
 			print "-----|------------------|----------------|---------|-----------|" 
-		print "%4d | %16.9e | %14.7e | %7d | %9.2e |" % (self.it, objval, feasibility, len(self.fX), self.delta )
+		print "%4d | %16.9e | %14.7e | %7d | %9.2e |" % (self.it, objval, feasibility, len(self.fX), self.tr_radius )
+
+
+
+	def _underdetermined_sample(self):
+		# If we don't have enough points to build surrogates, sample randomly		
+		x_new = self.domain.sample(1)
+		# TODO: Use better sampling strategy
+		return x_new
+
+
+	def _find_center(self):
+		obj_vals = np.array([self.objective(fx) for fx in self.fX])
+		constraint_vals = np.array([self.constraints(fx) for fx in self.fX])
 		
+		if len(obj_vals) == 0:
+			self.xc = xc = self.domain.sample()
+			return xc
 
-
-	def _step_sequential(self, **kwargs):
-		M, m = self.X.shape
-
-		# Step 0: If not enough points have been sampled, sample those
-		if len(self.X) < len(self.domain) + 1:
-			X_new = self.domain.sample( m + 1 - len(self.X) ).reshape(-1,m)
-			fX_new = np.array([self.func(x) for x in X_new])
-			self.X = np.vstack([self.X, X_new])
-			if len(self.fX) == 0:
-				self.fX = np.zeros((0, fX_new.shape[1])) 
-			self.fX = np.vstack([self.fX, fX_new])
-			M, m = self.X.shape
-
-		# Step 1: find center
-		feasible = np.max(self.fX[:,1:], axis = 1) <= 0
+		feasible = np.max(constraint_vals, axis = 1) <= 0
 		if np.sum(feasible) > 0:
-			#print "feasible"
-			# We have a feasible solution 
-			score = np.copy(self.fX[:,0])
+			# There is at least one feasible point
+			score = np.copy(obj_vals)
 			score[~feasible] = np.inf
 			j = np.argmin(score)
 			xc = self.X[j]
 		else:
-			#print "infeasible"
-			score = np.sum(np.maximum(self.fX[:,1:], 0), axis = 1)
+			# Otherwise we choose the function
+			score = np.sum(np.maximum(constraint_vals, 0), axis = 1)
 			j = np.argmin(score)
 			xc = self.X[j]
 
-		
-		# Step 2: Determine trust region radius
-		dist = scipy.spatial.distance.cdist(xc.reshape(1,-1), self.X).flatten()
-	
-		idx = int( (len(self.domain) + 1) + np.floor(self.it/2))
-		
-		if idx >= len(self.X):
-			self.delta = delta = np.inf
-			domain = self.domain
-		else:
-			self.delta = delta = np.sort(dist)[idx]
-			domain = self.domain.add_constraints(ys = [xc], Ls = [np.eye(xc.shape[0])], rhos = [delta])
+		self.xc = xc
+		return xc	
 
-		# Step 3: Build ridge approximation for the objective function
+
+	def _find_trust_region(self):
+		dist = scipy.spatial.distance.cdist(self.xc.reshape(1,-1), self.X).flatten()
+		
+		# Number of points to contain
+		M_contain = int( (len(self.domain) + 1) + np.floor(self.it/2))
+		
+		if M_contain >= len(self.X):
+			self.tr_radius = np.inf
+		else:
+			self.tr_radius = np.sort(dist)[M_contain]
+
+		return self.tr_radius
+
+
+	def _build_surrogates(self, **kwargs):
+		objective_vals = np.array([self.objective(fx) for fx in self.fX])
+		constraint_vals = np.array([self.constraints(fx) for fx in self.fX])
+		
+		# Determine the points that are inside
+		if np.isfinite(self.tr_radius):
+			domain = self.domain.add_constraints(ys = [self.xc], Ls = [np.eye(self.xc.shape[0])], rhos = [self.tr_radius])
+		else:
+			domain = self.domain
+
 		inside = domain.isinside(self.X)
 		M_inside = np.sum(inside) 
-		if M_inside <= len(self.domain) + 3:	
+
+		#########################################################################################
+		# Build the surrogate for the objective function
+		#########################################################################################
+		if M_inside <= len(domain) + 1:
+			raise UnderdeterminedException
+
+		if M_inside <= len(domain) + 3:	
 			# Linear case
-			obj = PolynomialRidgeApproximation(subspace_dimension = 1, degree = 1)
-		elif M_inside > scipy.special.comb(m+2, 2):
+			self.objective_surrogate = PolynomialRidgeApproximation(subspace_dimension = 1, degree = 1)
+
+		elif M_inside > scipy.special.comb(len(domain)+2, 2):
 			# Full quadratic case
-			obj = PolynomialApproximation(degree = 2)
+			self.objective_surrogate = PolynomialApproximation(degree = 2)
+
 		else:
 			# Otherwise we build a ridge approximation of an overdetermined dimension
 			# Number of degrees of freedom in the sample set
 			subspace_dim_candidates = np.arange(1, len(self.domain) + 1)
 			dof = np.array([ len(self.domain)*n + scipy.misc.comb(n + 2, 2) for n in subspace_dim_candidates])
 			subspace_dimension = subspace_dim_candidates[np.max(np.argwhere(dof < M_inside).flatten())]
-			obj = PolynomialRidgeApproximation(subspace_dimension = subspace_dimension, degree = 2)
-	
-		# Step 3a: Scale to improve conditioning
-		lb = np.min(self.fX[inside,0])	
-		ub = np.max(self.fX[inside,0])
+			self.objective_surrogate = PolynomialRidgeApproximation(subspace_dimension = subspace_dimension, degree = 2)
+
+		# Scale to improve conditioning
+		lb = np.min(objective_vals)	
+		ub = np.max(objective_vals)
 		if np.abs(ub - lb) < 1e-7: ub = lb+1e-7	
-		obj.fit(self.X[inside], (self.fX[inside, 0] - lb)/(ub - lb))
+		self.objective_surrogate.fit(self.X[inside], (objective_vals[inside] - lb)/(ub - lb))
+		
+		#########################################################################################
+		# Build the surrogates for the constraints
+		#########################################################################################
+		self.constraint_surrogates = [PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1, bound = 'upper') 
+			for i in range(len(constraint_vals[0]))]
 
-		# Step 4: Build bounding linear surrogates for the constraints
-		cons = [PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1, bound = 'upper') 
-			for i in range(1,len(self.fX[0]))
-		]
-		for i in range(len(self.fX[0])-1):
-			cons[i].fit(self.X[inside], self.fX[inside, i+1]/ np.max(np.abs(self.fX[inside,i+1])))
+		for i in range(len(constraint_vals[0])):
+			self.constraint_surrogates[i].fit(self.X[inside], constraint_vals[inside, i]/ np.max(np.abs(constraint_vals[inside, i])))
+			
+	def _optimize_surrogate(self):
 
-		# Step 5: Setup SQP Problem
-		p = cp.Variable(len(self.domain))
-		con_domain = domain._build_constraints(xc + p)
+		# Setup the domain
+		if np.isfinite(self.tr_radius):
+			domain = self.domain.add_constraints(ys = [self.xc], Ls = [np.eye(self.xc.shape[0])], rhos = [self.tr_radius])
+		else:
+			domain = self.domain
+
+		p = cp.Variable(len(domain))
+		
+		constraints_domain = domain._build_constraints(self.xc + p)
+		
 		try:
 			# At first, we try to solve the SQP problem 
-			H = obj.hessian(xc)
+			H = self.objective_surrogate.hessian(self.xc)
 			ew = scipy.linalg.eigvalsh(H)
 			# If indefinite, modify Hessian following Byrd, Schnabel, and Schultz
 			# See: NW06 eq. 4.18
@@ -168,18 +242,21 @@ class RidgeOptimization:
 				H += np.abs(np.min(ew))*1.5*np.eye(H.shape[0])
 				ew += 1.5*np.abs(np.min(ew))
 
-			# (Convex) quadratic model of objective
-			obj_quad = obj(xc) + p.__rmatmul__(obj.grad(xc)) 
+			# Linear model of objective
+			obj_quad = self.objective_surrogate(self.xc)
+			obj_quad += p.__rmatmul__(self.objective_surrogate.grad(self.xc)) 
 			if np.min(ew) > 1e-10:
+				# Add quadratic term if non-zero
 				obj_quad += cp.quad_form(p, H)
-		
-			cons_lin = []
-			for con in cons:
-				cons_lin.append( con(xc) + p.__rmatmul__(con.grad(xc)) <= 0)
+	
+			# Linearize the constraints	
+			linearized_constraints = []
+			for con in self.constraint_surrogates:
+				linearized_constraints.append( con(self.xc) + p.__rmatmul__(con.grad(self.xc)) <= 0)
 
 			# Now solve QP
-			problem = cp.Problem(cp.Minimize(obj_quad), cons_lin + con_domain)
-			problem.solve(solver = 'ECOS')
+			problem = cp.Problem(cp.Minimize(obj_quad), linearized_constraints + constraints_domain)
+			problem.solve()
 			if problem.status in ['unbounded', 'error']:
 				raise cp.SolverError
 
@@ -187,32 +264,17 @@ class RidgeOptimization:
 			# If we can't solve the problem, solve the relaxed, ell-1 penality version
 			# see, e.g., NW06 eq. 18.53
 			# This uses a linear model of the objective 
-			obj_pen = obj(xc) + p.__rmatmul__(obj.grad(xc))	
-			mu = 10*np.linalg.norm(obj.grad(xc))
-			for con in cons:
+			obj_pen = self.objective_surrogate(self.xc) + p.__rmatmul__(self.objective_surrogate.grad(self.xc))	
+			mu = 10*np.linalg.norm(self.objective_surrogate.grad(self.xc))
+			for con in self.constraint_surrogates:
 				# And addes a linearizd 
-				obj_pen += cp.pos( con(xc) + p.__rmatmul__(con.grad(xc)) )
+				obj_pen += cp.pos( con(self.xc) + p.__rmatmul__(con.grad(self.xc)) )
 
-			problem = cp.Problem(cp.Minimize(obj_pen), con_domain)
-			try:
-				problem.solve(solver = 'ECOS')
-			except cp.SolverError:
-				print "failed"
-				p.value = domain.sample() - xc
+			problem = cp.Problem(cp.Minimize(obj_pen), constraints_domain)
+			problem.solve()
 
-		x_new = xc + p.value
-		# TODO: Check this point is sufficiently distinct
-		dist = scipy.spatial.distance.cdist(x_new.reshape(1,-1), self.X).flatten()
-		#print np.min(dist), np.max(dist)
-		if np.min(dist) <= 1e-5*np.max(dist):
-			x_new = domain.sample()
-
-		fx_new = self.func(x_new)
-		self.X = np.vstack([self.X, x_new])	
-		self.fX = np.vstack([self.fX, fx_new])	
-
-		# To conclude: update iteration counter	
-		self.it += 1
+		x_new = self.xc + p.value
+		return x_new
 
 
 	
@@ -222,10 +284,10 @@ if __name__ == '__main__':
 	from demos import GolinskiGearbox
 	gb = GolinskiGearbox()
 
-	#X = gb.sample()
+	#X = gb.sample(100)
+	#print X.shape
 	#fX = gb(X)
+	#print fX.shape
 
-	#opt = RidgeOptimization(gb, X = X, fX = fX)
 	opt = RidgeOptimization(gb)
-
-	opt.step(500)
+	opt.step(50)

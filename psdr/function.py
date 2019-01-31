@@ -91,7 +91,7 @@ class Function(BaseFunction, Domain):
 					return np.vstack([self._funs(x) for x in X])
 			else:
 				if self.vectorized:
-					return np.hstack([fun(X) for fun in self._funs])
+					return np.hstack([ np.array(fun(X)).reshape(-1,1) for fun in self._funs])
 				else:
 					return np.vstack([ np.hstack([fun(x) for fun in self._funs]) for x in X])
 					
@@ -130,8 +130,6 @@ class Function(BaseFunction, Domain):
 				grad = np.vstack([np.hstack([grad(x) for grad in self._grads]) for x in X])
 			
 			grad = D.dot(grad.T).T
-			#if len(X.shape) == 1: 
-			#	return grad.reshape(1,-1)
 			
 			return grad
 
