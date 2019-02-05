@@ -85,8 +85,162 @@ class RidgeOptimization:
 
 		self.constraints = constraints	
 
-		
 
+	@property
+	def x(self):
+		r""" The current best iterate
+		"""
+		obj_vals = np.array([self.objective(fx) for fx in self.fX])
+		constraint_vals = np.array([self.constraints(fx) for fx in self.fX])
+		
+		if len(obj_vals) == 0:
+			self.xc = xc = self.domain.sample()
+			return xc
+
+		feasible = np.max(constraint_vals, axis = 1) <= 0
+		if np.sum(feasible) > 0:
+			# There is at least one feasible point
+			score = np.copy(obj_vals)
+			score[~feasible] = np.inf
+			j = np.argmin(score)
+			xc = self.X[j]
+		else:
+			# Otherwise we choose the function
+			score = np.sum(np.maximum(constraint_vals, 0), axis = 1)
+			j = np.argmin(score)
+			xc = self.X[j]
+
+		return xc	
+
+	@property
+	def isfeasible(self):
+		r""" Return true if the current best estimate is feasible; false otherwise.
+		"""
+		xc = self.x
+		dist = scipy.spatial.distance.cdist(xc.reshape(1,-1), self.X).flatten()
+		i = np.argmin(dist)
+		constraint_vals = self.constraints(self.fX[i])
+		if np.max(constraint_vals) <= 0:
+			return True
+		else:
+			return False
+
+
+	def _step(self, domain):
+		
+		# Find the current best iterate
+		xc = self.x
+		
+		# Find the index of samples from which to build the surrogates
+		I = self._surrogate_sample_index() 
+
+		# Build the surrogate for the objective
+		obj_vals = np.array([self.objective(fx) for fx in self.fX[I] ])
+		obj_sur = self._build_objective_surrogate(self.X[I], obj_vals)
+
+		# Build surrogates for the constraints 
+		con_vals = np.array([self.constraints(fx) for fx in self.fX[I]])
+		con_surs = [self._build_constraint_surrogate(self.X[I], con_val[:,j], j) for j in range(con_vals.shape[1])]
+	
+		# Solve SQP to find new sample
+		x = np.copy(xc)
+		for it2 in range(10):
+			p = cp.Variables(x.shape[0])
+
+			# Constraints from the domain
+			constraints = domain._build_constraints(x + p)
+
+			# Constraints from the nonlinear constraint functions
+			for con_sur in con_surs:
+				constraints.append( con_sur(x) + p.__rmatmul__(con_sur.grad(x)) <= 0)
+
+
+			# Compute the Hessian of the objective function 
+			H = obj_sur.hessian(x_new)
+			ew = scipy.linalg.eigvalsh(H)
+			
+			# Linear model of objective
+			obj = obj_sur(x) + p.__rmatmul__(obj_sur.grad(x))
+			
+			if np.max(np.abs(ew)) > 1e-10:
+				if np.min(ew) < 0:
+					# If indefinite, modify Hessian following Byrd, Schnabel, and Schultz
+					# See: NW06 eq. 4.18
+					H += np.abs(np.min(ew))*1.5*np.eye(H.shape[0])
+				obj += cp.quad_form(p, H)
+		
+			# now solve QP
+			problem = cp.problem(cp.minimize(obj_quad), linearized_constraints + constraints_domain)
+			problem.solve()
+			if problem.status in ['unbounded', 'error']:
+				raise cp.solvererror
+
+
+			# Update the point
+			x += p.value
+
+			# If surrogates are quadratic and linear, we don't need to keep solving SQP problem 
+			if isinstance(obj_sur, (PolynomialApproximation, PolynomialRidgeApproximation)) and obj_sur.degree == 2:
+				if all( [isinstance(con_sur, (PolynomialApproximation, PolynomialRidgeApproximation)) for con_sur in con_surs]) and \
+					 all([con_sur.degree == 1 for con_sur in con_surs]):
+					break 
+	
+
+	def _surrogate_sample_index(self):
+		r""" Returns the index of those points to be used in constructing the surrogates
+
+		"""		
+		xc = self.xc
+		# Find the distance of the best point to all others	
+		dist = scipy.spatial.distance.cdist(xc.reshape(1,-1), self.X).flatten()
+
+		# Number of points to contain
+		M_contain = int( (len(self.domain) + 1) + np.floor(self.it/2))
+	
+
+		if M_contain >= len(self.X):
+			return np.ones(self.X.shape[0], dtype = np.bool)
+		else:
+			# Sort ascending order
+			tr_radius = np.sort(dist)[M_contain]
+			return dist <= tr_radius
+
+	def _build_objective_surrogate(self, X, fX):
+		r""" Given a 
+		"""			
+		M, m = X.shape
+
+		if M < m+1:
+			raise UnderdeterminedException
+
+		elif M < m + 3:
+			# Linear surrogate
+			obj_sur = PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1)
+
+		elif M > scipy.special.comb(m+2,2)
+			# Full quadratic surrogate
+			obj_sur = PolynomialApproximation(degree = 2)
+
+		else:
+			subspace_dim_candidates = np.arange(1, m)
+			dof = np.array([ m*n + scipy.misc.comb(n + 2, 2) for n in subspace_dim_candidates])
+			subspace_dimension = subspace_dim_candidates[np.max(np.argwhere(dof < M).flatten())]
+			obj_sur = PolynomialRidgeApproximation(subspace_dimension = subspace_dimension, degree = 2)
+			
+		# Fit the surrogate
+		obj_sur.fit(X, fX)
+		return obj_sur
+
+	def _build_constraint_surrogate(self, X, fX, k):
+		r"""
+		"""
+		con_sur = PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1, bound = 'upper')
+		con_sur.fit(X, fX)
+		return con_sur
+
+
+	def _build_trust_region(self):
+		pass	
 
 
 	def step(self, maxiter = 1, **kwargs):
@@ -150,30 +304,6 @@ class RidgeOptimization:
 		# TODO: Use better sampling strategy
 		return x_new
 
-
-	def _find_center(self):
-		obj_vals = np.array([self.objective(fx) for fx in self.fX])
-		constraint_vals = np.array([self.constraints(fx) for fx in self.fX])
-		
-		if len(obj_vals) == 0:
-			self.xc = xc = self.domain.sample()
-			return xc
-
-		feasible = np.max(constraint_vals, axis = 1) <= 0
-		if np.sum(feasible) > 0:
-			# There is at least one feasible point
-			score = np.copy(obj_vals)
-			score[~feasible] = np.inf
-			j = np.argmin(score)
-			xc = self.X[j]
-		else:
-			# Otherwise we choose the function
-			score = np.sum(np.maximum(constraint_vals, 0), axis = 1)
-			j = np.argmin(score)
-			xc = self.X[j]
-
-		self.xc = xc
-		return xc	
 
 
 	def _find_trust_region(self):
@@ -273,11 +403,11 @@ class RidgeOptimization:
 			for con in self.constraint_surrogates:
 				linearized_constraints.append( con(self.xc) + p.__rmatmul__(con.grad(self.xc)) <= 0)
 
-			# Now solve QP
-			problem = cp.Problem(cp.Minimize(obj_quad), linearized_constraints + constraints_domain)
+			# now solve qp
+			problem = cp.problem(cp.minimize(obj_quad), linearized_constraints + constraints_domain)
 			problem.solve()
 			if problem.status in ['unbounded', 'error']:
-				raise cp.SolverError
+				raise cp.solvererror
 
 		except cp.SolverError:
 			# If we can't solve the problem, solve the relaxed, ell-1 penality version
@@ -323,10 +453,11 @@ if __name__ == '__main__':
 	from demos import GolinskiGearbox
 	gb = GolinskiGearbox()
 
-	#X = gb.sample(100)
+	X = gb.sample(1000)
 	#print X.shape
-	#fX = gb(X)
+	fX = gb(X)
 	#print fX.shape
 
-	opt = RidgeOptimization(gb)
-	opt.step(200)
+	opt = RidgeOptimization(gb, X = X, fX = fX)
+	print opt.x, opt.isfeasible
+	#opt.step(200)
