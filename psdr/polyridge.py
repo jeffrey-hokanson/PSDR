@@ -379,6 +379,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U = b[0:-1].reshape(-1,1)
 		# Correct for transform 
 		U = dom._normalize_der().dot(U)
+		# Force to have unit norm
+		U /= np.linalg.norm(U)
 		return U	
 
 
