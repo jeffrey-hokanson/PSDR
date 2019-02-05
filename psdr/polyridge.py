@@ -13,7 +13,6 @@ from subspace import SubspaceBasedDimensionReduction
 from ridge import RidgeFunction
 from basis import *
 from gn import gauss_newton 
-from minimax import minimax
 from seqlp import sequential_lp
 
 class PolynomialRidgeFunction(RidgeFunction):
