@@ -196,21 +196,19 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 				try:
 					problem = cp.Problem(cp.Minimize(obj), active_constraints)
 					problem.solve(**kwargs)
+					status = problem.status
 				except cp.SolverError:
-					# 
-					print "failure", it2 
 					if it2 == 0:
-						problem.status = 'unbounded'
+						status = 'unbounded'
 					else:
-						problem.status = 'error'								
+						status = cp.SolverError
 
-
-			if (problem.status == 'unbounded' or problem.status == 'unbounded_inaccurate') and it2 == 0:
+			if (status == 'unbounded' or status == 'unbounded_inaccurate') and it2 == 0:
 				# On the first step, the trust region is off, allowing a potentially unbounded domain
 				pass
-			elif problem.status in ['optimal', 'optimal_inaccurate']:
+			elif status in ['optimal', 'optimal_inaccurate']:
 				# Otherwise, we've found a feasible step
-				px = p.value	
+				px = p.value
 				# Evaluate new point along the trajectory
 				x_new = trajectory(x, px, 1.)
 
@@ -245,13 +243,18 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 					break
 
 				Delta *=0.5
-
-			elif problem.status in ['unbounded', 'unbounded_inaccurate']:
-				raise UnboundedException
-			elif problem.status in ['infeasible']:
-				raise InfeasibleException 
+		
 			else:
-				raise Exception(problem.status)
+				warnings.warn("Could not find acceptible step; stopping prematurely; %s" % (status,) )
+				stop = True
+				px = np.zeros(x.shape)
+				
+			#elif status in ['unbounded', 'unbounded_inaccurate']:
+			#	raise UnboundedException
+			#elirf status in ['infeasible']:
+			#	raaise InfeasibleException 
+			#else:
+			#	raise Exception(status)
 	
 		if it2 == bt_maxiter-1:
 			stop = True
