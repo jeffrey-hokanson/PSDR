@@ -56,7 +56,8 @@ class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
 
 		else: 
 			raise NotImplementedError("Cannot draw shadow plots in more than two dimensions")	
-		
+
+		return ax		
 
 
 #	def plot_pgf(self, base_name, X = None, y = None):
