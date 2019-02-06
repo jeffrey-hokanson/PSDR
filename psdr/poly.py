@@ -4,6 +4,7 @@
 
 from __future__ import print_function
 import numpy as np
+import cvxpy as cp
 import scipy.linalg
 import cvxpy as cp
 from copy import copy
