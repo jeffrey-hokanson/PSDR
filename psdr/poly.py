@@ -3,6 +3,7 @@
 # (c) 2019 Jeffrey M. Hokanson (jeffrey@hokanson.us)
 
 import numpy as np
+import cvxpy as cp
 import scipy.linalg
 from copy import copy
 from basis import *
