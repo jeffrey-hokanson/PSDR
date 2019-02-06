@@ -37,7 +37,11 @@ from dill import loads, dumps
 import logging, sys, os
 logging.basicConfig(level = logging.INFO)
 import signal
-import thread, threading
+try:
+	import thread
+except :
+	import _thread as thread
+import threading
 from threading import Thread, Event
 import base64, hashlib
 import contextlib

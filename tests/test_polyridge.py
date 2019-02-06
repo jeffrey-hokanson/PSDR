@@ -11,8 +11,17 @@ def test_affine():
 		
 	pra = PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1, bound = 'upper')
 	pra.fit(X, y)
-
 	assert np.all(np.isclose(y, pra(X)))
+	
+	ang = scipy.linalg.subspace_angles(pra.U, a.reshape(-1,1))
+	assert np.isclose(ang, 0)
+	
+	pra = PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1)
+	pra.fit(X, y)
+	assert np.all(np.isclose(y, pra(X)))
+	
+	ang = scipy.linalg.subspace_angles(pra.U, a.reshape(-1,1))
+	assert np.isclose(ang, 0)
 
 
 def test_polyridge_der():

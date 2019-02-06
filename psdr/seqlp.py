@@ -1,6 +1,6 @@
 """ Sequential Linear Program
 """
-
+from __future__ import print_function
 import numpy as np
 import scipy.optimize
 import cvxpy as cp
@@ -136,9 +136,9 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 		jacx = np.array([jaci(x) for jaci in jac]).reshape(len(fx), len(x))
 
 	if verbose:
-		print 'iter |     objective     |  norm px | TR radius | KKT norm | violation |'
-		print '-----|-------------------|----------|-----------|----------|-----------|'
-		print '%4d | %+14.10e |          |           | %8.2e |           |' % (0, objval, kkt_norm(fx, jacx)) 
+		print('iter |     objective     |  norm px | TR radius | KKT norm | violation |')
+		print('-----|-------------------|----------|-----------|----------|-----------|')
+		print('%4d | %+14.10e |          |           | %8.2e |           |' % (0, objval, kkt_norm(fx, jacx))) 
 
 	Delta = 1.
 
@@ -266,7 +266,8 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 			jacx = np.array([jaci(x) for jaci in jac]).reshape(len(fx), len(x))
 
 		if verbose:
-			print '%4d | %+14.10e | %8.2e |  %8.2e | %8.2e |  %8.2e |' % (it+1, objval, np.linalg.norm(px), Delta, kkt_norm(fx, jacx), constraint_violation)
+			print('%4d | %+14.10e | %8.2e |  %8.2e | %8.2e |  %8.2e |' 
+				% (it+1, objval, np.linalg.norm(px), Delta, kkt_norm(fx, jacx), constraint_violation))
 		if stop:
 			break	
 
@@ -322,5 +323,5 @@ if __name__ == '__main__':
 
 	U_c = sequential_lp(residual, U_c0, jacobian, search_constraints, norm = norm, 
 		trajectory = trajectory, verbose = True)
-	print U_c
-	print U	
+	print(U_c)
+	print(U)	

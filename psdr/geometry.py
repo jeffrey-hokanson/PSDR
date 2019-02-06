@@ -1,5 +1,6 @@
 """ Utility containing various geometric routines, most of which are used in sampling
 """
+from __future__ import print_function
 import numpy as np
 from scipy.spatial import Voronoi 
 from scipy.spatial.distance import cdist, pdist, squareform
@@ -195,7 +196,7 @@ def candidate_furthest_points(X, domain, L = None, nboundary = 100, nsamp = 50, 
 				k = np.argmax(dist)
 				Xinterior.append(Xcan[k])	
 			
-			except EmptyDomain, InfeasibleConstraints:
+			except(EmptyDomain, InfeasibleConstraints):
 				pass
 
 			if ninterior is not None and len(Xinterior) >= ninterior:
@@ -236,7 +237,7 @@ if __name__ == '__main__':
 	L = np.eye(len(dom))
 	X = dom.sample(2)
 	Xhat = candidate_furthest_points(X, dom, L = L, nboundary = 2)
-	print Xhat
-	print X
-	print np.sort(cdist(np.dot(L,Xhat.T).T, np.dot(L,X.T).T), axis =1)
+	print(Xhat)
+	print(X)
+	print(np.sort(cdist(np.dot(L,Xhat.T).T, np.dot(L,X.T).T), axis =1))
 	#print Xhat

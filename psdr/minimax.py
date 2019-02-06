@@ -1,3 +1,5 @@
+
+from __future__ import print_function
 import numpy as np
 import cvxpy as cp
 import warnings
@@ -123,9 +125,9 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 	fx = np.array(f(x))
 	t = np.max(fx)	
 	if verbose:
-		print 'iter |     objective     |  norm px |  bt step | TR radius |'
-		print '-----|-------------------|----------|----------|-----------|'
-		print '%4d | %+14.10e |          |          |           |' % (0, t) 
+		print('iter |     objective     |  norm px |  bt step | TR radius |')
+		print('-----|-------------------|----------|----------|-----------|')
+		print('%4d | %+14.10e |          |          |           |' % (0, t) )
 
 	Delta = 1.
 	for it in range(maxiter):
@@ -158,7 +160,7 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 		pt = pt.value	
 		
 		if pt > 0:
-			print "No progress made on step"
+			print("No progress made on step")
 			break
 
 		# Backtracking line search
@@ -192,7 +194,7 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 			stop = True
 
 		if verbose:
-			print '%4d | %+14.10e | %8.2e | %8.2e |  %8.2e |' % (it+1, t, np.linalg.norm(px), alpha, Delta)
+			print('%4d | %+14.10e | %8.2e | %8.2e |  %8.2e |' % (it+1, t, np.linalg.norm(px), alpha, Delta))
 
 		if stop:
 			break

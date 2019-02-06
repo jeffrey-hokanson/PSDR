@@ -2,8 +2,10 @@
 """ Polynomial functions """
 # (c) 2019 Jeffrey M. Hokanson (jeffrey@hokanson.us)
 
+from __future__ import print_function
 import numpy as np
 import scipy.linalg
+import cvxpy as cp
 from copy import copy
 from basis import *
 from function import BaseFunction
@@ -139,5 +141,5 @@ if __name__ == '__main__':
 
 	poly = PolynomialApproximation(degree = 2)
 	poly.fit(X, fX)
-	print poly.eval(X).shape
-	print poly.grad(X).shape
+	print(poly.eval(X).shape)
+	print(poly.grad(X).shape)
