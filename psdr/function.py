@@ -67,8 +67,8 @@ class Function(BaseFunction, Domain):
 			self._grads = grads
 			
 		self.domain_app = domain
-		self.domain = domain
 		self.domain_norm = domain.normalized_domain()
+		self.domain = self.domain_norm
 		self.fd_grad = fd_grad
 
 
