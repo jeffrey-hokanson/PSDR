@@ -6,9 +6,9 @@ ARG OAS_VER=8ee82d3e6edf87b9d8435773c4b4531e1c66ca2b
 FROM ubuntu:latest
 
 # Install background material
-RUN apt -y update && \
-	apt -y upgrade && \
-	apt -y install \
+RUN apt-get  -y update && \
+	apt-get -y upgrade && \
+	apt-get -y install \
 		build-essential \ 
 		gfortran \
 		git \
@@ -16,7 +16,12 @@ RUN apt -y update && \
 		python-numpy \
 		python-pip \
 		python-scipy \
-		vim && \
+		vim \
+		debianutils \
+		m4 \
+		perl \
+		autoconf \
+		automake && \
 	pip install tqdm 
 
 RUN	mkdir -p ~/Source && \
@@ -25,7 +30,7 @@ RUN	mkdir -p ~/Source && \
 	cd SU2 && \
 	git checkout v6.1.0 && \
 	./configure && \
-	make && \
+	make -j 32 && \ 
 	make install
 
 
