@@ -217,7 +217,7 @@ class RidgeOptimization:
 			# Linear surrogate
 			obj_sur = PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1)
 
-		elif M > scipy.special.comb(m+2,2)
+		elif M > scipy.special.comb(m+2,2):
 			# Full quadratic surrogate
 			obj_sur = PolynomialApproximation(degree = 2)
 
