@@ -243,7 +243,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		scale = max(scale1, scale2)
 
 
-		self._H = self._build_lipschitz_matrix(X/scale, fX/scale, grads/scale)
+		self._H = self._build_lipschitz_matrix(X, fX/scale, grads/scale)
 		self._H *= scale
 
 		# Compute the important directions
