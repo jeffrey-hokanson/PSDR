@@ -14,6 +14,6 @@ setup(name='psdr',
 		'redis',
 		'dill',
 		'cvxpy',
-		'cvxopy',
+		'cvxopt',
 		],
 	)
