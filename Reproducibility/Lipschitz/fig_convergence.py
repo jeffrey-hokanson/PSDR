@@ -11,7 +11,7 @@ import time
 fun = OTLCircuit()
 
 try:
-	Htrue = np.loadtxt('data/fig_lipschitz_Htrue.dat')
+	Htrue = np.loadtxt('data/fig_convergence_Htrue.dat')
 except IOError:
 	
 	# Sample to build "true" Lipschitz matrix
@@ -26,7 +26,7 @@ except IOError:
 	lipschitz = LipschitzMatrix(verbose = True)
 	lipschitz.fit(grads = gradXcorner) 
 	Htrue = np.copy(lipschitz.H)
-	np.savetxt('data/fig_lipschitz_Htrue.dat', Htrue)
+	np.savetxt('data/fig_convergence_Htrue.dat', Htrue)
 
 def metric(Hsamp):
 	""" Distance metric from BS09: eq 2.5:
