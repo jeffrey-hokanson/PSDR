@@ -253,17 +253,20 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		scale = max(scale1, scale2)
 		
 		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale)
-		self._H = H = scale**2 * H
+		#self._H = H = scale**2 * H
 
 		# Compute the important directions
 		#self._U, _, _ = np.linalg.svd(self._H)
-		ew, U = scipy.linalg.eigh(self._H)
+		ew, U = scipy.linalg.eigh(H)
 		# because eigenvalues are in ascending order, the subspace basis needs to be flipped
 		self._U = U[:,::-1]
 
+		# Force to be SPD
+		self._H = scale**2 * U.dot(np.diag(np.maximum(ew,0)).dot(U.T))
+
 		# Compute the Lipschitz matrix (lower triangular)
 		#self._L = scipy.linalg.cholesky(self.H[::-1][:,::-1], lower = False)[::-1][:,::-1]
-		self._L = U.dot(np.diag(np.sqrt(np.maximum(ew, 0))).dot(U.T))
+		self._L = scale * U.dot(np.diag(np.sqrt(np.maximum(ew, 0))).dot(U.T))
 
 	@property
 	def X(self): return self._X
