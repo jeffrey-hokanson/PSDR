@@ -192,12 +192,22 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	**kwargs: dict (optional)
 		Additional parameters to pass to cvxpy
 	"""
-	def __init__(self, **kwargs):
+	def __init__(self, method = 'cvxopt', **kwargs):
 		self._U = None
 		self._L = None
 		self.kwargs = kwargs
+
 		if 'solver' not in self.kwargs:
 			self.kwargs['solver'] = cp.CVXOPT
+		
+		if method == 'cvxopt':
+			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxopt
+		elif method == 'param':	
+			self._build_lipschitz_matrix = self._build_lipschitz_matrix_param
+		elif method == 'cvxpy':	
+			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxpy
+		else:
+			raise NotImplementedError
 
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Find the Lipschitz matrix
@@ -242,7 +252,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			scale2 = 1.
 		scale = max(scale1, scale2)
 		
-		H = self._build_lipschitz_matrix_cvxopt(X, fX/scale, grads/scale)
+		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale)
 		self._H = H = scale**2 * H
 
 		# Compute the important directions
@@ -279,19 +289,19 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		"""
 		return self._L
 
-	def _build_lipschitz_matrix(self, X, fX, grads):
+	def _build_lipschitz_matrix_cvxpy(self, X, fX, grads):
+		# Constrain H to symmetric positive semidefinite (PSD)
 		H = cp.Variable( (len(self), len(self)), PSD = True)
 		
-		# TODO: Implement normalization for function values/gradients for scaling purposes
-		constraints = []
-		
+		constraints = []		
+
 		# Sample constraint	
 		for i in range(len(X)):
 			for j in range(i+1, len(X)):
 				lhs = (fX[i] - fX[j])**2
 				y = X[i] - X[j]
 				# y.T M y
-				#rhs = H.__matmul__(y).__rmatmul(y.T)
+				#rhs = H.__matmul__(y).__rmatmul__(y.T)
 				rhs = cp.quad_form(y, H)
 				constraints.append(lhs <= rhs)
 			
@@ -299,7 +309,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		for g in grads:
 			constraints.append( np.outer(g,g) << H)
 
-		problem = cp.Problem(cp.Minimize(cp.norm(H, 'fro')), constraints)
+		problem = cp.Problem(cp.Minimize(cp.trace(H)), constraints)
 		problem.solve(**self.kwargs)
 		
 		return np.array(H.value).reshape(len(self),len(self))
@@ -363,6 +373,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 
 		# Constraint matrices for CVXOPT
+		# The format is 
+		# sum_i x_i * G[i].reshape(square matrix) <= h.reshape(square matrix)
 		Gs = []
 		hs = []
 
@@ -375,39 +387,49 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 				hs.append(cvxopt.matrix( [[ -(fX[i] - fX[j])**2]]))
 
 		# Add constraint to enforce H is positive-semidefinite
-		G = cvxopt.matrix(np.vstack([-E.flatten('F') for E in Es]).T)
-		Gs.append(G)
+		# Flatten in Fortran---column major order
+		G = cvxopt.matrix(np.vstack([E.flatten('F') for E in Es]).T)
+		Gs.append(-G)
 		hs.append(cvxopt.matrix(np.zeros((len(self),len(self)))))
 	
 		# Build constraints 	
 		for grad in grads:
-			Gs.append(G)
+			Gs.append(-G)
 			gg = -np.outer(grad, grad)
 			hs.append(cvxopt.matrix(gg))
 
 		# Setup objective	
-		c = cvxopt.matrix([ np.trace(E) for E in Es])
-
+		c = cvxopt.matrix(np.array([ np.trace(E) for E in Es]))
+		
 		if 'verbose' in self.kwargs:
 			cvxopt.solvers.options['show_progress'] = self.kwargs['verbose']
+		else:
+			cvxopt.solvers.options['show_progress'] = False
+
+		for name in ['abstol', 'reltol', 'feastol']:
+			if name in self.kwargs:
+				cvxopt.solvers.options[name] = self.kwargs[name]
 
 		sol = cvxopt.solvers.sdp(c, Gs = Gs, hs = hs)
 		alpha = sol['x']
 		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
-		
 		return H
 
 
 if __name__ == '__main__':
-	X = np.random.randn(10,4)
+	import time
+	X = np.random.randn(100,4)
 	a = np.random.randn(4,)
 	a = np.ones(4,)
 	fX = np.dot(X, a).flatten()
 	grads = np.tile(a, (X.shape[0], 1))
-	lip = LipschitzMatrix()
+	lip = LipschitzMatrix(method = 'cvxopt')
 	#lip._dimension = 4
 	#lip._build_lipschitz_matrix_param(X, fX, grads)
-	lip.fit(grads = grads)
+	start_time = time.clock()
+	lip.fit(X, fX)
+	stop_time = time.clock()
+	print("Time: ", stop_time - start_time)
 	#print(lip.H)
 	#print(lip.L)
 	#lip.shadow_plot(X = X, fX = fX)
