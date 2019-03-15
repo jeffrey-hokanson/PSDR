@@ -242,15 +242,18 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			scale2 = 1.
 		scale = max(scale1, scale2)
 		
-		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale)
-		self._H = scale**2 * H
+		H = self._build_lipschitz_matrix_param(X, fX/scale, grads/scale)
+		self._H = H = scale**2 * H
 
 		# Compute the important directions
 		#self._U, _, _ = np.linalg.svd(self._H)
-		_, self._U = scipy.linalg.eigh(self._H)
+		ew, U = scipy.linalg.eigh(self._H)
+		# because eigenvalues are in ascending order, the subspace basis needs to be flipped
+		self._U = U[:,::-1]
 
 		# Compute the Lipschitz matrix (lower triangular)
-		self._L = scipy.linalg.cholesky(self.H[::-1][:,::-1], lower = False)[::-1][:,::-1]
+		#self._L = scipy.linalg.cholesky(self.H[::-1][:,::-1], lower = False)[::-1][:,::-1]
+		self._L = U.dot(np.diag(np.sqrt(np.maximum(ew, 0))).dot(U.T))
 
 	@property
 	def X(self): return self._X
@@ -301,6 +304,49 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		
 		return np.array(H.value).reshape(len(self),len(self))
 				
+	
+	def _build_lipschitz_matrix_param(self, X, fX, grads):
+		r""" Use an explicit parameterization
+		"""
+
+		# Build the basis
+		Es = []
+		I = np.eye(len(self))
+		for i in range(len(self)):
+			ei = I[:,i]
+			Es.append(np.outer(ei,ei))
+			for j in range(i+1,len(self)):
+				ej = I[:,j]
+				Es.append(0.5*np.outer(ei+ej,ei+ej))
+
+		alpha = cp.Variable(len(Es))
+		H = cp.sum([alpha_i*Ei for alpha_i, Ei in zip(alpha, Es)])
+		constraints = [H >> 0]
+		
+		# Construct gradient constraints
+		for grad in grads:
+			constraints.append( H >> np.outer(grad, grad))
+		
+		# Construct linear inequality constraints for samples
+		A = np.zeros( (len(X)*(len(X)-1)//2, len(Es)) )
+		b = np.zeros(A.shape[0])
+		row = 0
+		for i in range(len(X)):
+			for j in range(i+1,len(X)):
+				p = X[i] - X[j]
+				A[row, :] = [p.dot(E.dot(p)) for E in Es]
+				b[row] = (fX[i] - fX[j])**2
+				row += 1
+
+		if A.shape[0] > 0:	
+			constraints.append( b <= alpha.__rmatmul__(A) )
+		
+		problem = cp.Problem(cp.Minimize(cp.sum(alpha)), constraints)
+		problem.solve(**self.kwargs)
+
+		alpha = np.array(alpha.value)
+		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
+		return H
 
 
 if __name__ == '__main__':
@@ -310,10 +356,12 @@ if __name__ == '__main__':
 	fX = np.dot(X, a).flatten()
 	grads = np.tile(a, (X.shape[0], 1))
 	lip = LipschitzMatrix()
+	#lip._dimension = 4
+	#lip._build_lipschitz_matrix_param(X, fX, grads)
 	lip.fit(grads = grads)
-	print(lip.H)
-	print(lip.L)
-	lip.shadow_plot(X = X, fX = fX)
+	#print(lip.H)
+	#print(lip.L)
+	#lip.shadow_plot(X = X, fX = fX)
 	#act = ActiveSubspace(grads)
 	#act.shadow_plot(X, fX)
-	plt.show()
+	#plt.show()
