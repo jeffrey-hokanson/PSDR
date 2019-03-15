@@ -241,10 +241,9 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		except ValueError:
 			scale2 = 1.
 		scale = max(scale1, scale2)
-
-
-		self._H = self._build_lipschitz_matrix(X/scale, fX/scale, grads/scale)
-		self._H *= scale
+		
+		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale)
+		self._H = scale**2 * H
 
 		# Compute the important directions
 		#self._U, _, _ = np.linalg.svd(self._H)
