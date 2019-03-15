@@ -4,7 +4,7 @@ import numpy as np
 import scipy.linalg
 import matplotlib.pyplot as plt
 import cvxpy as cp
-
+import cvxopt
 
 __all__ = ['SubspaceBasedDimensionReduction',
 	'ActiveSubspace', 
@@ -242,7 +242,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			scale2 = 1.
 		scale = max(scale1, scale2)
 		
-		H = self._build_lipschitz_matrix_param(X, fX/scale, grads/scale)
+		H = self._build_lipschitz_matrix_cvxopt(X, fX/scale, grads/scale)
 		self._H = H = scale**2 * H
 
 		# Compute the important directions
@@ -346,6 +346,55 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 		alpha = np.array(alpha.value)
 		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
+		return H
+
+	def _build_lipschitz_matrix_cvxopt(self, X, fX, grads):
+		r""" Directly accessing cvxopt rather than going through CVXPY results in noticable speed improvements
+		"""	
+		# Build the basis
+		Es = []
+		I = np.eye(len(self))
+		for i in range(len(self)):
+			ei = I[:,i]
+			Es.append(np.outer(ei,ei))
+			for j in range(i+1,len(self)):
+				ej = I[:,j]
+				Es.append(0.5*np.outer(ei+ej,ei+ej))
+
+
+		# Constraint matrices for CVXOPT
+		Gs = []
+		hs = []
+
+		# Construct linear inequality constraints for samples
+		for i in range(len(X)):
+			for j in range(i+1,len(X)):
+				p = X[i] - X[j]
+				G = np.vstack([-p.dot(E.dot(p)) for E in Es]).T
+				Gs.append(cvxopt.matrix(G))
+				hs.append(cvxopt.matrix( [[ -(fX[i] - fX[j])**2]]))
+
+		# Add constraint to enforce H is positive-semidefinite
+		G = cvxopt.matrix(np.vstack([-E.flatten('F') for E in Es]).T)
+		Gs.append(G)
+		hs.append(cvxopt.matrix(np.zeros((len(self),len(self)))))
+	
+		# Build constraints 	
+		for grad in grads:
+			Gs.append(G)
+			gg = -np.outer(grad, grad)
+			hs.append(cvxopt.matrix(gg))
+
+		# Setup objective	
+		c = cvxopt.matrix([ np.trace(E) for E in Es])
+
+		if 'verbose' in self.kwargs:
+			cvxopt.solvers.options['show_progress'] = self.kwargs['verbose']
+
+		sol = cvxopt.solvers.sdp(c, Gs = Gs, hs = hs)
+		alpha = sol['x']
+		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
+		
 		return H
 
 
