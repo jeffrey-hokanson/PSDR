@@ -127,9 +127,9 @@ class Function(BaseFunction, Domain):
 		if self._grads is not None: 
 			if len(X.shape) == 1:
 				if callable(self._grads):
-					grad = self._grads(x)
+					grad = self._grads(X)
 				else:
-					grad = np.hstack([grad(x) for grad in self._grads])
+					grad = np.hstack([grad(X) for grad in self._grads])
 			
 			elif len(X.shape) == 2:
 				if callable(self._grads):
