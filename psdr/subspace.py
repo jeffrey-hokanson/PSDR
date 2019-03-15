@@ -183,9 +183,9 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 	.. math::
 
-		\min_{\mathbf{M} \in \mathbb{S}^{m\times m}} & \ \text{Trace } \mathbf{M} \\
-		\text{such that} & \ |f(\mathbf{x}_i) - f(\mathbf{x}_j)|^2 \le (\mathbf{x}_i - \mathbf{x}_j)^\top \mathbf{M} (\mathbf{x}_i - \mathbf{x}_j) \\
-		& \ \nabla f(\mathbf{x}_k) \nabla f(\mathbf{x}_k)^\top \preceq \mathbf{M}
+		\min_{\mathbf{H} \in \mathbb{S}^{m}_+} & \ \text{Trace } \mathbf{H} \\
+		\text{such that} & \ |f(\mathbf{x}_i) - f(\mathbf{x}_j)|^2 \le (\mathbf{x}_i - \mathbf{x}_j)^\top \mathbf{H} (\mathbf{x}_i - \mathbf{x}_j) \\
+		& \ \nabla f(\mathbf{x}_k) \nabla f(\mathbf{x}_k)^\top \preceq \mathbf{H}
 
 	Parameters
 	----------
@@ -196,10 +196,11 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		self._U = None
 		self._L = None
 		self.kwargs = kwargs
+		if 'solver' not in self.kwargs:
+			self.kwargs['solver'] = cp.CVXOPT
 
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Find the Lipschitz matrix
-
 
 
 		Parameters
@@ -211,30 +212,46 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		grads: array-like (N,m), optional
 			Gradients of the function evaluated anywhere	
 		"""
-		kwargs = self.kwargs
 		self._init_dim(X = X, grads = grads)
 
 		if X is not None and fX is not None:
 			N = len(X)
 			assert len(fX) == N, "Dimension of input and output does not match"
-			self._X = np.array(X).reshape(-1,m)
-			self._fX = np.array(fX).reshape(len(self._X))
+			X = np.atleast_2d(np.array(X))
+			self._dimension = X.shape[1]
+			fX = np.array(fX).reshape(X.shape[0])
+
 		elif X is None and fX is None:
-			self._X = np.zeros((0,len(self)))
-			self._fX = np.zeros((0,))
+			X = np.zeros((0,len(self)))
+			fX = np.zeros((0,))
 		else:
 			raise AssertionError("X and fX must both be specified simultaneously or not specified")
 
 		if grads is not None:
-			self._grads = np.array(grads).reshape(-1,len(self))
+			grads = np.array(grads).reshape(-1,len(self))
+		else:
+			grads = np.zeros((0, len(self)))
+		
+		try:	
+			scale1 = np.max(fX) - np.min(fX)
+		except ValueError:
+			scale1 = 1.
+		try:
+			scale2 = np.max([np.linalg.norm(grad) for grad in grads])
+		except ValueError:
+			scale2 = 1.
+		scale = max(scale1, scale2)
 
-		self._build_lipschitz_matrix(**kwargs)
+
+		self._H = self._build_lipschitz_matrix(X/scale, fX/scale, grads/scale)
+		self._H *= scale
 
 		# Compute the important directions
-		self._U, _, _ = np.linalg.svd(self._M)
+		#self._U, _, _ = np.linalg.svd(self._H)
+		_, self._U = scipy.linalg.eigh(self._H)
 
 		# Compute the Lipschitz matrix (lower triangular)
-		self._L = scipy.linalg.cholesky(self.M[::-1][:,::-1], lower = False)[::-1][:,::-1]
+		self._L = scipy.linalg.cholesky(self.H[::-1][:,::-1], lower = False)[::-1][:,::-1]
 
 	@property
 	def X(self): return self._X
@@ -249,10 +266,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	def U(self): return np.copy(self._U)
 
 	@property
-	def M(self): 
+	def H(self): 
 		r""" The symmetric positive definite solution to the semidefinite program
 		"""
-		return self._M
+		return self._H
 
 	@property
 	def L(self): 
@@ -260,29 +277,30 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		"""
 		return self._L
 
-	def _build_lipschitz_matrix(self, **kwargs):
-		M = cp.Variable( (len(self), len(self)), PSD = True)
+	def _build_lipschitz_matrix(self, X, fX, grads):
+		H = cp.Variable( (len(self), len(self)), PSD = True)
 		
 		# TODO: Implement normalization for function values/gradients for scaling purposes
 		constraints = []
 		
 		# Sample constraint	
-		for i in range(len(self.X)):
-			for j in range(i+1, len(self.X)):
-				lhs = (self.fX[i] - self.fX[j])**2
-				y = self.X[i] - self.X[j]
+		for i in range(len(X)):
+			for j in range(i+1, len(X)):
+				lhs = (fX[i] - fX[j])**2
+				y = X[i] - X[j]
 				# y.T M y
-				rhs = M.__matmul__(y).__rmatmul(y.T)
+				#rhs = H.__matmul__(y).__rmatmul(y.T)
+				rhs = cp.quad_form(y, H)
 				constraints.append(lhs <= rhs)
 			
 		# gradient constraints
-		for g in self.grads:
-			constraints.append( np.outer(g,g) << M)
+		for g in grads:
+			constraints.append( np.outer(g,g) << H)
 
-		problem = cp.Problem(cp.Minimize(cp.norm(M, 'fro')), constraints)
-		problem.solve(**kwargs)
+		problem = cp.Problem(cp.Minimize(cp.norm(H, 'fro')), constraints)
+		problem.solve(**self.kwargs)
 		
-		self._M = np.array(M.value).reshape(len(self),len(self))
+		return np.array(H.value).reshape(len(self),len(self))
 				
 
 
@@ -292,8 +310,9 @@ if __name__ == '__main__':
 	a = np.ones(4,)
 	fX = np.dot(X, a).flatten()
 	grads = np.tile(a, (X.shape[0], 1))
-	lip = LipschitzMatrix(grads = grads)
-	print(lip.M)
+	lip = LipschitzMatrix()
+	lip.fit(grads = grads)
+	print(lip.H)
 	print(lip.L)
 	lip.shadow_plot(X = X, fX = fX)
 	#act = ActiveSubspace(grads)
