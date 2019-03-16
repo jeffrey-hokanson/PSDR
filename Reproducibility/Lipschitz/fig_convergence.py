@@ -42,7 +42,10 @@ def metric(Hsamp):
 	a, b = scipy.linalg.eig(Htrue, Hsamp, homogeneous_eigvals = True, left = False, right = False)
 	a = a.real
 	b = b.real
-	return np.sqrt(np.sum( ( np.log(a) - np.log(b) )**2 ) )
+	d2 = np.sqrt(np.sum( ( np.log(a) - np.log(b) )**2 ) )
+	if not np.isfinite(d2):
+		d2 = np.inf
+	return d2
 
 
 # Build random realizations for different data
@@ -50,8 +53,8 @@ M = 200
 N = 1000
 
 #Mvec = np.linspace(2,200)
-Mvec = np.unique(np.logspace(np.log10(2), np.log10(200), 10).astype(np.int))
-Nvec = np.unique(np.logspace(np.log10(1), np.log10(1e4), 1).astype(np.int))
+Mvec = np.unique(np.logspace(np.log10(2), np.log10(500), 50).astype(np.int))
+Nvec = np.unique(np.logspace(np.log10(1), np.log10(1e4), 50).astype(np.int))
 
 reps = 100
 mismatch_samp = np.zeros((reps,len(Mvec)))
@@ -83,7 +86,9 @@ for rep in range(mismatch_samp.shape[0]):
 
 	pgf = PGF()
 	pgf.add('N', Nvec)
-	p0, p25, p50, p75, p100 = np.percentile(mismatch_grad[:rep+1], [0, 25, 50, 75, 100], axis =0)
+	# Nearest interpolation removes nans if some values are infinite
+	p0, p25, p50, p75, p100 = np.percentile(mismatch_grad[:rep+1], [0, 25, 50, 75, 100], axis =0, 
+		interpolation = 'nearest')
 	pgf.add('p0', p0)
 	pgf.add('p25', p25)
 	pgf.add('p50', p50)
@@ -116,7 +121,8 @@ for rep in range(mismatch_samp.shape[0]):
 	# Now export the data to PGF
 	pgf = PGF()
 	pgf.add('M', Mvec)
-	p0, p25, p50, p75, p100 = np.percentile(mismatch_samp[:rep+1], [0, 25, 50, 75, 100], axis =0)
+	p0, p25, p50, p75, p100 = np.percentile(mismatch_samp[:rep+1], [0, 25, 50, 75, 100], axis =0,
+		interpolation = 'nearest')
 	pgf.add('p0', p0)
 	pgf.add('p25', p25)
 	pgf.add('p50', p50)
