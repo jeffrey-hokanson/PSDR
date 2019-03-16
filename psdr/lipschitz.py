@@ -53,6 +53,15 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		else:
 			raise NotImplementedError
 
+		if 'abstol' not in kwargs:
+			self.kwargs['abstol'] = 1e-7
+		if 'reltol' not in kwargs:
+			self.kwargs['reltol'] = 1e-6
+		if 'feastol' not in kwargs:
+			self.kwargs['feastol'] = 1e-7
+		if 'refinement' not in kwargs:
+			self.kwargs['refinement'] = 1
+
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Find the Lipschitz matrix
 
@@ -230,13 +239,14 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		for i in range(len(X)):
 			for j in range(i+1,len(X)):
 				p = X[i] - X[j]
-				
+				# Normalizing here seems to reduce the normalization once inside CVXOPT
+				p_norm = np.linalg.norm(p)	
 				# Vectorize to improve performance
 				#G = [-p.dot(E.dot(p)) for E in Es]
-				G = -np.tensordot(np.tensordot(Eten, p, axes = (2,0)), p, axes = (1,0))
+				G = -np.tensordot(np.tensordot(Eten, p/p_norm, axes = (2,0)), p/p_norm, axes = (1,0))
 
 				Gs.append(cvxopt.matrix(G).T)
-				hs.append(cvxopt.matrix( [[ -(fX[i] - fX[j])**2]]))
+				hs.append(cvxopt.matrix( [[ -(fX[i] - fX[j])**2/p_norm**2]]))
 
 		# Add constraint to enforce H is positive-semidefinite
 		# Flatten in Fortran---column major order
@@ -258,7 +268,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		else:
 			cvxopt.solvers.options['show_progress'] = False
 
-		for name in ['abstol', 'reltol', 'feastol']:
+		for name in ['abstol', 'reltol', 'feastol', 'refinement']:
 			if name in self.kwargs:
 				cvxopt.solvers.options[name] = self.kwargs[name]
 

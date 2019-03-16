@@ -3,7 +3,7 @@
 import numpy as np
 from psdr import BoxDomain, Function
 
-__all__ = ['build_otl_circuit_domain', 'otl_circuit', 'OTLCircuit']
+__all__ = ['build_otl_circuit_domain', 'otl_circuit', 'otl_circuit_grad', 'OTLCircuit']
 
 def build_otl_circuit_domain():
 	# Parameters

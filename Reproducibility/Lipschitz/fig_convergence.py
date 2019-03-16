@@ -47,10 +47,9 @@ def metric(Hsamp):
 		d2 = np.inf
 	return d2
 
+def metric(Hsamp):
+	return np.linalg.norm(Htrue - Hsamp, 'fro')/np.linalg.norm(Htrue, 'fro')
 
-# Build random realizations for different data
-M = 200
-N = 1000
 
 #Mvec = np.linspace(2,200)
 Mvec = np.unique(np.logspace(np.log10(2), np.log10(500), 50).astype(np.int))
@@ -64,7 +63,7 @@ mismatch_grad = np.zeros((reps,len(Nvec)))
 time_samp = np.zeros(mismatch_samp.shape)
 time_grad = np.zeros(mismatch_grad.shape)
 
-lipschitz = LipschitzMatrix(verbose = True)
+lipschitz = LipschitzMatrix(verbose = False)
 
 for rep in range(mismatch_samp.shape[0]):
 	np.random.seed(rep)
@@ -72,17 +71,51 @@ for rep in range(mismatch_samp.shape[0]):
 	fX = fun(X)
 	grads = fun.grad(X)
 	
+	#for i, M in tqdm(enumerate(Mvec), desc = 'sample   %3d' % rep, total = len(Mvec)):
+	for i, M in enumerate(Mvec):
+		print("\n\n#### samples  M = %d, rep %d" % (M,rep))
+		start_time = time.clock()
+		lipschitz.fit(X[:M], fX[:M])
+		stop_time = time.clock()
+		time_samp[rep, i] = stop_time - start_time
+		Hsamp = np.copy(lipschitz.H)
+		mismatch_samp[rep, i] = metric(Hsamp)
+		print("mismatch: ", mismatch_samp[rep,i], "time :", time_samp[rep,i])	
+	
+	# Now export the data to PGF
+	pgf = PGF()
+	pgf.add('M', Mvec)
+	p0, p25, p50, p75, p100 = np.percentile(mismatch_samp[:rep+1], [0, 25, 50, 75, 100], axis =0,
+		interpolation = 'nearest')
+	pgf.add('p0', p0)
+	pgf.add('p25', p25)
+	pgf.add('p50', p50)
+	pgf.add('p75', p75)
+	pgf.add('p100', p100)
+	pgf.write('data/fig_convergence_samp.dat')
+	
+	# Now the time part
+	pgf = PGF()
+	pgf.add('M', Mvec)
+	p0, p25, p50, p75, p100 = np.percentile(time_samp[:rep+1], [0, 25, 50, 75, 100], axis =0)
+	pgf.add('p0', p0)
+	pgf.add('p25', p25)
+	pgf.add('p50', p50)
+	pgf.add('p75', p75)
+	pgf.add('p100', p100)
+	pgf.write('data/fig_convergence_time_samp.dat')
+	
 		
 	#for i, N in tqdm(enumerate(Nvec), desc = 'gradient %3d' % rep, total = len(Nvec)):
 	for i, N in enumerate(Nvec):
-		print("\n\n#### grads  N = %d, rep %d" % (N,rep))
+		print("\n#### grads  N = %d, rep %d" % (N,rep))
 		start_time = time.clock()
 		lipschitz.fit(grads = grads[:N])
 		stop_time = time.clock()
 		time_grad[rep, i] = stop_time - start_time
 		Hsamp = np.copy(lipschitz.H)
 		mismatch_grad[rep, i] = metric(Hsamp)
-		print("mismatch: ", mismatch_grad[rep,i])	
+		print("mismatch: ", mismatch_grad[rep,i], "time ", time_grad[rep, i])	
 
 	pgf = PGF()
 	pgf.add('N', Nvec)
@@ -107,38 +140,5 @@ for rep in range(mismatch_samp.shape[0]):
 	pgf.write('data/fig_convergence_time_grad.dat')
 
 
-	#for i, M in tqdm(enumerate(Mvec), desc = 'sample   %3d' % rep, total = len(Mvec)):
-	for i, M in enumerate(Mvec):
-		print("\n\n#### samples  M = %d, rep %d" % (M,rep))
-		start_time = time.clock()
-		lipschitz.fit(X[:M], fX[:M])
-		stop_time = time.clock()
-		time_samp[rep, i] = stop_time - start_time
-		Hsamp = np.copy(lipschitz.H)
-		mismatch_samp[rep, i] = metric(Hsamp)
-		print("mismatch: ", mismatch_samp[rep,i])	
-	
-	# Now export the data to PGF
-	pgf = PGF()
-	pgf.add('M', Mvec)
-	p0, p25, p50, p75, p100 = np.percentile(mismatch_samp[:rep+1], [0, 25, 50, 75, 100], axis =0,
-		interpolation = 'nearest')
-	pgf.add('p0', p0)
-	pgf.add('p25', p25)
-	pgf.add('p50', p50)
-	pgf.add('p75', p75)
-	pgf.add('p100', p100)
-	pgf.write('data/fig_convergence_samp.dat')
-	
-	# Now the time part
-	pgf = PGF()
-	pgf.add('M', Mvec)
-	p0, p25, p50, p75, p100 = np.percentile(time_samp[:rep+1], [0, 25, 50, 75, 100], axis =0)
-	pgf.add('p0', p0)
-	pgf.add('p25', p25)
-	pgf.add('p50', p50)
-	pgf.add('p75', p75)
-	pgf.add('p100', p100)
-	pgf.write('data/fig_convergence_time_samp.dat')
 	
 
