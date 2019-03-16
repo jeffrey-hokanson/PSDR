@@ -230,6 +230,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		for i in range(len(X)):
 			for j in range(i+1,len(X)):
 				p = X[i] - X[j]
+				# Normalizing here seems to reduce the normalization once inside CVXOPT
 				p_norm = np.linalg.norm(p)	
 				# Vectorize to improve performance
 				#G = [-p.dot(E.dot(p)) for E in Es]
