@@ -230,13 +230,13 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		for i in range(len(X)):
 			for j in range(i+1,len(X)):
 				p = X[i] - X[j]
-				
+				p_norm = np.linalg.norm(p)	
 				# Vectorize to improve performance
 				#G = [-p.dot(E.dot(p)) for E in Es]
-				G = -np.tensordot(np.tensordot(Eten, p, axes = (2,0)), p, axes = (1,0))
+				G = -np.tensordot(np.tensordot(Eten, p/p_norm, axes = (2,0)), p/p_norm, axes = (1,0))
 
 				Gs.append(cvxopt.matrix(G).T)
-				hs.append(cvxopt.matrix( [[ -(fX[i] - fX[j])**2]]))
+				hs.append(cvxopt.matrix( [[ -(fX[i] - fX[j])**2/p_norm**2]]))
 
 		# Add constraint to enforce H is positive-semidefinite
 		# Flatten in Fortran---column major order
