@@ -50,8 +50,8 @@ M = 200
 N = 1000
 
 #Mvec = np.linspace(2,200)
-Mvec = np.unique(np.logspace(np.log10(2), np.log10(200), 10).astype(np.int))
-Nvec = np.unique(np.logspace(np.log10(1), np.log10(1e4), 1).astype(np.int))
+Mvec = np.unique(np.logspace(np.log10(2), np.log10(200), 5).astype(np.int))
+Nvec = np.unique(np.logspace(np.log10(1), np.log10(1e4), 5).astype(np.int))
 
 reps = 100
 mismatch_samp = np.zeros((reps,len(Mvec)))
@@ -61,7 +61,7 @@ mismatch_grad = np.zeros((reps,len(Nvec)))
 time_samp = np.zeros(mismatch_samp.shape)
 time_grad = np.zeros(mismatch_grad.shape)
 
-lipschitz = LipschitzMatrix(verbose = True)
+lipschitz = LipschitzMatrix(verbose = False)
 
 for rep in range(mismatch_samp.shape[0]):
 	np.random.seed(rep)
@@ -79,7 +79,7 @@ for rep in range(mismatch_samp.shape[0]):
 		time_grad[rep, i] = stop_time - start_time
 		Hsamp = np.copy(lipschitz.H)
 		mismatch_grad[rep, i] = metric(Hsamp)
-		print("mismatch: ", mismatch_grad[rep,i])	
+		print("mismatch: ", mismatch_grad[rep,i], "time ", time_grad[rep, i])	
 
 	pgf = PGF()
 	pgf.add('N', Nvec)
@@ -111,7 +111,7 @@ for rep in range(mismatch_samp.shape[0]):
 		time_samp[rep, i] = stop_time - start_time
 		Hsamp = np.copy(lipschitz.H)
 		mismatch_samp[rep, i] = metric(Hsamp)
-		print("mismatch: ", mismatch_samp[rep,i])	
+		print("mismatch: ", mismatch_samp[rep,i], "time :", time_samp[rep,i])	
 	
 	# Now export the data to PGF
 	pgf = PGF()
