@@ -4,7 +4,7 @@ import numpy as np
 import scipy.linalg
 import matplotlib.pyplot as plt
 import cvxpy as cp
-
+import cvxopt
 
 __all__ = ['SubspaceBasedDimensionReduction',
 	'ActiveSubspace', 
@@ -183,23 +183,34 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 	.. math::
 
-		\min_{\mathbf{M} \in \mathbb{S}^{m\times m}} & \ \text{Trace } \mathbf{M} \\
-		\text{such that} & \ |f(\mathbf{x}_i) - f(\mathbf{x}_j)|^2 \le (\mathbf{x}_i - \mathbf{x}_j)^\top \mathbf{M} (\mathbf{x}_i - \mathbf{x}_j) \\
-		& \ \nabla f(\mathbf{x}_k) \nabla f(\mathbf{x}_k)^\top \preceq \mathbf{M}
+		\min_{\mathbf{H} \in \mathbb{S}^{m}_+} & \ \text{Trace } \mathbf{H} \\
+		\text{such that} & \ |f(\mathbf{x}_i) - f(\mathbf{x}_j)|^2 \le (\mathbf{x}_i - \mathbf{x}_j)^\top \mathbf{H} (\mathbf{x}_i - \mathbf{x}_j) \\
+		& \ \nabla f(\mathbf{x}_k) \nabla f(\mathbf{x}_k)^\top \preceq \mathbf{H}
 
 	Parameters
 	----------
 	**kwargs: dict (optional)
 		Additional parameters to pass to cvxpy
 	"""
-	def __init__(self, **kwargs):
+	def __init__(self, method = 'cvxopt', **kwargs):
 		self._U = None
 		self._L = None
 		self.kwargs = kwargs
 
+		if 'solver' not in self.kwargs:
+			self.kwargs['solver'] = cp.CVXOPT
+		
+		if method == 'cvxopt':
+			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxopt
+		elif method == 'param':	
+			self._build_lipschitz_matrix = self._build_lipschitz_matrix_param
+		elif method == 'cvxpy':	
+			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxpy
+		else:
+			raise NotImplementedError
+
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Find the Lipschitz matrix
-
 
 
 		Parameters
@@ -211,30 +222,51 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		grads: array-like (N,m), optional
 			Gradients of the function evaluated anywhere	
 		"""
-		kwargs = self.kwargs
 		self._init_dim(X = X, grads = grads)
 
 		if X is not None and fX is not None:
 			N = len(X)
 			assert len(fX) == N, "Dimension of input and output does not match"
-			self._X = np.array(X).reshape(-1,m)
-			self._fX = np.array(fX).reshape(len(self._X))
+			X = np.atleast_2d(np.array(X))
+			self._dimension = X.shape[1]
+			fX = np.array(fX).reshape(X.shape[0])
+
 		elif X is None and fX is None:
-			self._X = np.zeros((0,len(self)))
-			self._fX = np.zeros((0,))
+			X = np.zeros((0,len(self)))
+			fX = np.zeros((0,))
 		else:
 			raise AssertionError("X and fX must both be specified simultaneously or not specified")
 
 		if grads is not None:
-			self._grads = np.array(grads).reshape(-1,len(self))
-
-		self._build_lipschitz_matrix(**kwargs)
+			grads = np.array(grads).reshape(-1,len(self))
+		else:
+			grads = np.zeros((0, len(self)))
+		
+		try:	
+			scale1 = np.max(fX) - np.min(fX)
+		except ValueError:
+			scale1 = 1.
+		try:
+			scale2 = np.max([np.linalg.norm(grad) for grad in grads])
+		except ValueError:
+			scale2 = 1.
+		scale = max(scale1, scale2)
+		
+		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale)
+		#self._H = H = scale**2 * H
 
 		# Compute the important directions
-		self._U, _, _ = np.linalg.svd(self._M)
+		#self._U, _, _ = np.linalg.svd(self._H)
+		ew, U = scipy.linalg.eigh(H)
+		# because eigenvalues are in ascending order, the subspace basis needs to be flipped
+		self._U = U[:,::-1]
+
+		# Force to be SPD
+		self._H = scale**2 * U.dot(np.diag(np.maximum(ew,0)).dot(U.T))
 
 		# Compute the Lipschitz matrix (lower triangular)
-		self._L = scipy.linalg.cholesky(self.M[::-1][:,::-1], lower = False)[::-1][:,::-1]
+		#self._L = scipy.linalg.cholesky(self.H[::-1][:,::-1], lower = False)[::-1][:,::-1]
+		self._L = scale * U.dot(np.diag(np.sqrt(np.maximum(ew, 0))).dot(U.T))
 
 	@property
 	def X(self): return self._X
@@ -249,10 +281,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	def U(self): return np.copy(self._U)
 
 	@property
-	def M(self): 
+	def H(self): 
 		r""" The symmetric positive definite solution to the semidefinite program
 		"""
-		return self._M
+		return self._H
 
 	@property
 	def L(self): 
@@ -260,42 +292,150 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		"""
 		return self._L
 
-	def _build_lipschitz_matrix(self, **kwargs):
-		M = cp.Variable( (len(self), len(self)), PSD = True)
+	def _build_lipschitz_matrix_cvxpy(self, X, fX, grads):
+		# Constrain H to symmetric positive semidefinite (PSD)
+		H = cp.Variable( (len(self), len(self)), PSD = True)
 		
-		# TODO: Implement normalization for function values/gradients for scaling purposes
-		constraints = []
-		
+		constraints = []		
+
 		# Sample constraint	
-		for i in range(len(self.X)):
-			for j in range(i+1, len(self.X)):
-				lhs = (self.fX[i] - self.fX[j])**2
-				y = self.X[i] - self.X[j]
+		for i in range(len(X)):
+			for j in range(i+1, len(X)):
+				lhs = (fX[i] - fX[j])**2
+				y = X[i] - X[j]
 				# y.T M y
-				rhs = M.__matmul__(y).__rmatmul(y.T)
+				#rhs = H.__matmul__(y).__rmatmul__(y.T)
+				rhs = cp.quad_form(y, H)
 				constraints.append(lhs <= rhs)
 			
 		# gradient constraints
-		for g in self.grads:
-			constraints.append( np.outer(g,g) << M)
+		for g in grads:
+			constraints.append( np.outer(g,g) << H)
 
-		problem = cp.Problem(cp.Minimize(cp.norm(M, 'fro')), constraints)
-		problem.solve(**kwargs)
+		problem = cp.Problem(cp.Minimize(cp.trace(H)), constraints)
+		problem.solve(**self.kwargs)
 		
-		self._M = np.array(M.value).reshape(len(self),len(self))
+		return np.array(H.value).reshape(len(self),len(self))
 				
+	
+	def _build_lipschitz_matrix_param(self, X, fX, grads):
+		r""" Use an explicit parameterization
+		"""
+
+		# Build the basis
+		Es = []
+		I = np.eye(len(self))
+		for i in range(len(self)):
+			ei = I[:,i]
+			Es.append(np.outer(ei,ei))
+			for j in range(i+1,len(self)):
+				ej = I[:,j]
+				Es.append(0.5*np.outer(ei+ej,ei+ej))
+
+		alpha = cp.Variable(len(Es))
+		H = cp.sum([alpha_i*Ei for alpha_i, Ei in zip(alpha, Es)])
+		constraints = [H >> 0]
+		
+		# Construct gradient constraints
+		for grad in grads:
+			constraints.append( H >> np.outer(grad, grad))
+		
+		# Construct linear inequality constraints for samples
+		A = np.zeros( (len(X)*(len(X)-1)//2, len(Es)) )
+		b = np.zeros(A.shape[0])
+		row = 0
+		for i in range(len(X)):
+			for j in range(i+1,len(X)):
+				p = X[i] - X[j]
+				A[row, :] = [p.dot(E.dot(p)) for E in Es]
+				b[row] = (fX[i] - fX[j])**2
+				row += 1
+
+		if A.shape[0] > 0:	
+			constraints.append( b <= alpha.__rmatmul__(A) )
+		
+		problem = cp.Problem(cp.Minimize(cp.sum(alpha)), constraints)
+		problem.solve(**self.kwargs)
+
+		alpha = np.array(alpha.value)
+		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
+		return H
+
+	def _build_lipschitz_matrix_cvxopt(self, X, fX, grads):
+		r""" Directly accessing cvxopt rather than going through CVXPY results in noticable speed improvements
+		"""	
+		# Build the basis
+		Es = []
+		I = np.eye(len(self))
+		for i in range(len(self)):
+			ei = I[:,i]
+			Es.append(np.outer(ei,ei))
+			for j in range(i+1,len(self)):
+				ej = I[:,j]
+				Es.append(0.5*np.outer(ei+ej,ei+ej))
+
+
+		# Constraint matrices for CVXOPT
+		# The format is 
+		# sum_i x_i * G[i].reshape(square matrix) <= h.reshape(square matrix)
+		Gs = []
+		hs = []
+
+		# Construct linear inequality constraints for samples
+		for i in range(len(X)):
+			for j in range(i+1,len(X)):
+				p = X[i] - X[j]
+				G = np.vstack([-p.dot(E.dot(p)) for E in Es]).T
+				Gs.append(cvxopt.matrix(G))
+				hs.append(cvxopt.matrix( [[ -(fX[i] - fX[j])**2]]))
+
+		# Add constraint to enforce H is positive-semidefinite
+		# Flatten in Fortran---column major order
+		G = cvxopt.matrix(np.vstack([E.flatten('F') for E in Es]).T)
+		Gs.append(-G)
+		hs.append(cvxopt.matrix(np.zeros((len(self),len(self)))))
+	
+		# Build constraints 	
+		for grad in grads:
+			Gs.append(-G)
+			gg = -np.outer(grad, grad)
+			hs.append(cvxopt.matrix(gg))
+
+		# Setup objective	
+		c = cvxopt.matrix(np.array([ np.trace(E) for E in Es]))
+		
+		if 'verbose' in self.kwargs:
+			cvxopt.solvers.options['show_progress'] = self.kwargs['verbose']
+		else:
+			cvxopt.solvers.options['show_progress'] = False
+
+		for name in ['abstol', 'reltol', 'feastol']:
+			if name in self.kwargs:
+				cvxopt.solvers.options[name] = self.kwargs[name]
+
+		sol = cvxopt.solvers.sdp(c, Gs = Gs, hs = hs)
+		alpha = sol['x']
+		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
+		return H
 
 
 if __name__ == '__main__':
-	X = np.random.randn(10,4)
+	import time
+	X = np.random.randn(100,4)
 	a = np.random.randn(4,)
 	a = np.ones(4,)
 	fX = np.dot(X, a).flatten()
 	grads = np.tile(a, (X.shape[0], 1))
-	lip = LipschitzMatrix(grads = grads)
-	print(lip.M)
-	print(lip.L)
-	lip.shadow_plot(X = X, fX = fX)
+	lip = LipschitzMatrix(method = 'cvxopt')
+	#lip._dimension = 4
+	#lip._build_lipschitz_matrix_param(X, fX, grads)
+	start_time = time.clock()
+	lip.fit(X, fX)
+	stop_time = time.clock()
+	print("Time: ", stop_time - start_time)
+	#print(lip.H)
+	#print(lip.L)
+	#lip.shadow_plot(X = X, fX = fX)
 	#act = ActiveSubspace(grads)
 	#act.shadow_plot(X, fX)
-	plt.show()
+	#plt.show()

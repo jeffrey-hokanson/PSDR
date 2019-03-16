@@ -126,10 +126,22 @@ class Function(BaseFunction, Domain):
 		# Return gradient if specified
 		if self._grads is not None: 
 			if len(X.shape) == 1:
-				grad = np.vstack([grad(X) for grad in self._grads])
-			elif len(X.shape) == 2:
-				grad = np.vstack([np.hstack([grad(x) for grad in self._grads]) for x in X])
+				if callable(self._grads):
+					grad = self._grads(X)
+				else:
+					grad = np.vstack([grad(X) for grad in self._grads])
 			
+			elif len(X.shape) == 2:
+				if callable(self._grads):
+					if self.vectorized:
+						grad = self._grads(X)
+					else:
+						grad = np.hstack([self._grads(x) for x in X])
+				else: 
+					if self.vectorized:
+						grad = np.hstack([ np.array(grad(X)) for grad in self._grads])
+					else:
+						grad = np.hstack([ np.hstack([grad(x) for grad in self._grads]) for x in X])
 			grad = D.dot(grad.T).T
 			
 			return grad
