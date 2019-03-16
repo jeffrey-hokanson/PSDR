@@ -88,7 +88,7 @@ class RidgeOptimization:
 
 	@property
 	def x(self):
-		r""" The current best iterate
+		r""" The current best feasible iterate
 		"""
 		obj_vals = np.array([self.objective(fx) for fx in self.fX])
 		constraint_vals = np.array([self.constraints(fx) for fx in self.fX])
@@ -217,7 +217,7 @@ class RidgeOptimization:
 			# Linear surrogate
 			obj_sur = PolynomialRidgeApproximation(degree = 1, subspace_dimension = 1)
 
-		elif M > scipy.special.comb(m+2,2)
+		elif M > scipy.special.comb(m+2,2):
 			# Full quadratic surrogate
 			obj_sur = PolynomialApproximation(degree = 2)
 
@@ -246,8 +246,8 @@ class RidgeOptimization:
 	def step(self, maxiter = 1, **kwargs):
 
 		for i in range(maxiter):
-			self._find_center()
-			self._find_trust_region()
+			#self._find_center()
+			#self._find_trust_region()
 			try:
 				self._build_surrogates()
 				x_new = self._optimize_surrogate()
@@ -458,6 +458,6 @@ if __name__ == '__main__':
 	fX = gb(X)
 	#print fX.shape
 
-	opt = RidgeOptimization(gb, X = X, fX = fX)
-	print opt.x, opt.isfeasible
-	#opt.step(200)
+	#opt = RidgeOptimization(gb, X = X, fX = fX)
+	opt = RidgeOptimization(gb)
+	opt.step(10)
