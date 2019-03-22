@@ -36,7 +36,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	**kwargs: dict (optional)
 		Additional parameters to pass to cvxpy
 	"""
-	def __init__(self, method = 'cvxopt', **kwargs):
+	def __init__(self, epsilon = None, method = 'cvxopt', **kwargs):
 		self._U = None
 		self._L = None
 		self.kwargs = kwargs
@@ -52,6 +52,11 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxpy
 		else:
 			raise NotImplementedError
+
+		if epsilon is not None:
+			assert epsilon >= 0, "Epsilon must be positive"
+			epsilon = float(epsilon)
+		self.epsilon = epsilon
 
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Find the Lipschitz matrix
@@ -85,7 +90,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			grads = np.array(grads).reshape(-1,len(self))
 		else:
 			grads = np.zeros((0, len(self)))
-		
+	
+		# Scale the output units for numerical stability	
 		try:	
 			scale1 = np.max(fX) - np.min(fX)
 		except ValueError:
@@ -95,20 +101,26 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		except ValueError:
 			scale2 = 1.
 		scale = max(scale1, scale2)
-		
-		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale)
-		#self._H = H = scale**2 * H
+	
+		if self.epsilon is not None:
+			epsilon = self.epsilon/scale
+		else:
+			epsilon = 0.
+		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale, epsilon)
 
 		# Compute the important directions
 		#self._U, _, _ = np.linalg.svd(self._H)
 		ew, U = scipy.linalg.eigh(H)
-		# because eigenvalues are in ascending order, the subspace basis needs to be flipped
-		self._U = U[:,::-1]
+
+		# Because eigenvalues are in ascending order, the subspace basis needs to be flipped
+		# Fix the signs for the subspace directions 
+		self._fix_subspace_signs(U[:,::-1], X, fX/scale, grads/scale)
+		
 
 		# Force to be SPD
 		self._H = scale**2 * U.dot(np.diag(np.maximum(ew,0)).dot(U.T))
 
-		# Compute the Lipschitz matrix (lower triangular)
+		# Compute the Lipschitz matrix 
 		#self._L = scipy.linalg.cholesky(self.H[::-1][:,::-1], lower = False)[::-1][:,::-1]
 		self._L = scale * U.dot(np.diag(np.sqrt(np.maximum(ew, 0))).dot(U.T))
 
@@ -136,7 +148,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		"""
 		return self._L
 
-	def _build_lipschitz_matrix_cvxpy(self, X, fX, grads):
+	def _build_lipschitz_matrix_cvxpy(self, X, fX, grads, epsilon):
 		# Constrain H to symmetric positive semidefinite (PSD)
 		H = cp.Variable( (len(self), len(self)), PSD = True)
 		
@@ -145,7 +157,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		# Sample constraint	
 		for i in range(len(X)):
 			for j in range(i+1, len(X)):
-				lhs = (fX[i] - fX[j])**2
+				lhs = (np.abs(fX[i] - fX[j]) - epsilon)**2
 				y = X[i] - X[j]
 				# y.T M y
 				#rhs = H.__matmul__(y).__rmatmul__(y.T)
@@ -162,7 +174,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		return np.array(H.value).reshape(len(self),len(self))
 				
 	
-	def _build_lipschitz_matrix_param(self, X, fX, grads):
+	def _build_lipschitz_matrix_param(self, X, fX, grads, epsilon):
 		r""" Use an explicit parameterization
 		"""
 
@@ -192,7 +204,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			for j in range(i+1,len(X)):
 				p = X[i] - X[j]
 				A[row, :] = [p.dot(E.dot(p)) for E in Es]
-				b[row] = (fX[i] - fX[j])**2
+				b[row] = (np.abs(fX[i] - fX[j]) - epsilon)**2
 				row += 1
 
 		if A.shape[0] > 0:	
@@ -205,7 +217,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
 		return H
 
-	def _build_lipschitz_matrix_cvxopt(self, X, fX, grads):
+	def _build_lipschitz_matrix_cvxopt(self, X, fX, grads, epsilon):
 		r""" Directly accessing cvxopt rather than going through CVXPY results in noticable speed improvements
 		"""	
 		# Build the basis
@@ -237,7 +249,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 				G = -np.tensordot(np.tensordot(Eten, p/p_norm, axes = (2,0)), p/p_norm, axes = (1,0))
 
 				Gs.append(cvxopt.matrix(G).T)
-				hs.append(cvxopt.matrix( [[ -(fX[i] - fX[j])**2/p_norm**2]]))
+				hs.append(cvxopt.matrix( [[ -(np.abs(fX[i] - fX[j]) - epsilon)**2/p_norm**2]]))
 
 		# Add constraint to enforce H is positive-semidefinite
 		# Flatten in Fortran---column major order
