@@ -57,6 +57,15 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			assert epsilon >= 0, "Epsilon must be positive"
 			epsilon = float(epsilon)
 		self.epsilon = epsilon
+		
+		if 'abstol' not in kwargs:
+			self.kwargs['abstol'] = 1e-7
+		if 'reltol' not in kwargs:
+			self.kwargs['reltol'] = 1e-6
+		if 'feastol' not in kwargs:
+			self.kwargs['feastol'] = 1e-7
+		if 'refinement' not in kwargs:
+			self.kwargs['refinement'] = 1
 
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Find the Lipschitz matrix
@@ -271,7 +280,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		else:
 			cvxopt.solvers.options['show_progress'] = False
 
-		for name in ['abstol', 'reltol', 'feastol']:
+		for name in ['abstol', 'reltol', 'feastol', 'refinement']:
 			if name in self.kwargs:
 				cvxopt.solvers.options[name] = self.kwargs[name]
 
