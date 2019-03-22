@@ -362,6 +362,9 @@ class Domain(object):
 	
 		For a bounded domain this function provides samples that come from a uniformly spaced grid.
 		This grid contains `n` points in each direction, linearly spaced between the lower and upper bounds.
+		For box domains, this will contain $n^d$ samples where $d$ is the dimension of the domain.
+		For other domains, this will potentially contain fewer samples since points on the grid outside the domain
+		are excluded.
 	
 		Parameters
 		----------
