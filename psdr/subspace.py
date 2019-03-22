@@ -80,6 +80,28 @@ class SubspaceBasedDimensionReduction(object):
 
 		return ax
 
+	def shadow_envelope(self, X, fX, ax = None, ngrid = 50, **kwargs):
+		r""" Draw a 1-d shadow plot of a large number of function samples
+		"""
+
+		y = X.dot(self.U[:,0])
+		yy = np.linspace(np.min(y), np.max(y), ngrid+2)
+		#yycenter = (yy[0:-1] + y[1:])/2.
+		lb = np.zeros(ngrid+2)
+		ub = np.zeros(ngrid+2)
+		# Left-most point
+		lb[0] = ub[0] = fX[np.argmin(y)]
+		# Right-most point
+		lb[-1] = ub[-1] = fX[np.argmax(y)]
+
+		for i in range(1,ngrid+1):
+			I = (yy[i-1] < y) & (y < yy[i+1]) 
+			lb[i] = np.min(fX[I])
+			ub[i] = np.max(fX[I])
+
+		ax.fill_between(yy, lb, ub,**kwargs) 
+			
+
 	def pgf_shadow_plot(self, X, fX, fname, dim = None):
 		raise NotImplementedError
 
