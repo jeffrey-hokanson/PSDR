@@ -5,6 +5,17 @@ from psdr import BoxDomain, Function
 
 __all__ = ['build_otl_circuit_domain', 'otl_circuit', 'OTLCircuit']
 
+class OTLCircuit(Function):
+	r"""
+	"""
+	def __init__(self):
+		domain = build_otl_circuit_domain()
+		funs = [otl_circuit]
+		grads = [otl_circuit_grad] 
+
+		Function.__init__(self, funs, domain, grads = grads, vectorized = True)
+
+
 def build_otl_circuit_domain():
 	# Parameters
 	# R_b1, R_b2, R_f, R_c1, R_c2, beta
@@ -48,13 +59,4 @@ def otl_circuit_grad(x):
 	return grad
 
 
-class OTLCircuit(Function):
-	r"""
-	"""
-	def __init__(self):
-		domain = build_otl_circuit_domain()
-		funs = [otl_circuit]
-		grads = [otl_circuit_grad] 
-
-		Function.__init__(self, funs, domain, grads = grads, vectorized = True)
 
