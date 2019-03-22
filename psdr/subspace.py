@@ -80,6 +80,10 @@ class SubspaceBasedDimensionReduction(object):
 
 		return ax
 
+	def pgf_shadow_plot(self, X, fX, fname, dim = None):
+		raise NotImplementedError
+
+
 	def _init_dim(self, X = None, grads = None):
 		if X is not None:
 			self._dimension = len(X[0])
@@ -104,6 +108,31 @@ class SubspaceBasedDimensionReduction(object):
 	def grads(self):
 		return np.zeros((0,len(self)))
 
+	def _fix_subspace_signs(self, U, X = None, fX = None, grads = None):
+		r""" Orient the subspace so that the average slope is positive
+
+		Since subspaces have no associated direction (they are invariant to a sign flip)
+		here we fix the sign such that the function is increasing on average along the direction
+		u_i.
+		"""
+		if grads is not None and len(grads) > 0:
+			return self._fix_subspace_signs_grads(U, grads)
+		else:
+			return self._fix_subspace_signs_samps(U, X, fX)	
+
+	def _fix_subspace_signs_samps(self, U, X, fX):
+		sgn = np.zeros(len(U[0]))
+		for k in range(len(U[0])):
+			for i in range(len(X)):
+				for j in range(i+1, len(X)):
+					sgn[k] += (fX[i] - fX[j])/(U[:,k].dot(X[i] - X[j]))
+
+		self._U = U.dot(np.diag(np.sign(sgn)))	
+		
+
+	def _fix_subspace_signs_grads(self, U, grads):
+		self._U = U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
+		
 
 class ActiveSubspace(SubspaceBasedDimensionReduction):
 	r"""Computes the active subspace based on gradient samples
@@ -154,7 +183,8 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 		self._weights = np.array(weights)
 		self._U, self._s, VT = np.linalg.svd(np.sqrt(self._weights)*self._grads.T)
 	
-		# TODO: Fix +/- scaling so average gradient is positive	
+		# Fix +/- scaling so average gradient is positive	
+		self._fix_subspace_signs_grads(self._U, self._grads)		
 
 	@property
 	def U(self):
