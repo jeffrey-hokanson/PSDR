@@ -356,6 +356,26 @@ class Domain(object):
 			x_sample = x_sample.flatten()
 		return x_sample
 
+
+	def sample_grid(self, n):
+		r""" Sample points from a tensor product grid inside the domain
+	
+		For a bounded domain this function provides samples that come from a uniformly spaced grid.
+		This grid contains `n` points in each direction, linearly spaced between the lower and upper bounds.
+	
+		Parameters
+		----------
+		n: int
+			Number of samples in each direction
+		"""
+
+		assert np.all(np.isfinite(self.lb)) & np.all(np.isfinite(self.ub)), "Requires a bounded domain"
+		xs = [np.linspace(lbi, ubi, n) for lbi, ubi in zip(self.lb, self.ub)]
+		Xs = np.meshgrid(*xs, indexing = 'ij')
+		Xgrid = np.vstack([X.flatten() for X in Xs]).T
+		I = self.isinside(Xgrid)
+		return Xgrid[I]	
+
 	def _sample(self, draw = None):
 		# By default, use the hit and run sampler
 		if draw is None:
