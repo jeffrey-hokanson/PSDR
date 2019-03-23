@@ -264,12 +264,18 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 		self._weights = np.array(weights)
 		self._U, self._s, VT = np.linalg.svd(np.sqrt(self._weights)*self._grads.T)
 	
+		self._C = self._U.dot(np.diag(self._s**2).dot(self._U.T))
+
 		# Fix +/- scaling so average gradient is positive	
 		self._fix_subspace_signs_grads(self._U, self._grads)		
 
 	@property
 	def U(self):
 		return np.copy(self._U)
+
+	@property
+	def C(self):
+		return self._C
 
 	# TODO: Plot of eigenvalues (with optional boostrapped estimate)
 
