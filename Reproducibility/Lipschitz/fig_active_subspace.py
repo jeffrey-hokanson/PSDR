@@ -9,12 +9,12 @@ X = fun.domain.sample(2e2)
 fX = fun(X) 
 grads = fun.grad(X)
 
-Xt = fun.domain.sample_grid(10)
+Xt = fun.domain.sample_grid(8)
 fXt = fun(Xt) 
 
 # Compare Lipschitz to the Active Subspace with gradients
 
-fig, axes = plt.subplots(2,2, figsize = (5,5))
+fig, axes = plt.subplots(2,2, figsize = (8,8))
 
 act = psdr.ActiveSubspace()
 act.fit(grads)
@@ -23,6 +23,8 @@ act.shadow_envelope(Xt, fXt, ax = axes[0,0])
 axes[0,0].set_title('Active Subspace')
 
 print act.U[:,0]
+
+plt.show()
 
 lip = psdr.LipschitzMatrix()
 lip.fit(grads = grads)
