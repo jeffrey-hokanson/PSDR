@@ -7,6 +7,7 @@ import scipy.sparse
 import matplotlib.pyplot as plt
 import cvxpy as cp
 import cvxopt
+from pgf import PGF
 
 __all__ = ['SubspaceBasedDimensionReduction',
 	'ActiveSubspace', 
@@ -34,7 +35,7 @@ class SubspaceBasedDimensionReduction(object):
 		raise NotImplementedError
 
 
-	def shadow_plot(self, X = None, fX = None, dim = 1, ax = None):
+	def shadow_plot(self, X = None, fX = None, dim = 1, ax = None, pgfname = None):
 		r""" Draw a shadow plot
 
 
@@ -69,6 +70,12 @@ class SubspaceBasedDimensionReduction(object):
 			ax.set_xlabel(r'active coordinate $\mathbf{u}^\top \mathbf{x}$')
 			ax.set_ylabel(r'$f(\mathbf{x})$')
 
+			if pgfname is not None:
+				pgf = PGF()
+				pgf.add('y', X.dot(self.U[:,0]))
+				pgf.add('fX', fX)
+				pgf.write(pgfname)
+
 		elif dim == 2:
 			Y = self.U[:,0:2].T.dot(X.T).T
 			sc = ax.scatter(Y[:,0], Y[:,1], c = fX.flatten(), s = 3)
@@ -76,13 +83,16 @@ class SubspaceBasedDimensionReduction(object):
 			ax.set_ylabel(r'active coordinate 2 $\mathbf{u}_2^\top \mathbf{x}$')
 
 			plt.colorbar(sc).set_label('f(x)')
+			
+			if pgfname is not None:
+				raise NotImplementedError
 
 		else:
 			raise NotImplementedError		
 
 		return ax
 
-	def shadow_envelope(self, X, fX, ax, ngrid = None, **kwargs):
+	def shadow_envelope(self, X, fX, ax, ngrid = None, pgfname = None, verbose = True, **kwargs):
 		r""" Draw a 1-d shadow plot of a large number of function samples
 		"""
 
@@ -124,50 +134,31 @@ class SubspaceBasedDimensionReduction(object):
 		col += (j[I]+1).tolist()
 		val += ( (y[I] - (yy[0] + j[I]*h)  )/h).tolist()
 		
-		# Left endpoint
-		#row += np.argwhere(j == 0).flatten().tolist()
-		#col += np.zeros(np.sum(j==0)).tolist()
-		#val += np.ones(np.sum(j==0)).tolist()
-
-		# Right endpoint
-		#row += np.argwhere(j == len(yy) - 1).flatten().tolist()
-		#col += ( (len(yy) -1)*np.ones(np.sum(j == len(yy) - 1))).tolist()
-		#val += np.ones(np.sum(j == len(yy) - 1)).tolist()
-		
-		
 		A = scipy.sparse.coo_matrix((val, (row, col)), shape = (len(y), len(yy)))
-#		print(A.shape)
-#		print(np.sum(A, axis = 1))
-		
-#		# Build a matrix  
-#		A = np.zeros((y.shape[0], yy.shape[0]))
-#		for i in range(len(y)):
-#			if y[i] == yy[0]:
-#				A[i,0] = 1.
-#			elif y[i] == yy[-1]:
-#				A[i,-1] = 1.
-#			else:
-#				j = np.max(np.argwhere(y[i] >= yy))
-#				#print(j)
-#				A[i, j+1] = (y[i] - yy[j])/(yy[j+1] - yy[j]) 
-#				A[i, j] = (yy[j+1] - y[i])/(yy[j+1] - yy[j]) 
 		A = cp.Constant(A)
 		ub = cp.Variable(len(yy))
 		#ub0 = [ max(max(fX[j == i]), max(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[max(fX[j == ngrid - 1])]
 		#ub.value = np.array(ub0).flatten()
 		prob = cp.Problem(cp.Minimize(cp.sum(ub)), [A*ub >= fX.flatten()])
-		prob.solve(verbose = True, warm_start = True)
+		prob.solve(verbose = verbose, warm_start = True)
 		ub = ub.value
 		
 		lb = cp.Variable(len(yy))
 		#lb0 = [ min(min(fX[j == i]), min(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[min(fX[j == ngrid - 1])]
 		#lb.value = np.array(lb0).flatten()
 		prob = cp.Problem(cp.Maximize(cp.sum(lb)), [A*lb <= fX.flatten()])
-		prob.solve(verbose = True, warm_start = True)
+		prob.solve(verbose = verbose, warm_start = True)
 		lb = lb.value
 
 
 		ax.fill_between(yy, lb, ub, **kwargs) 
+
+		if pgfname is not None:
+			pgf = PGF()
+			pgf.add('y', yy)
+			pgf.add('lb', lb)
+			pgf.add('ub', ub)	
+			pgf.write(pgfname)
 		
 
 	def pgf_shadow_plot(self, X, fX, fname, dim = None):
