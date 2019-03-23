@@ -2,6 +2,8 @@
 from __future__ import division, print_function
 import numpy as np
 import scipy.linalg
+import scipy.optimize
+import scipy.sparse
 import matplotlib.pyplot as plt
 import cvxpy as cp
 import cvxopt
@@ -80,27 +82,93 @@ class SubspaceBasedDimensionReduction(object):
 
 		return ax
 
-	def shadow_envelope(self, X, fX, ax = None, ngrid = 50, **kwargs):
+	def shadow_envelope(self, X, fX, ax, ngrid = None, **kwargs):
 		r""" Draw a 1-d shadow plot of a large number of function samples
 		"""
 
 		y = X.dot(self.U[:,0])
-		yy = np.linspace(np.min(y), np.max(y), ngrid+2)
-		#yycenter = (yy[0:-1] + y[1:])/2.
-		lb = np.zeros(ngrid+2)
-		ub = np.zeros(ngrid+2)
-		# Left-most point
-		lb[0] = ub[0] = fX[np.argmin(y)]
-		# Right-most point
-		lb[-1] = ub[-1] = fX[np.argmax(y)]
+		if ngrid is None:
+			# Determine the minimum number of bins
+			ngrid = 25
+			while True:
+				yy = np.linspace(np.min(y), np.max(y), ngrid)
+				h = yy[1] - yy[0]	
+				if ngrid == 3:
+					break 
+				# Make sure we have at least two entries in every bin:
+				items, counts = np.unique(np.floor( (y - yy[0])/h), return_counts = True)
+				# We ignore the last count of the bins as that is the right endpoint and will only ever have one
+				if (np.min(counts[:-1]) >= 5) and len(items) == ngrid:
+					break
+				else:
+					ngrid -= 1
+		else:
+			yy = np.linspace(np.min(y), np.max(y), ngrid)
+			h = yy[1] - yy[0]
 
-		for i in range(1,ngrid+1):
-			I = (yy[i-1] < y) & (y < yy[i+1]) 
-			lb[i] = np.min(fX[I])
-			ub[i] = np.max(fX[I])
 
-		ax.fill_between(yy, lb, ub,**kwargs) 
-			
+		# Build the piecewise linear interpolation matrix
+		j = np.floor( (y - yy[0])/h ).astype(np.int)
+		row = []
+		col = []
+		val = []
+
+		# Points not at the right endpoint
+		row += np.arange(len(y)).tolist()
+		col += j.tolist()
+		val += ((  (yy[0]+ (j+1)*h) - y )/h).tolist()
+
+		# Points not at the right endpoint
+		I = (j != len(yy) - 1)
+		row += np.argwhere(I).flatten().tolist()
+		col += (j[I]+1).tolist()
+		val += ( (y[I] - (yy[0] + j[I]*h)  )/h).tolist()
+		
+		# Left endpoint
+		#row += np.argwhere(j == 0).flatten().tolist()
+		#col += np.zeros(np.sum(j==0)).tolist()
+		#val += np.ones(np.sum(j==0)).tolist()
+
+		# Right endpoint
+		#row += np.argwhere(j == len(yy) - 1).flatten().tolist()
+		#col += ( (len(yy) -1)*np.ones(np.sum(j == len(yy) - 1))).tolist()
+		#val += np.ones(np.sum(j == len(yy) - 1)).tolist()
+		
+		
+		A = scipy.sparse.coo_matrix((val, (row, col)), shape = (len(y), len(yy)))
+#		print(A.shape)
+#		print(np.sum(A, axis = 1))
+		
+#		# Build a matrix  
+#		A = np.zeros((y.shape[0], yy.shape[0]))
+#		for i in range(len(y)):
+#			if y[i] == yy[0]:
+#				A[i,0] = 1.
+#			elif y[i] == yy[-1]:
+#				A[i,-1] = 1.
+#			else:
+#				j = np.max(np.argwhere(y[i] >= yy))
+#				#print(j)
+#				A[i, j+1] = (y[i] - yy[j])/(yy[j+1] - yy[j]) 
+#				A[i, j] = (yy[j+1] - y[i])/(yy[j+1] - yy[j]) 
+		A = cp.Constant(A)
+		ub = cp.Variable(len(yy))
+		#ub0 = [ max(max(fX[j == i]), max(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[max(fX[j == ngrid - 1])]
+		#ub.value = np.array(ub0).flatten()
+		prob = cp.Problem(cp.Minimize(cp.sum(ub)), [A*ub >= fX.flatten()])
+		prob.solve(verbose = True, warm_start = True)
+		ub = ub.value
+		
+		lb = cp.Variable(len(yy))
+		#lb0 = [ min(min(fX[j == i]), min(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[min(fX[j == ngrid - 1])]
+		#lb.value = np.array(lb0).flatten()
+		prob = cp.Problem(cp.Maximize(cp.sum(lb)), [A*lb <= fX.flatten()])
+		prob.solve(verbose = True, warm_start = True)
+		lb = lb.value
+
+
+		ax.fill_between(yy, lb, ub, **kwargs) 
+		
 
 	def pgf_shadow_plot(self, X, fX, fname, dim = None):
 		raise NotImplementedError
