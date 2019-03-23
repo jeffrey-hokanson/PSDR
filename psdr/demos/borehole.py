@@ -48,7 +48,7 @@ def borehole(X):
 	val = 2*np.pi*T_u*(H_u - H_l)/(np.log(r/r_w)*(1 + 2*L*T_u/(np.log(r/r_w)*r_w**2*K_w) + T_u/T_l))
 	return val
 
-def borehole_grad(x):
+def borehole_grad(X):
 	X = X.reshape(-1, 8)
 
 	# Split the variables
