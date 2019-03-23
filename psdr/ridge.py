@@ -12,13 +12,13 @@ class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
 	def U(self):
 		return self._U
 
-	def shadow_plot(self, X = None, fX = None, dim = None, ax = None):
+	def shadow_plot(self, X = None, fX = None, dim = None, ax = None, **kwargs):
 		if dim is None:
 			dim = self.U.shape[1]
 		else:
 			assert dim == self.U.shape[1]
 
-		ax = SubspaceBasedDimensionReduction.shadow_plot(self, X, fX, dim, ax)
+		ax = SubspaceBasedDimensionReduction.shadow_plot(self, X, fX, dim, ax, **kwargs)
 
 		# Draw the response surface
 		if dim == 1:
