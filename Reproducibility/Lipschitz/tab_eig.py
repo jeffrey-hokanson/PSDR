@@ -17,6 +17,9 @@ names.append('otl')
 funs.append(psdr.demos.Borehole())
 names.append('borehole')
 
+# Wing Weight
+funs.append(psdr.demos.WingWeight())
+names.append('wing')
 
 
 act = psdr.ActiveSubspace()
@@ -27,7 +30,7 @@ m = max([len(fun.domain) for fun in funs])
 pgf = PGF()
 pgf.add('i', np.arange(1,m+1))
 for fun, name in zip(funs, names):
-	X = fun.domain.sample(2e2)
+	X = fun.domain.sample(1e3)
 	grads = fun.grad(X)
 	
 	act.fit(grads)
