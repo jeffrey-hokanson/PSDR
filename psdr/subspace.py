@@ -92,7 +92,7 @@ class SubspaceBasedDimensionReduction(object):
 
 		return ax
 
-	def shadow_envelope(self, X, fX, ax, ngrid = None, pgfname = None, verbose = True, **kwargs):
+	def shadow_envelope(self, X, fX, ax = None, ngrid = None, pgfname = None, verbose = True, **kwargs):
 		r""" Draw a 1-d shadow plot of a large number of function samples
 		"""
 
@@ -150,8 +150,8 @@ class SubspaceBasedDimensionReduction(object):
 		prob.solve(verbose = verbose, warm_start = True)
 		lb = lb.value
 
-
-		ax.fill_between(yy, lb, ub, **kwargs) 
+		if ax is not None:
+			ax.fill_between(yy, lb, ub, **kwargs) 
 
 		if pgfname is not None:
 			pgf = PGF()
@@ -161,8 +161,6 @@ class SubspaceBasedDimensionReduction(object):
 			pgf.write(pgfname)
 		
 
-	def pgf_shadow_plot(self, X, fX, fname, dim = None):
-		raise NotImplementedError
 
 
 	def _init_dim(self, X = None, grads = None):
