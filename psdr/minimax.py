@@ -109,12 +109,13 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 
 	if domain is None:
 		domain = UnboundedDomain(len(x0))
+	
+	assert isinstance(domain, Domain), "Must provide a domain for the space"
+	assert domain.isinside(x0), "Starting point must be inside the domain"
 
 	if search_constraints is None:
 		search_constraints = lambda x, p: []
 
-	assert isinstance(domain, Domain), "Must provide a domain for the space"
-	assert domain.isinside(x0), "Starting point must be inside the domain"
 
 	if 'solver' not in kwargs:
 		kwargs['solver'] = 'ECOS'
@@ -168,7 +169,7 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 		pt = pt.value	
 	
 		if pt > 0:
-			print("No progress made on step")
+			if verbose: print("No progress made on step")
 			break
 
 		# Backtracking line search
