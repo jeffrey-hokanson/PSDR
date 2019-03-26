@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import psdr
-import psdr
 import psdr.demos
 from psdr.pgf import PGF
 
