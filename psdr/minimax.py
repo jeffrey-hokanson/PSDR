@@ -129,7 +129,11 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 		print('-----|-------------------|----------|----------|-----------|')
 		print('%4d | %+14.10e |          |          |           |' % (0, t) )
 
-	Delta = 1.
+	if trust_region:
+		Delta = 1.
+	else:
+		Delta = np.nan
+
 	for it in range(maxiter):
 		gradx = np.array(f.grad(x))
 
@@ -146,19 +150,23 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 		constraints += search_constraints(x, px)
 
 		# Append constraints from the domain
-		constraints += domain._build_constraints(px - x)
+		constraints += domain._build_constraints(x + px)
 
-		with warnings.catch_warnings():
-			warnings.simplefilter('ignore', PendingDeprecationWarning)
+		#with warnings.catch_warnings():
+		#	warnings.simplefilter('ignore', PendingDeprecationWarning)
+
+		try:
 			problem = cp.Problem(cp.Minimize(pt), constraints)
 			problem.solve(**kwargs)
+		except cp.error.SolverError:
+			break
 
 		if problem.status in ['infeasible', 'unbounded']:
 			raise Exception(problem.status)
 	
 		px = px.value
 		pt = pt.value	
-		
+	
 		if pt > 0:
 			print("No progress made on step")
 			break
