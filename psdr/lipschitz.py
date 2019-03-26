@@ -384,7 +384,7 @@ class LipschitzConstant(LipschitzMatrix):
 			Gradients of the function evaluated anywhere	
 		"""
 		self._init_dim(X = X, grads = grads)
-		if self.epsilon is None: 
+		if self.epsilon is not None: 
 			assert grads is None, "Cannot compute epsilon-Lipschitz constant using gradient information"
 
 		L = 0. 
