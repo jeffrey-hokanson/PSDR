@@ -8,10 +8,14 @@ import cvxpy as cp
 import cvxopt
 from itertools import combinations
 
+from tqdm import tqdm
+
+from domains import Domain	
 from subspace import SubspaceBasedDimensionReduction
 from geometry import candidate_furthest_points
 from minimax import minimax
 from function import BaseFunction
+from pgf import PGF
 
 __all__ = ['LipschitzMatrix', 'LipschitzConstant']
 
@@ -313,8 +317,12 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		ub: array-like (N,)
 			Upper bounds
 		"""
+		Xtest = np.array(Xtest).reshape(-1, X.shape[1])
+
 		lb = -np.inf*np.ones(Xtest.shape[0])
 		ub = np.inf*np.ones(Xtest.shape[0])
+
+		fX = fX.flatten()
 
 		LX = self.L.dot(X.T).T
 		LXtest = self.L.dot(Xtest.T).T
@@ -327,7 +335,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		
 		return lb, ub
 	
-	def bounds_domain(self, X, fX, dom, verbose = False, **kwargs):
+	def bounds_domain(self, X, fX, domain, verbose = False, progress = True, tqdm_kwargs = {}, **kwargs):
 		r""" Compute the uncertainty for any point inside a domain
 
 		Parameters
@@ -336,7 +344,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			Array of input coordinates
 		fX: array-like (M,)
 			Array of function values
-		dom: Domain
+		domain: Domain
 			Domain on which to find exterma of limits
 
 		Returns
@@ -349,21 +357,80 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		lower_bound = LowerBound(self.L, X, fX)
 		upper_bound = UpperBound(self.L, X, fX)
 		
-		X0 = candidate_furthest_points(X, dom, L = self.L)
+		X0 = candidate_furthest_points(X, domain, L = self.L)
+		fX = fX.flatten()
 
 		# Iterate through all candidates
 		lbs = []
 		ubs = []
-		for x0 in X0:
+		iterator = X0
+		if progress:
+			iterator = tqdm(X0, desc = 'bounds_domain', total = len(X0), dynamic_ncols = True, **tqdm_kwargs)
+
+		for x0 in iterator:
 			# Lower bound
-			x = minimax(lower_bound, x0, dom, verbose = verbose, trust_region = False)
+			x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
 			lbs.append(np.max(lower_bound(x)))
 		
 			# Upper bound
-			x = minimax(upper_bound, x0, dom, verbose = verbose, trust_region = False)
+			x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
 			ubs.append(np.min(-upper_bound(x)))
 
 		return float(np.min(lbs)), float(np.max(ubs))
+
+	def shadow_envelope_estimate(self, domain, X, fX, ax = None, ngrid = 50, dim = 1, U = None, pgfname = None,
+			plot_kwargs = {}, progress = False, **kwargs):
+		r""" Draw an estimate of the 1-d envelope
+		"""
+		assert dim == 1, "Higher dimensions not yet implemented"
+
+		if U is None:
+			u = self.U[:,0].flatten()
+		else:
+			u = U.flatten()
+
+		# Find extent in the active direction
+		c1 = domain.corner(u)
+		e1 = u.dot(c1)
+		c2 = domain.corner(-u)
+		e2 = u.dot(c2)
+
+		# Flip so order is increasing
+		if e1 > e2:
+			e1, e2 = e2, e1
+			c1, c2 = c2, c1
+
+		# Points to estimate uncertainty at
+		ys = np.linspace(e1, e2, ngrid)
+		lbs = np.zeros(ngrid)
+		ubs = np.zeros(ngrid)
+
+		# We treat the endpoints separately because there is only one point
+		lbs[0], ubs[0] = self.bounds(X, fX, c1)
+		lbs[-1], ubs[-1] = self.bounds(X, fX, c2)
+
+		# Now for the points on the interior
+		iterator = range(1, ngrid - 1)
+
+		tqdm_kwargs = {}
+		if progress:
+			iterator = tqdm(iterator, "shadow envelope estimate", position = 0, dynamic_ncols = True)
+			if progress > 1:
+				tqdm_kwargs = {'position':1}
+
+		for i in iterator:
+			dom_eq = domain.add_constraints(A_eq = u.reshape(1,-1), b_eq = ys[i].reshape(1))
+			lbs[i], ubs[i] = self.bounds_domain(X, fX, dom_eq, progress = progress - 1, tqdm_kwargs = tqdm_kwargs, **kwargs)
+
+		if ax is not None:
+			ax.fill_between(yy, lb, ub, **plot_kwargs)	
+	
+		if pgfname is not None:
+			pgf = PGF()
+			pgf.add('y', ys)
+			pgf.add('lb', lbs)
+			pgf.add('ub', ubs)
+			pgf.write(pgfname)
 
 
 class LipschitzConstant(LipschitzMatrix):
@@ -414,7 +481,7 @@ class LowerBound(BaseFunction):
 	def __init__(self, L, X, fX):
 		self.L = L
 		self.Y = np.dot(self.L, X.T).T
-		self.fX = fX
+		self.fX = fX.reshape(len(X))
 
 	def eval(self, x):
 		y = np.dot(self.L, x)
@@ -433,7 +500,7 @@ class UpperBound(BaseFunction):
 	def __init__(self, L, X, fX):
 		self.L = L
 		self.Y = np.dot(self.L, X.T).T
-		self.fX = fX
+		self.fX = fX.reshape(len(X))
 
 	def eval(self, x):
 		y = np.dot(self.L, x)
@@ -461,7 +528,10 @@ if __name__ == '__main__':
 	lip.fit(grads = grads)
 
 	dom = BoxDomain(-np.ones(6), np.ones(6))
-	dom2 = dom.add_constraints(b.reshape(1,-1), [0])
-	print(dom2)
-	lb, ub = lip.bounds_domain(X, fX, dom2, verbose = True)
-	print(lb, ub)
+	#dom2 = dom.add_constraints(b.reshape(1,-1), [0])
+	#print(dom2)
+	#lb, ub = lip.bounds_domain(X, fX, dom2, verbose = True)
+	#print(lb, ub)
+
+	lip.shadow_envelope_estimate(dom, X, fX, pgfname = 'test.dat', progress = True, ngrid = 5)
+
