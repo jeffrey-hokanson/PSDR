@@ -893,9 +893,16 @@ class LinQuadDomain(Domain):
 		elif A is not None and b is not None:
 			A = np.array(A)
 			b = np.array(b)
+			if len(b.shape) == 0:
+				b = b.reshape(1)
+
+			assert len(b.shape) == 1, "b must have only one dimension"
+			
+			if len(A.shape) == 1 and len(b) == 1:
+				A = A.reshape(1,-1)
+	
 			assert A.shape[1] == len(self), "A has wrong number of columns"
 			assert A.shape[0] == b.shape[0], "The number of rows of A and b do not match"
-			assert len(b.shape) == 1, "b must have only one dimension"
 		else:
 			raise AssertionError("If using inequality constraints, both A and b must be specified")
 		return A, b	
@@ -907,9 +914,16 @@ class LinQuadDomain(Domain):
 		elif A_eq is not None and b_eq is not None:
 			A_eq = np.array(A_eq)
 			b_eq = np.array(b_eq)
+			if len(b_eq.shape) == 0:
+				b_eq = b_eq.reshape(1)
+
+			assert len(b_eq.shape) == 1, "b_eq must have only one dimension"
+			
+			if len(A_eq.shape) == 1 and len(b_eq) == 1:
+				A_eq = A_eq.reshape(1,-1)
+
 			assert A_eq.shape[1] == len(self), "A_eq has wrong number of columns"
 			assert A_eq.shape[0] == b_eq.shape[0], "The number of rows of A_eq and b_eq do not match"
-			assert len(b_eq.shape) == 1, "b_eq must have only one dimension"
 		else:
 			raise AssertionError("If using equality constraints, both A_eq and b_eq must be specified")
 		
@@ -1083,7 +1097,7 @@ class LinQuadDomain(Domain):
 		# Update constraints
 		lb = np.maximum(lb, self.lb)
 		ub = np.minimum(ub, self.ub)
-		
+
 		A = np.vstack([self.A, A])	
 		b = np.hstack([self.b, b])
 
