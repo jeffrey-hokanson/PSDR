@@ -2,13 +2,18 @@
 from __future__ import division, print_function
 import numpy as np
 import scipy.linalg
+from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
 import cvxpy as cp
 import cvxopt
+from itertools import combinations
 
 from subspace import SubspaceBasedDimensionReduction
+from geometry import candidate_furthest_points
+from minimax import minimax
+from function import BaseFunction
 
-__all__ = ['LipschitzMatrix']
+__all__ = ['LipschitzMatrix', 'LipschitzConstant']
 
 class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	r"""Constructs the subspace-based dimension reduction from the Lipschitz Matrix.
@@ -289,26 +294,174 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
 		return H
 
+	def bounds(self, X, fX, Xtest):
+		r""" Compute range of possible values at test points
+
+		Parameters
+		----------
+		X: array-like (M, m)
+			Array of input coordinates
+		fX: array-like (M,)
+			Array of function values
+		Xtest: array-like (N, m)
+			Array of places at which to determine uncertainty
+
+		Returns
+		-------
+		lb: array-like (N,)
+			Lower bounds
+		ub: array-like (N,)
+			Upper bounds
+		"""
+		lb = -np.inf*np.ones(Xtest.shape[0])
+		ub = np.inf*np.ones(Xtest.shape[0])
+
+		LX = self.L.dot(X.T).T
+		LXtest = self.L.dot(Xtest.T).T
+	
+		# TODO: Replace with proper chunking to help vectorize this operation	
+		for Lx, fx in zip(LX, fX):
+			dist = cdist(Lx.reshape(1,-1), LXtest).flatten()
+			lb = np.maximum(lb, fx - dist)
+			ub = np.minimum(ub, fx + dist)
+		
+		return lb, ub
+	
+	def bounds_domain(self, X, fX, dom, verbose = False, **kwargs):
+		r""" Compute the uncertainty for any point inside a domain
+
+		Parameters
+		----------
+		X: array-like (M, m)
+			Array of input coordinates
+		fX: array-like (M,)
+			Array of function values
+		dom: Domain
+			Domain on which to find exterma of limits
+
+		Returns
+		-------
+		lb: float
+			Lower bound
+		ub: float
+			Upper bound
+		"""
+		lower_bound = LowerBound(self.L, X, fX)
+		upper_bound = UpperBound(self.L, X, fX)
+		
+		X0 = candidate_furthest_points(X, dom, L = self.L)
+
+		# Iterate through all candidates
+		lbs = []
+		ubs = []
+		for x0 in X0:
+			# Lower bound
+			x = minimax(lower_bound, x0, dom, verbose = verbose, trust_region = False)
+			lbs.append(np.max(lower_bound(x)))
+		
+			# Upper bound
+			x = minimax(upper_bound, x0, dom, verbose = verbose, trust_region = False)
+			ubs.append(np.min(-upper_bound(x)))
+
+		return float(np.min(lbs)), float(np.max(ubs))
+
+
+class LipschitzConstant(LipschitzMatrix):
+	r""" Computes the scalar Lipschitz constant
+	"""
+
+	def fit(self, X = None, fX = None, grads = None):
+		r""" Compute the scalar Lipschitz constant
+
+
+		Parameters
+		----------
+		X : array-like (N, m), optional
+			Input coordinates for function samples 
+		fX: array-like (N,), optional
+			Values of the function at X[i]
+		grads: array-like (N,m), optional
+			Gradients of the function evaluated anywhere	
+		"""
+		self._init_dim(X = X, grads = grads)
+		if self.epsilon is None: 
+			assert grads is None, "Cannot compute epsilon-Lipschitz constant using gradient information"
+
+		L = 0. 
+		if self.epsilon is None:
+			epsilon = 0
+		else:
+			epsilon = self.epsilon
+
+		if X is not None:
+			L_samp = np.max([ (abs(fX[i] - fX[j]) - epsilon )/ np.linalg.norm(X[i] - X[j]) 
+				for i,j in combinations(range(M), 2)])
+			L = max(L, L_samp)
+
+		if grads is not None:	
+			L_grad = np.max([np.linalg.norm(grad) for grad in grads])
+			L = max(L, L_grad)
+
+		self._L = L
+
+	@property
+	def L(self):
+		return self._L*np.eye(len(self))
+
+# Helper functions for determining bounds
+
+class LowerBound(BaseFunction):
+	def __init__(self, L, X, fX):
+		self.L = L
+		self.Y = np.dot(self.L, X.T).T
+		self.fX = fX
+
+	def eval(self, x):
+		y = np.dot(self.L, x)
+		norms = cdist(y.reshape(1,-1), self.Y, 'euclidean').flatten()
+		return self.fX - norms
+
+	def grad(self, x):
+		y = np.dot(self.L, x)
+		norms = cdist(y.reshape(1,-1), self.Y, 'euclidean').flatten()
+		G = np.zeros([self.Y.shape[0], x.shape[0]] )
+		I = (norms > 0)
+		G[I,:] = -((y - self.Y[I]).T/norms[I]).T
+		return G
+
+class UpperBound(BaseFunction):
+	def __init__(self, L, X, fX):
+		self.L = L
+		self.Y = np.dot(self.L, X.T).T
+		self.fX = fX
+
+	def eval(self, x):
+		y = np.dot(self.L, x)
+		norms = cdist(y.reshape(1,-1), self.Y, 'euclidean').flatten()
+		return -(self.fX + norms)
+
+	def grad(self, x):
+		y = np.dot(self.L, x)
+		norms = cdist(y.reshape(1,-1), self.Y, 'euclidean').flatten()
+		G = np.zeros([self.Y.shape[0], x.shape[0]] )
+		I = (norms > 0)
+		G[I,:] = -((y - self.Y[I]).T/norms[I]).T
+		return G
+
+
 
 if __name__ == '__main__':
-	import time
-	X = np.random.randn(100,6)
+	from domains import BoxDomain
+	X = np.random.randn(10,6)
 	a = np.random.randn(6,)
-	a = np.ones(6,)
+	b = np.ones(6,)
 	fX = np.dot(X, a).flatten()
 	grads = np.tile(a, (X.shape[0], 1))
-	lip = LipschitzMatrix(method = 'cvxopt')
-	#lip._dimension = 4
-	#lip._build_lipschitz_matrix_param(X, fX, grads)
-	start_time = time.clock()
-	#lip.fit(X, fX)
+	lip = LipschitzMatrix()
 	lip.fit(grads = grads)
-	stop_time = time.clock()
-	print("Time: ", stop_time - start_time)
-	#print(lip.H)
-	#print(lip.L)
-	#lip.shadow_plot(X = X, fX = fX)
-	#act = ActiveSubspace(grads)
-	#act.shadow_plot(X, fX)
-	#plt.show()
 
+	dom = BoxDomain(-np.ones(6), np.ones(6))
+	dom2 = dom.add_constraints(b.reshape(1,-1), [0])
+	print(dom2)
+	lb, ub = lip.bounds_domain(X, fX, dom2, verbose = True)
+	print(lb, ub)
