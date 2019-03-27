@@ -369,12 +369,18 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 		for x0 in iterator:
 			# Lower bound
-			x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
-			lbs.append(np.max(lower_bound(x)))
+			try:
+				x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
+				lbs.append(np.max(lower_bound(x)))
+			except AssertionError:
+				pass
 		
 			# Upper bound
-			x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
-			ubs.append(np.min(-upper_bound(x)))
+			try:
+				x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
+				ubs.append(np.min(-upper_bound(x)))
+			except AssertionError:
+				pass
 
 		return float(np.min(lbs)), float(np.max(ubs))
 
