@@ -14,7 +14,7 @@ fun = psdr.demos.OTLCircuit()
 
 
 # Compute Lipschitz constant and Lipschitz matrix
-X = fun.domain.sample_grid(3)
+X = fun.domain.sample_grid(2)
 gradX = fun.grad(X)
 
 Lmat = psdr.LipschitzMatrix()
@@ -44,17 +44,27 @@ u = Lmat.U[:,0]
 c1 = fun.domain.corner(u)
 c2 = fun.domain.corner(-u)
 X3 = np.array([ t*c1 + (1-t)*c2 for t in np.linspace(0,1,64)])
-R = psdr.sample_sphere(len(fun.domain), len(X3) - 2)
-for i in range(1,len(X3)-1):
-	dom_line = fun.domain.add_constraints(u, u.dot(X3[i]))
-	print(R[i-1])
-	X3[i] = dom_line.corner(R[i-1], verbose = True )
+#R = psdr.sample_sphere(len(fun.domain), len(X3) - 2)
+#for i in range(1,len(X3)-1):
+#	dom_line = fun.domain.add_constraints(u, u.dot(X3[i]))
+#	print(R[i-1])
+#	X3[i] = dom_line.corner(R[i-1], verbose = True )
 
-fX3 = fun(X)
+fX3 = fun(X3)
 name3 = 'line'
 
 
 for X, fX, name in zip([X1, X3], [fX1, fX3], [name1, name3]):
 	lb, ub = Lmat.bounds(X, fX, Xt)
 	print("average uncertainty", np.mean(ub - lb)) 
-	print("max uncertainty", np.max(ub - lb)) 
+	print("max uncertainty", np.max(ub - lb))
+	
+	if True:
+		Lmat.shadow_envelope_estimate(fun.domain, X, fX, 
+			pgfname = 'data/fig_sample_Lmat_%s_envelope_estimate.dat' % name, progress = 2, ngrid = 100)
+
+		Lmat.shadow_envelope_estimate(fun.domain, X, fX, 
+			pgfname = 'data/fig_sample_Lcon_%s_envelope_estimate.dat' % name, progress = 2, ngrid = 100)
+		  
+		Lmat.shadow_envelope(Xt, fXt, pgfname = 'data/fig_sample_%s_envelope.dat' % name, ngrid = 100)
+
