@@ -211,10 +211,11 @@ class SubspaceBasedDimensionReduction(object):
 
 	def _fix_subspace_signs_grads(self, U, grads):
 		self._U = U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
-		
+
+
 
 class ActiveSubspace(SubspaceBasedDimensionReduction):
-	r"""Computes the active subspace based on gradient samples
+	r"""Computes the active subspace gradient samples
 
 	Given the function :math:`f:\mathcal{D} \to \mathbb{R}`,
 	the active subspace is defined as the eigenvectors corresponding to the 
@@ -266,6 +267,22 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 
 		# Fix +/- scaling so average gradient is positive	
 		self._fix_subspace_signs_grads(self._U, self._grads)		
+
+
+	def fit_function(self, fun, N_gradients):
+		r""" Automatically estimate active subspace using a quadrature rule
+
+		Parameters
+		----------
+		fun: Function
+			function object for which to estimate the active subspace via the average outer-product of gradients
+		N_gradients: int
+			Maximum number of gradient samples to use 
+		"""
+		X, w = fun.domain.quadrature_rule(N_gradients)
+		grads = fun.grad(X)
+		self.fit(grads, w)
+			
 
 	@property
 	def U(self):
