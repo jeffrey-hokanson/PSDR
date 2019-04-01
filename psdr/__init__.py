@@ -18,4 +18,5 @@ from .redis_pool import RedisJob, RedisPool, RedisWorker
 from .pool import Pool, SequentialJob, SequentialPool
 from .sample import maximin_sample 
 
+import quadrature
  

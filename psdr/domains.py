@@ -16,6 +16,9 @@ from scipy.spatial import ConvexHull
 import cvxpy as cp
 import warnings
 
+
+from quadrature import *
+
 __all__ = ['Domain',
 		'UnboundedDomain',
 		'LinQuadDomain',
@@ -355,6 +358,15 @@ class Domain(object):
 		if draw == 1: 
 			x_sample = x_sample.flatten()
 		return x_sample
+	
+	def _sample(self, draw = None):
+		# By default, use the hit and run sampler
+		if draw is None:
+			draw = 1
+
+		X = [self._hit_and_run() for i in range(3*draw)]
+		I = np.random.permutation(len(X))
+		return np.array([X[i] for i in I[0:draw]])
 
 
 	def sample_grid(self, n):
@@ -379,14 +391,35 @@ class Domain(object):
 		I = self.isinside(Xgrid)
 		return Xgrid[I]	
 
-	def _sample(self, draw = None):
-		# By default, use the hit and run sampler
-		if draw is None:
-			draw = 1
+	def quadrature_rule(self, N):
+		r""" Constructs quadrature rule for the domain
 
-		X = [self._hit_and_run() for i in range(3*draw)]
-		I = np.random.permutation(len(X))
-		return np.array([X[i] for i in I[0:draw]])
+		Given N, constructs a Monte-Carlo quadrature rule for $M \le N$ such that 
+
+		.. math::
+		
+			\int_{\mathbf x\in \mathcal D} f(\mathbb{x}) \mathrm{d}\mathbf{x}
+			\approx \sum_{j=1}^M w_j f(\mathbf{x}_j).
+		
+		Parameters
+		----------
+		N: int
+			Number of samples to use to construct estimate
+
+		Returns
+		-------
+		X: np.ndarray (M, len(self))
+			Samples from the domain
+		w: np.ndarray (M,)
+			Weights for quadrature rule
+
+		"""
+		M = int(N)
+		w = (1./M)*np.ones(M)
+	
+		X = self.sample(M)
+		return X, w
+
 
 	def _hit_and_run(self, _recurse = 2):
 		r"""Hit-and-run sampling for the domain
@@ -1350,6 +1383,70 @@ class BoxDomain(LinIneqDomain):
 
 	def _extent(self, x, p):
 		return self._extent_bounds(x, p)
+	
+	def quadrature_rule(self, N, method = 'auto'):
+		r""" Constructs quadrature rule for the domain
+
+		Given N, constructs a quadrature rule for $M \le N$ such that 
+
+		.. math::
+		
+			\int_{\mathbf x\in \mathcal D} f(\mathbb{x}) \mathrm{d}\mathbf{x}
+			\approx \sum_{j=1}^M w_j f(\mathbf{x}_j).
+		
+		If 
+
+		Parameters
+		----------
+		N: int
+			Number of samples to use to construct estimate
+		method: ['auto', 'gauss', 'montecarlo']
+			Quadrature rule to use
+
+
+		Returns
+		-------
+		X: np.ndarray (M, len(self))
+			Samples from the domain
+		w: np.ndarray (M,)
+			Weights for quadrature rule
+
+		"""
+
+		if method == 'auto':
+			# The number of samples 
+			q = int(np.floor( N**(1./len(self))))
+			if q > 1:
+				method = 'gauss'
+			else:
+				method = 'montecarlo'
+	
+		if method == 'gauss':
+			q = int(np.floor( N**(1./len(self))))
+			# points in each axis for the quadrature rule
+			xs = []
+			ws = []
+			for i in range(len(self)):
+				x, w = gauss(q, self.lb[i], self.ub[i])
+				xs.append(x)
+				ws.append(w)
+		
+			# Construct the samples	
+			Xs = np.meshgrid(*xs)
+			# Flatten into (M, len(self)) shape 
+			X = np.hstack([X.reshape(-1,1) for X in Xs])
+
+			# Construct the weights
+			Ws = np.meshgrid(*ws)
+			W = np.hstack([W.reshape(-1,1) for W in Ws])
+			w = np.prod(W, axis = 1)
+			return X, w
+			
+
+		elif method == 'montecarlo':
+			# Call the default Monte-Carlo quadrature rule
+			return Domain.quadrature_rule(self, N)	
+
 
 
 class PointDomain(BoxDomain):
@@ -1846,3 +1943,7 @@ class LogNormalDomain(BoxDomain, RandomDomain):
 		p = np.exp(-(np.log(X_norm) - self.mean)**2/(2*self.cov))/(X_norm*self.cov*np.sqrt(2*np.pi))
 		return p
 
+
+if __name__ == '__main__':
+	dom = BoxDomain([-1,-1], [1,1])
+	dom.quadrature_rule(100)
