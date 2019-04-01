@@ -335,7 +335,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		
 		return lb, ub
 	
-	def bounds_domain(self, X, fX, domain, verbose = False, progress = True, tqdm_kwargs = {}, **kwargs):
+	def bounds_domain(self, X, fX, domain, verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
 		r""" Compute the uncertainty for any point inside a domain
 
 		Parameters
@@ -346,6 +346,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			Array of function values
 		domain: Domain
 			Domain on which to find exterma of limits
+		verbose: bool (default: False)
+			If True, print the iteration history for the optimization program for each initalization
+		progress: bool (default: False
+			If True, show a progress bar for trying different initializations
 
 		Returns
 		-------
@@ -534,10 +538,10 @@ if __name__ == '__main__':
 	lip.fit(grads = grads)
 
 	dom = BoxDomain(-np.ones(6), np.ones(6))
-	#dom2 = dom.add_constraints(b.reshape(1,-1), [0])
+	dom2 = dom.add_constraints(b.reshape(1,-1), [0])
 	#print(dom2)
-	#lb, ub = lip.bounds_domain(X, fX, dom2, verbose = True)
+	lb, ub = lip.bounds_domain(X, fX, dom2, verbose = True)
 	#print(lb, ub)
 
-	lip.shadow_envelope_estimate(dom, X, fX, pgfname = 'test.dat', progress = True, ngrid = 5)
+	#lip.shadow_envelope_estimate(dom, X, fX, pgfname = 'test.dat', progress = True, ngrid = 5)
 
