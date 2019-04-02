@@ -1,4 +1,8 @@
 import numpy as np
+import dill
+# We set this so that functions can be transparently pickled
+# from the users perspective
+dill.settings['recurse'] = True
 
 from domains import Domain
 
@@ -48,24 +52,57 @@ class Function(BaseFunction, Domain):
 	vectorized: bool, default: False
 		If True, the functions are vectorized for use with numpy.
 	fun_kwargs: dict, default: empty
-		Keyword arguments to pass to the functions when evaluating function 
+		Keyword arguments to pass to the functions when evaluating function
+	dask_client: dask.distributed.Client
+		Client to use for multiprocessing 
 	"""
 
 	# TODO: Implement fancy pool-features
 
-	def __init__(self, funs, domain, grads = None, fd_grad = None, vectorized = False, fun_kwargs = None):
+	def __init__(self, funs, domain, grads = None, fd_grad = None, vectorized = False, fun_kwargs = None,
+		dask_client = None):
+
+		self.dask_client = dask_client
+
 		self.vectorized = vectorized
+		
 		if callable(funs):
 			self._funs = [funs]
 		else:
 			self._funs = funs
-		
+
 		if grads is not None:
 			if callable(grads):
 				grads = [grads]
 			assert len(grads) == len(self._funs), "Must provide the same number of functions and gradients"
 			self._grads = grads
+
+		if dask_client is not None:
+			# Pickle the functions for later use when calling distributed code
+			self._funs_dill = []
+			for fun in self._funs:	
+				# A big problem is when functions are imported from another module
+				# dill will simply want to import these functions;
+				# i.e., the function is stored by a referrence to the file in which it originated.
+				# See discussion at https://github.com/uqfoundation/dill/issues/123
+				
+				# There are also otherways to handle this problem.  For example, 
+				# dask.distributed allows you to ship python files to the workers
+				# see: https://stackoverflow.com/a/39295372/
 			
+				# So we do something more sophisticated in order to pickle these functions.
+			
+				# (1) We bring the function into the local scope, evaluating the function definition
+				# inside this loop. 
+				exec(dill.source.getsource(fun))
+
+				# (2) We now pickle this function 
+				# eval(fun.__name__) is the name of the function we just executed
+				self._funs_dill.append(dill.dumps(eval(fun.__name__)))
+
+				#self._funs_dill.append((dill.source.getsource(fun), fun.__name__ ))
+
+		
 		self.domain_app = domain
 		self.domain_norm = domain.normalized_domain()
 		self.domain = self.domain_norm
@@ -98,6 +135,23 @@ class Function(BaseFunction, Domain):
 					
 		else:
 			raise NotImplementedError
+
+
+	def eval_async(self, X_norm):
+		r""" Evaluate the function asyncronously using dask.distributed
+		"""
+		assert self.dask_client is not None, "A dask_client must be specified on class initialization"
+
+		X_norm = np.atleast_1d(X_norm)
+		X = self.domain_app.unnormalize(X_norm)
+
+		def subcall(funs_dill, x):
+			import dill
+			funs = [dill.loads(fun) for fun in funs_dill]
+			return [fun(x) for fun in funs]
+
+		return [self.dask_client.submit(subcall, self._funs_dill, x) for x in X]	
+		
 
 	def grad(self, X_norm):
 		X_norm = np.atleast_1d(X_norm)
@@ -195,5 +249,40 @@ class Function(BaseFunction, Domain):
 	
 	def __rmul__(self, other):
 		raise NotImplementedError 
+
+if __name__ == '__main__':
+	from dask.distributed import Client
+	from demos import borehole, build_borehole_domain, Borehole
+	#from demos import Borehole
+
+
+	#print(dill.source.getsource(borehole))
+	#print(locals())
+	#exec(dill.source.getsource(borehole))	
+	#print(dill.dumps(borehole))
+
+	client = Client('tcp://10.101.89.84:8786')
+
+	fun = Borehole(dask_client = client)
+
+	np.random.seed(0)	
+	X = fun.domain.sample(10)
+	res = fun.eval_async(X)
+	for r in res:
+		print(r.result())	
+
+
+	#print(fun._funs_dill)
+	#x = fun.domain_app.sample()
+	#res = client.submit(borehole, x) 
+	#print(res.result())	
+	#print(fun._funs_dill)
+
+	#dom = build_borehole_domain()
+	#fun = Function(borehole, dom, dask_client = client)
+	#print dill.dumps(borehole)
+	#X = fun.domain.sample(10)
+
+	#print fun.eval_async(X)
 
 
