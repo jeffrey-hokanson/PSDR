@@ -4,6 +4,7 @@ parameterization.
 
 Rick Fenrich 2/26/18
 """
+from __future__ import print_function
 
 import numpy as np
 from scipy import optimize
@@ -51,7 +52,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
     if xright is not None:
         B[m,nx-1] = 1; c[m] = xright - delta; m = m+1
     if(output=='verbose'):
-        print 'constraints %i through %i used for cross-over of x-coord' % (m_initial+1, m);
+        print('constraints %i through %i used for cross-over of x-coord' % (m_initial+1, m));
  
     # Construct linear constraint for max width of throat
     # Used for throat of the type where 4 points share same coordinate; 
@@ -61,7 +62,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
         B[m,throatIndex+2] = 1; B[m,throatIndex+1] = -1; c[m] = 0.1; m = m+1
         B[m,throatIndex] = 1; B[m,throatIndex-1] = -1; c[m] = 0.1; m = m+1
     if(output=='verbose'):
-        print 'constraints %i and %i used for max width of throat' % (m_initial+1,m_initial+2);
+        print('constraints %i and %i used for max width of throat' % (m_initial+1,m_initial+2));
 
     if throatIsLowest == 1:
         # Construct linear constraints for throat is lowest point on left of throat
@@ -69,7 +70,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
             m_initial = m;
             B[m,nx+throatIndex] = 1; B[m,nx+throatIndex-1] = -1; c[m] = -delta2; m = m+1
             if(output=='verbose'):
-                print 'constraints %i through %i used for throat is lowest on left' % (m_initial+1,m);
+                print('constraints %i through %i used for throat is lowest on left' % (m_initial+1,m));
     
         # Construct linear constraints for throat is lowest point on right of throat
         if throatIndex != 0:
@@ -77,21 +78,21 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
             for i in range(nx+throatIndex+1,n_local):
                 B[m,i] = -1; B[m,nx+throatIndex] = 1; c[m] = -delta2; m = m+1
             if(output=='verbose'):
-                print 'constraints %i through %i used for throat is lowest on right' % (m_initial+1,m);
+                print('constraints %i through %i used for throat is lowest on right' % (m_initial+1,m));
             
     if minThroat is not None:
         m_initial = m;
         for i in range(nx,n_local):
             B[m,i] = -1; c[m] = -minThroat; m = m+1
         if(output=='verbose'):
-            print 'constraints %i through %i used for min throat radius constraint' %(m_initial+1,m);
+            print('constraints %i through %i used for min throat radius constraint' %(m_initial+1,m));
 
     if maxThroat is not None:
         m_initial = m;
         for i in range(nx,n_local):
             B[m,i] = 1; c[m] = maxThroat; m = m+1
         if(output=='verbose'):
-            print 'constraints %i through %i used for max throat radius constraint' %(m_initial+1,m);
+            print('constraints %i through %i used for max throat radius constraint' %(m_initial+1,m));
         
     # Set lower bound in slope segments prior to throat
     if throatIndex != 0 and slopeLimits[0] is not None:
@@ -101,7 +102,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
             if len(slopeLimits[0]) == n_seg:
                 m_bound = slopeLimits[0];
             else:
-                print 'Number of provided lower slope bounds in pre-throat is wrong (%i given, %i required)' % (len(slopeLimits[0]),n_seg);
+                print('Number of provided lower slope bounds in pre-throat is wrong (%i given, %i required)' % (len(slopeLimits[0]),n_seg));
                 return 0, 0;
         else:
             m_bound = [slopeLimits[0]]*n_seg; # lower bound on normalized slope
@@ -109,7 +110,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
         for i in range(1,throatIndex): # RWF used to be throatIndex+1
             B[m,i] = m_bound[j]; B[m,i-1] = -m_bound[j]; B[m,i+nx] = -1; B[m,i+nx-1] = 1; c[m] = 0; m = m+1; j = j+1
         if(output=='verbose'):
-            print 'constraints %i through %i used for lower bound on slope segments prior' % (m_initial+1,m);
+            print('constraints %i through %i used for lower bound on slope segments prior' % (m_initial+1,m));
 
     # Set upper bound in slope segments prior to throat
     if throatIndex != 0 and slopeLimits[1] is not None:
@@ -119,7 +120,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
             if len(slopeLimits[1]) == n_seg:
                 m_bound = slopeLimits[1];
             else:
-                print 'Number of provided upper slope bounds in pre-throat is wrong (%i given, %i required)' % (len(slopeLimits[1]),n_seg);
+                print('Number of provided upper slope bounds in pre-throat is wrong (%i given, %i required)' % (len(slopeLimits[1]),n_seg));
                 return 0, 0;
         else:
             m_bound = [slopeLimits[1]]*n_seg; # lower bound on normalized slope
@@ -127,7 +128,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
         for i in range(1,throatIndex): # RWF used to be throatIndex+1
             B[m,i] = -m_bound[j]; B[m,i-1] = m_bound[j]; B[m,i+nx] = 1; B[m,i+nx-1] = -1; c[m] = 0; m = m+1; j = j+1
         if(output=='verbose'):            
-            print 'constraints %i through %i used for upper bound on slope segments prior' % (m_initial+1,m);
+            print('constraints %i through %i used for upper bound on slope segments prior' % (m_initial+1,m));
         
     # Set lower bounds in slope segments after the throat
     if slopeLimits[2] is not None:
@@ -137,7 +138,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
             if len(slopeLimits[2]) == n_seg:
                 m_bound = slopeLimits[2];
             else:
-                print 'Number of provided lower slope bounds in post-throat is wrong (%i given, %i required)' % (len(slopeLimits[2]),n_seg);
+                print('Number of provided lower slope bounds in post-throat is wrong (%i given, %i required)' % (len(slopeLimits[2]),n_seg));
                 return 0, 0;
         else:
             m_bound = [slopeLimits[2]]*n_seg; # lower bound on normalized slope  
@@ -146,7 +147,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
         for i in range(throatIndex+3,nx): # RWF used to be throatIndex+1
             B[m,i] = m_bound[j]; B[m,i-1] = -m_bound[j]; B[m,i+nx] = -1; B[m,i+nx-1] = 1; c[m] = 0; m = m+1; j = j+1
         if(output=='verbose'):  
-            print 'constraints %i through %i used for lower bound on slope segments after' % (m_initial+1,m);
+            print('constraints %i through %i used for lower bound on slope segments after' % (m_initial+1,m));
 
     # Set upper bounds in slope segments after the throat
     if slopeLimits[3] is not None:
@@ -156,7 +157,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
             if len(slopeLimits[3]) == n_seg:
                 m_bound = slopeLimits[3];
             else:
-                print 'Number of provided upper slope bounds in post-throat is wrong (%i given, %i required)' % (len(slopeLimits[3]),n_seg);
+                print('Number of provided upper slope bounds in post-throat is wrong (%i given, %i required)' % (len(slopeLimits[3]),n_seg));
                 return 0, 0;
         else:
             m_bound = [slopeLimits[3]]*n_seg; # upper bound on normalized slope
@@ -165,7 +166,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
         for i in range(throatIndex+3,nx): # RWF used to be throatIndex+1
             B[m,i] = -m_bound[j]; B[m,i-1] = m_bound[j]; B[m,i+nx] = 1; B[m,i+nx-1] = -1; c[m] = 0; m = m+1; j = j+1
         if(output=='verbose'):
-            print 'constraints %i through %i used for upper bound on slope segments after' % (m_initial+1,m);
+            print('constraints %i through %i used for upper bound on slope segments after' % (m_initial+1,m));
                 
     # Remove columns from B that are not design variables
     A = np.zeros((m,max(v)));
@@ -178,7 +179,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
             A[:,v[i]-1] = A[:,v[i]-1] + B[:m,i];
             
     if(output=='verbose'):
-        print;
+        print();
             
     return A, b
 
@@ -230,7 +231,7 @@ def piecewiseBilinearAxial(x, y, z, v, slopeLimits, xLimits=(None,None),
     if xright is not None:
         B[m,nx-1] = 1; c[m] = xright - deltax; m = m+1
     if(output=='verbose'):
-        print 'constraints %i through %i used for x-proximity' % (m_initial+1, m);    
+        print('constraints %i through %i used for x-proximity' % (m_initial+1, m));    
 
     # Construct linear constraints for cross-over of y-coordinates
     if( deltay is not None ):
@@ -238,7 +239,7 @@ def piecewiseBilinearAxial(x, y, z, v, slopeLimits, xLimits=(None,None),
         for i in range(1+nx-1,ny+nx-1):
             B[m,i] = -1; B[m,i-1] = 1; c[m] = -deltay; m = m+1
         if(output=='verbose'):
-            print 'constraints %i through %i used for y-proximity' % (m_initial+1, m);
+            print('constraints %i through %i used for y-proximity' % (m_initial+1, m));
         
     # Set lower bounds on slopes in x-direction
     m_initial = m;
@@ -246,7 +247,7 @@ def piecewiseBilinearAxial(x, y, z, v, slopeLimits, xLimits=(None,None),
         for j in range(0,ny):
             B[m,i] = m_minx; B[m,i-1] = -m_minx; B[m,nx+ny+j*nx+i-1] = 1; B[m,nx+ny+j*nx+i] = -1; c[m] = 0; m = m+1
     if(output=='verbose'):
-        print 'constraints %i through %i used for lower bound on slope segments in x-direction' % (m_initial+1, m);    
+        print('constraints %i through %i used for lower bound on slope segments in x-direction' % (m_initial+1, m));    
 
     # Set upper bounds on slopes in x-direction
     m_initial = m;
@@ -254,7 +255,7 @@ def piecewiseBilinearAxial(x, y, z, v, slopeLimits, xLimits=(None,None),
         for j in range(0,ny):
             B[m,i] = -m_maxx; B[m,i-1] = m_maxx; B[m,nx+ny+j*nx+i-1] = -1; B[m,nx+ny+j*nx+i] = 1; c[m] = 0; m = m+1
     if(output=='verbose'):
-        print 'constraints %i through %i used for upper bound on slope segments in x-direction' % (m_initial+1, m);    
+        print('constraints %i through %i used for upper bound on slope segments in x-direction' % (m_initial+1, m));    
 
     # Set thickness proximity in y-direction
     if( deltaz is not None ):
@@ -270,7 +271,7 @@ def piecewiseBilinearAxial(x, y, z, v, slopeLimits, xLimits=(None,None),
                 B[m,k2] = 1; B[m,k] = -1; c[m] = deltaz; m = m+1
                 B[m,k2] = -1; B[m,k] = 1; c[m] = deltaz; m = m+1
         if(output=='verbose'):
-            print 'constraints %i through %i used for z proximity in y-direction' % (m_initial+1, m);    
+            print('constraints %i through %i used for z proximity in y-direction' % (m_initial+1, m));    
 
     # Remove columns from B that are not design variables
     A = np.zeros((m,max(v)));
@@ -284,7 +285,7 @@ def piecewiseBilinearAxial(x, y, z, v, slopeLimits, xLimits=(None,None),
             A[:,v[i]-1] = A[:,v[i]-1] + B[:m,i];
             
     if(output=='verbose'):
-        print;
+        print();
     
     return A, b
 
@@ -314,7 +315,7 @@ def baffles(x, t, h, v, minDistance, maxDistance, output='verbose'):
         B[m,i] = 1; B[m,i-1] = -1; c[m] = maxDistance; m += 1
         B[m,i] = -1; B[m,i-1] = 1; c[m] = -minDistance; m += 1
     if(output=='verbose'):
-        print 'constraints %i through %i used for baffle proximities' % (m_initial+1, m);          
+        print('constraints %i through %i used for baffle proximities' % (m_initial+1, m));          
 
     # Remove columns from B that are not design variables
     A = np.zeros((m,max(v)));
@@ -328,7 +329,7 @@ def baffles(x, t, h, v, minDistance, maxDistance, output='verbose'):
             A[:,v[i]-1] = A[:,v[i]-1] + B[:m,i];
             
     if(output=='verbose'):
-        print;
+        print();
     
     return A, b
     

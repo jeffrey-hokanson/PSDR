@@ -12,12 +12,12 @@ class Borehole(Function):
 	r""" The borehole test function
 	"""
 
-	def __init__(self):
+	def __init__(self, dask_client = None):
 		domain = build_borehole_domain()
 		funs = [borehole]
 		grads = [borehole_grad]
 
-		Function.__init__(self, funs, domain, grads = grads, vectorized = True)
+		Function.__init__(self, funs, domain, grads = grads, vectorized = True, dask_client = dask_client)
 
 def build_borehole_domain():
 	# Parameters

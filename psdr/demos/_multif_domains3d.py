@@ -1,9 +1,9 @@
 import numpy as np
 
-from _multif_linear_constraints import bspline
-from _multif_linear_constraints import piecewiseBilinearAxial
-from _multif_linear_constraints import baffles
-from _multif_linear_constraints import cleanupConstraintMatrix
+from ._multif_linear_constraints import bspline
+from ._multif_linear_constraints import piecewiseBilinearAxial
+from ._multif_linear_constraints import baffles
+from ._multif_linear_constraints import cleanupConstraintMatrix
 
 from psdr import LinIneqDomain, UniformDomain, LogNormalDomain, TensorProductDomain
 

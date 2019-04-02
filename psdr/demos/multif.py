@@ -6,7 +6,8 @@ This borrows code by Rick Fenrich
 """
 from __future__ import print_function
 import numpy as np
-from _multif_domains3d import buildDesignDomain, buildRandomDomain
+
+from ._multif_domains3d import buildDesignDomain, buildRandomDomain
 
 def build_multif_domain(truncate = 1e-7):
 	design_domain = buildDesignDomain(output = 'none')
