@@ -16,5 +16,7 @@ setup(name='psdr',
 		'cvxpy',
 		'cvxopt',
 		'tqdm',
+		'dill',
+		'dask.distributed',
 		],
 	)
