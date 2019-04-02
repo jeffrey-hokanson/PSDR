@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 import scipy.linalg
 
@@ -47,6 +48,6 @@ def gauss(N, a = 0, b = 1):
 
 if __name__ == '__main__':
 	x, w = gauss(10)
-	print x
-	print w
+	print(x)
+	print(w)
 
