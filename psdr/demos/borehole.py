@@ -1,19 +1,68 @@
 import numpy as np
 
-from psdr import BoxDomain, NormalDomain, Function
+from psdr import BoxDomain, NormalDomain, Function, LogNormalDomain, UniformDomain, TensorProductDomain
 
 
-__all__ = ['build_borehole_domain', 'borehole', 'Borehole']
-
-# TODO: implment the random domain version of the input domain
-
+__all__ = ['build_borehole_domain', 'build_borehole_uncertain_domain', 'borehole', 'Borehole']
 
 class Borehole(Function):
 	r""" The borehole test function
+
+	A function implementing the borehole test function [VLSE]_.
+	This function has the form
+
+	.. math::
+	
+		f(r_w, r, T_u, H_u, T_l, H_l, L, K_w) =
+			\frac{ 2\pi T_u (H_u - H_l)}{ 
+				\ln(r/r_w) 
+				\left(   
+					1 + \frac{2 L T_u}{\ln(r/r_w) r_w^2 K_w} + \frac{T_u}{T_l}
+				\right)
+			}
+
+	where the input variables have the domain
+
+	====================================    ========================
+	Variable                                Interpretation
+	====================================    ========================
+	:math:`r_w\in [0.05, 0.15]`             radius of borehole (m)    
+	:math:`r \in [100, 50 \times 10^3]`     radius of influence (m)
+	:math:`T_u \in [63070,115600]`          trasmissivity of upper aquifer (m^2/yr)
+	:math:`H_u \in [ 990, 1110]`			potentiometric head of upper aquifer (m)
+	:math:`T_l \in [63.1, 116]` 			transmissivity of lower aquifer (m^2/yr)
+	:math:`H_l \in [700, 820]` 				potentiometric head of lower aquifer (m)
+	:math:`L \in [1120, 1680]`				length of borehole (m)
+	:math:`K_w \in  [9855, 12045]`			hydraulic conductivity of borehole (m/yr)
+	====================================    ========================
+
+	An alternative to this deterministic domain is an uncertain domain where
+	:math:`r_w \sim \mathcal{N}(0.10, 0.0161812)` and :math:`\log r \sim \mathcal{N}(7.71, 1.0056)`
+	and the remainder come from a uniform distribution on the domain previously specified.
+
+
+	Parameters
+	----------
+	domain: ['deterministic', 'uncertain']
+		Which domain to use when constructing the function
+	dask_client: dask.distributed.Client or None
+		If specified, allows distributed computation with this function.
+
+
+	References
+	----------
+	.. [VLSE] Virtual Library of Simulation Experiments, Borehole Function
+		 https://www.sfu.ca/~ssurjano/borehole.html 
+
 	"""
 
-	def __init__(self, dask_client = None):
-		domain = build_borehole_domain()
+	def __init__(self, domain = 'deterministic', dask_client = None):
+		assert domain in ['deterministic', 'uncertain']
+		if domain == 'deterministic':
+			domain = build_borehole_domain()
+		else:
+			domain = build_borehole_uncertain_domain()
+
 		funs = [borehole]
 		grads = [borehole_grad]
 
@@ -25,7 +74,19 @@ def build_borehole_domain():
 	lb = np.array([0.05, 100, 63070, 990, 63.1, 700, 1120, 9855])
 	ub = np.array([0.15, 50e3, 115600, 1110, 116, 820, 1680, 12045])
 
-	return BoxDomain(lb, ub)
+	return BoxDomain(lb, ub, names = ['r_w', 'r', 'T_u', 'H_u', 'T_l', 'H_l', 'L', 'K_w'])
+
+def build_borehole_uncertain_domain():
+	return TensorProductDomain([
+		NormalDomain(0.10, 0.0161812**2, names = 'r_w'),
+		LogNormalDomain(7.71, 1.0056**2, names = 'r'),
+		UniformDomain(63070, 115600, names = 'T_u'), 
+		UniformDomain(990, 1110, names = 'H_u'),
+		UniformDomain(63.1, 116, names = 'T_l'),
+		UniformDomain(700, 820, names = 'H_l'),
+		UniformDomain(1120, 1680, names = 'L'),
+		UniformDomain(9855, 12045, names = 'K_w')
+	])
 
 
 def borehole(X):

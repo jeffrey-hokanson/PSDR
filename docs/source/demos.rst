@@ -2,6 +2,13 @@ Demo Functions
 ==============
 
 
+Borehole Function
+-----------------
+
+.. autoclass:: psdr.demos.Borehole
+
+
+
 Golinski Gearbox
 ----------------
 
