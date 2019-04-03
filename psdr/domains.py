@@ -111,6 +111,17 @@ class Domain(object):
 		except AttributeError:
 			self._names = ['x%d' % i for i in range(len(self))]
 			return self._names
+
+	def _init_names(self, names):
+		if names is None:
+			return
+
+		if isinstance(names, basestring):
+			assert len(self) == 1, "A list of names must be provided for domains with greater than one dimension" 
+			self._names = [names]
+		else:
+			assert len(self) == len(names), "Number of names must match dimension"
+			self._names = names
 	
 	def __len__(self):
 		raise NotImplementedError
@@ -780,9 +791,7 @@ class UnboundedDomain(Domain):
 	"""
 	def __init__(self, dimension, names = None):
 		self._dimension = dimension
-		if names is not None:
-			assert len(names) == len(self), "Domain has %d dimensions, recieved %d names for the coordinates" % (len(self), len(names))
-			self._names = names
+		self._init_names(names)
 	
 	def __len__(self):
 		return self._dimension
@@ -864,15 +873,14 @@ class LinQuadDomain(Domain):
 		self._A, self._b = self._init_ineq(A, b)
 		self._A_eq, self._b_eq = self._init_eq(A_eq, b_eq)	
 		self._Ls, self._ys, self._rhos = self._init_quad(Ls, ys, rhos)
+		
+		self._init_names(names)	
 
 		if len(kwargs) == 0:
 			#kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False}
 			kwargs ={} 
 		self.kwargs = kwargs
-		
-		if names is not None:
-			assert len(names) == len(self), "Domain has %d dimensions, recieved %d names for the coordinates" % (len(self), len(names))
-			self._names = names
+	
 	
 	################################################################################		
 	# Initialization helpers 
@@ -1022,8 +1030,10 @@ class LinQuadDomain(Domain):
 	# Normalization 
 	################################################################################		
 	def _normalized_domain(self):
+		names_norm = [name + ' (normalized)' for name in self.names]
 		return LinQuadDomain(lb = self.lb_norm, ub = self.ub_norm, A = self.A_norm, b = self.b_norm, 
-			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, Ls = self.Ls_norm, ys = self.ys_norm, rhos = self.rhos_norm)
+			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, Ls = self.Ls_norm, ys = self.ys_norm, rhos = self.rhos_norm,
+			names = names_norm)
 
 	def _isinside(self, X):
 		return self._isinside_bounds(X) & self._isinside_ineq(X) & self._isinside_eq(X) & self._isinside_quad(X)
@@ -1213,8 +1223,9 @@ class LinIneqDomain(LinQuadDomain):
 			return 0. 
 	
 	def _normalized_domain(self):
+		names_norm = [name + ' (normalized)' for name in self.names]
 		return LinIneqDomain(lb = self.lb_norm, ub = self.ub_norm, A = self.A_norm, b = self.b_norm, 
-			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm)
+			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, names = names_norm)
  
  
 	def chebyshev_center(self):
@@ -1364,7 +1375,8 @@ class BoxDomain(LinIneqDomain):
 		return self._isinside_bounds(X)
 
 	def _normalized_domain(self):
-		return BoxDomain(lb = self.lb_norm, ub = self.ub_norm)
+		names_norm = [name + ' (normalized)' for name in self.names]
+		return BoxDomain(lb = self.lb_norm, ub = self.ub_norm, names = names_norm)
 
 	@property
 	def A(self): return np.zeros((0,len(self)))
@@ -1465,11 +1477,7 @@ class PointDomain(BoxDomain):
 	"""
 	def __init__(self, x, names = None):
 		self._point = np.array(x).flatten()
-		
-		if names is not None:
-			assert len(names) == len(self), "Domain has %d dimensions, recieved %d names for the coordinates" % (len(self), len(names))
-			self._names = names
-		
+		self._init_names(names)	
 		assert len(self._point.shape) == 1, "Must provide a one-dimensional point"
 
 	def __len__(self):
@@ -1587,7 +1595,7 @@ class TensorProductDomain(Domain):
 	def _isinside(self, X):
 		inside = np.ones(X.shape[0], dtype = np.bool)
 		for dom, I in zip(self.domains, self._slices):
-			print(dom, I, dom.isinside(X[:,I]))
+			#print(dom, I, dom.isinside(X[:,I]))
 			inside = inside & dom.isinside(X[:,I])
 		return inside
 
@@ -1763,7 +1771,7 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 	truncate: float in [0,1), optional
 		Amount to truncate the domain to ensure compact support
 	"""
-	def __init__(self, mean, cov = None, truncate = None, **kwargs):
+	def __init__(self, mean, cov = None, truncate = None, names = None, **kwargs):
 		self.tol = 1e-6	
 		self.kwargs = kwargs
 		######################################################################################	
@@ -1810,6 +1818,8 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 			self._ys = []
 			self._rhos = []
 
+		self._init_names(names)
+
 	def _sample(self, draw = 1):
 		X = np.random.randn(draw, self.mean.shape[0])
 		if self.clip is not None:
@@ -1834,8 +1844,9 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 
 	def _normalized_domain(self):
 		# We need to do this to keep the sampling measure correct
+		names_norm = [name + ' (normalized)' for name in self.names]
 		D = self._normalize_der()
-		return NormalDomain(self.normalize(self.mean), D.dot(self.cov).dot(D.T), truncate = self.truncate)
+		return NormalDomain(self.normalize(self.mean), D.dot(self.cov).dot(D.T), truncate = self.truncate, names = names_norm)
 
 	
 
@@ -1900,7 +1911,7 @@ class LogNormalDomain(BoxDomain, RandomDomain):
 	truncate: float [0,1)
 		Truncate the tails of the distribution
 	"""	
-	def __init__(self, mean, cov = 1., offset = 0., scaling = 1., truncate = None):
+	def __init__(self, mean, cov = 1., offset = 0., scaling = 1., truncate = None, names = None):
 		self.tol = 1e-6
 		self.normal_domain = NormalDomain(mean, cov, truncate = truncate)
 		assert len(self.normal_domain) == 1, "Only defined for one-dimensional distributions"
@@ -1922,6 +1933,8 @@ class LogNormalDomain(BoxDomain, RandomDomain):
 			self._lb = 0.*np.ones(1)
 			self._ub = np.inf*np.ones(1)
 
+		self._init_names(names)
+
 	def __len__(self):
 		return len(self.normal_domain)
 
@@ -1930,11 +1943,12 @@ class LogNormalDomain(BoxDomain, RandomDomain):
 		return np.array(self.offset).reshape(-1,1) + self.scaling*np.exp(X)
 
 	def _normalized_domain(self):
+		names_norm = [name + ' (normalized)' for name in self.names]
 		if self.truncate is not None:
 			c = self._center()
 			D = float(self._normalize_der()) 
 			return LogNormalDomain(self.normal_domain.mean, self.normal_domain.cov, 
-				offset = D*(self.offset - c) , scaling = D*self.scaling, truncate = self.truncate)
+				offset = D*(self.offset - c) , scaling = D*self.scaling, truncate = self.truncate, names = names_norm)
 		else:
 			return self
 
