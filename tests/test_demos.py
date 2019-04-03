@@ -1,5 +1,5 @@
 from __future__ import print_function
-from psdr.demos import GolinskiGearbox, Borehole, OTLCirucit
+from psdr.demos import GolinskiGearbox, Borehole, OTLCircuit
 from checkder import check_derivative
 
 def test_grad():
