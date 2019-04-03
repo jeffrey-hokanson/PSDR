@@ -16,5 +16,5 @@ from .gn import *
 #from opt.shared import LinProgException, InfeasibleConstraints
 from .sample import maximin_sample 
 
-import quadrature
+from .quadrature import *
  

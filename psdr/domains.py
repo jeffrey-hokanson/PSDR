@@ -17,7 +17,8 @@ import cvxpy as cp
 import warnings
 
 
-from quadrature import *
+
+from .quadrature import *
 
 __all__ = ['Domain',
 		'UnboundedDomain',
@@ -116,7 +117,7 @@ class Domain(object):
 		if names is None:
 			return
 
-		if isinstance(names, basestring):
+		if isinstance(names, str):
 			assert len(self) == 1, "A list of names must be provided for domains with greater than one dimension" 
 			self._names = [names]
 		else:
@@ -130,7 +131,7 @@ class Domain(object):
 	# to each subclass
 	
 	def closest_point(self, x0, L = None, **kwargs):
-		"""Given a point, find the closest point in the domain to it.
+		r"""Given a point, find the closest point in the domain to it.
 
 		Given a point :math:`\mathbf x_0`, find the closest point :math:`\mathbf x`
 		in the domain :math:`\mathcal D` to it by solving the optimization problem
@@ -205,14 +206,14 @@ class Domain(object):
 
 
 	def extent(self, x, p):
-		"""Compute the distance alpha such that x + alpha * p is on the boundary of the domain
+		r"""Compute the distance alpha such that x + alpha * p is on the boundary of the domain
 
 		Given a point :math:`\mathbf{x}\in\mathcal D` and a direction :math:`\mathbf p`,
 		find the furthest we can go in direction :math:`\mathbf p` and stay inside the domain:
 
 		.. math::
 	
-			\max_{\\alpha > 0}   \\alpha \quad \\text{such that} \quad \mathbf x + \\alpha \mathbf p \in \mathcal D
+			\max_{\alpha > 0}   \alpha \quad\\text{such that} \quad \mathbf x +\\alpha \mathbf p \in \mathcal D
 
 		Parameters
 		----------

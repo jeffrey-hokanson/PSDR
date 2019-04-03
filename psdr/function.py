@@ -5,7 +5,7 @@ import inspect
 
 import cloudpickle
 
-from domains import Domain
+from .domains import Domain
 
 
 __all__ = ['Function', 'BaseFunction']

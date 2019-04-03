@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 from psdr import NormalDomain
 
@@ -13,22 +13,22 @@ def test_sampling(m = 5):
 
 	mean_est = np.mean(X, axis = 0)
 	print('mean')
-	print mean
-	print mean_est
-	print np.isclose(mean, np.mean(X, axis = 0), rtol = 50/np.sqrt(X.shape[0]), atol = 50/np.sqrt(X.shape[0]))
+	print(mean)
+	print(mean_est)
+	print(np.isclose(mean, np.mean(X, axis = 0), rtol = 50/np.sqrt(X.shape[0]), atol = 50/np.sqrt(X.shape[0])))
 	assert np.all(np.isclose(mean, np.mean(X, axis = 0), rtol = 50/np.sqrt(X.shape[0]), atol = 50/np.sqrt(X.shape[0]))), "Mean not correct"
 
-	print "Covariance"
+	print("Covariance")
 	cov_est = np.cov(X.T)
-	print cov	
-	print cov_est
-	print np.isclose(cov, cov_est, rtol = 100/np.sqrt(X.shape[0]), atol = 100/np.sqrt(X.shape[0]))
+	print(cov)
+	print(cov_est)
+	print(np.isclose(cov, cov_est, rtol = 100/np.sqrt(X.shape[0]), atol = 100/np.sqrt(X.shape[0])))
 	assert np.all(np.isclose(cov, cov_est, rtol = 100/np.sqrt(X.shape[0]), atol = 100/np.sqrt(X.shape[0]))), "Covariance not correct"
 
 	# Now check with a truncation parameter
 	truncate = 1e-2
 	dom2 = NormalDomain(mean, cov, truncate = truncate)
-	print dom2.clip
+	print(dom2.clip)
 	X2 = dom2.sample(1e5)	
 	assert np.all(dom2.isinside(X2)), "Sampling did not place all points inside the constraints"
 	
@@ -43,11 +43,11 @@ def test_normalized_domain(m = 5):
 	
 	dom = NormalDomain(mean, cov, truncate = 1e-2)
 	dom_norm = dom.normalized_domain()
-	print dom_norm.norm_lb
+	print(dom_norm.norm_lb)
 	assert np.all(np.isclose(dom_norm.norm_lb, -np.ones(len(dom_norm))))
-	print dom_norm.norm_ub
+	print(dom_norm.norm_ub)
 	assert np.all(np.isclose(dom_norm.norm_ub, np.ones(len(dom_norm))))
-	print dom_norm.mean
+	print(dom_norm.mean)
 	assert np.all(np.isclose(dom_norm.mean, np.zeros(len(dom_norm))))
 
 	X_norm = dom_norm.sample(1e4)
@@ -56,12 +56,12 @@ def test_normalized_domain(m = 5):
 
 def test_corner():
 	dom = NormalDomain([5], [[0.1]], truncate = 1e-2)
-	print dom.norm_lb
-	print dom.norm_ub
-	print dom._center()
-	print "lower bound", dom.corner([-1])
-	print "upper bound", dom.corner([1])
-	print dom.sample(10)
+	print(dom.norm_lb)
+	print(dom.norm_ub)
+	print(dom._center())
+	print("lower bound", dom.corner([-1]))
+	print("upper bound", dom.corner([1]))
+	print(dom.sample(10))
 
 
 # TODO: Need to implement tensor-product quadrature rules to test 

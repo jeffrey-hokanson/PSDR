@@ -8,8 +8,8 @@ import cvxpy as cp
 import scipy.linalg
 import cvxpy as cp
 from copy import copy
-from basis import *
-from function import BaseFunction
+from .basis import *
+from .function import BaseFunction
 
 __all__ = ['PolynomialFunction', 'PolynomialApproximation']
 

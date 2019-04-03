@@ -9,8 +9,9 @@ import scipy.spatial.qhull
 #from opt import projected_closest_point
 
 from scipy.spatial.distance import cdist, pdist, squareform
-from geometry import sample_sphere, voronoi_vertices, candidate_furthest_points, sample_boundary 
-from polyridge import UnderdeterminedException, IllposedException
+
+from .geometry import sample_sphere, voronoi_vertices, candidate_furthest_points, sample_boundary 
+from .polyridge import UnderdeterminedException, IllposedException
 
 
 def maximin_sample(X, domain, L, nboundary = 500):

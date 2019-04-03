@@ -7,7 +7,8 @@ import scipy.sparse
 import matplotlib.pyplot as plt
 import cvxpy as cp
 import cvxopt
-from pgf import PGF
+
+from .pgf import PGF
 
 __all__ = ['SubspaceBasedDimensionReduction',
 	'ActiveSubspace', 

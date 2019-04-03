@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from psdr import BoxDomain, LinIneqDomain
 
@@ -12,8 +13,8 @@ def test_cheb(m=5):
 	dom2 = dom.add_constraints(A,b)
 
 	center, radius = dom2.chebyshev_center()
-	print center
-	print radius
+	print(center)
+	print(radius)
 	
 	assert dom2.isinside(center), "Center must be inside"
 	

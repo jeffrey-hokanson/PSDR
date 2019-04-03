@@ -4,7 +4,7 @@ from __future__ import print_function
 import numpy as np
 from scipy.spatial import Voronoi 
 from scipy.spatial.distance import cdist, pdist, squareform
-from domains import EmptyDomain
+from .domains import EmptyDomain
 
 def sample_sphere(dim, n, k = 100):
 	""" Sample points on a high-dimensional sphere 

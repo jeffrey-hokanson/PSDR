@@ -7,13 +7,13 @@ import cvxpy as cp
 import warnings
 from copy import deepcopy, copy
 
-from domains import Domain, BoxDomain
-from function import BaseFunction
-from subspace import SubspaceBasedDimensionReduction
-from ridge import RidgeFunction
-from basis import *
-from gn import gauss_newton 
-from seqlp import sequential_lp
+from .domains import Domain, BoxDomain
+from .function import BaseFunction
+from .subspace import SubspaceBasedDimensionReduction
+from .ridge import RidgeFunction
+from .basis import *
+from .gn import gauss_newton 
+from .seqlp import sequential_lp
 
 class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function

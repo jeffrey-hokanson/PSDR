@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 from numpy.linalg import norm
 
@@ -15,7 +17,7 @@ def check_jacobian(x, residual, jacobian):
 		ei[i] = 1.
 		err = [ np.linalg.norm( (residual(x+ei*h) - residual(x-ei*h))/(2*h) - J[:,i], 2) for h in hvec]
 		j = np.argmin(err)
-		print "%3d: nominal norm:%5.5e, err:%5.5e, h: %3.3e" % (i, np.linalg.norm(J[:,i]), min(err), hvec[j])
+		print("%3d: nominal norm:%5.5e, err:%5.5e, h: %3.3e" % (i, np.linalg.norm(J[:,i]), min(err), hvec[j]))
 		Jest = (residual(x + ei*hvec[j]) - residual(x - ei*hvec[j]))/(2*hvec[j])
 		#print "Jest", Jest[0:4]
 		#print "J   ", J[0:4,i] 
@@ -38,7 +40,7 @@ def check_gradient(x, residual, jacobian):
 		ei[i] = 1.
 		err = [ np.abs( 0.5*( norm(residual(x+ei*h))**2 - norm(residual(x-ei*h))**2)/(2*h) - g[i]) for h in hvec]
 		max_err = max(min(err), max_err)
-		print "%3d: err:%5.5e" % (i, min(err))
+		print("%3d: err:%5.5e" % (i, min(err)))
 
 	return max_err
 		
@@ -53,7 +55,7 @@ def check_derivative(x, obj, grad):
 		ei[i] = 1.
 		err = [ np.linalg.norm( ( obj(x+ei*h) - obj(x-ei*h) )/(2*h) - g[i], np.inf) for h in hvec]
 		max_err = max(np.min(err), max_err)
-		print "%3d: err:%5.5e" % (i, np.min(err))
+		print("%3d: err:%5.5e" % (i, np.min(err)))
 
 	return max_err
 
@@ -76,7 +78,7 @@ def check_hessian(x, obj, hess):
 				Hij_est = ( (obj(x + h*ei + h*ej) - obj(x - h*ei + h*ej)) - (obj(x + h*ei - h*ej) - obj(x - h*ei - h*ej)) )/(4*h**2)
 				err = np.max(np.abs(Hij_est - H[i,j]))
 				min_err = np.min([min_err, err])
-			print "%d %d %5.2e : %5.2e %5.2e" % (i,j,min_err, H[i,j], Hij_est)
+			print("%d %d %5.2e : %5.2e %5.2e" % (i,j,min_err, H[i,j], Hij_est))
 			max_err = max(min_err, max_err)
 	return max_err
 

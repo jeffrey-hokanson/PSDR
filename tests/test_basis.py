@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 import scipy.linalg
 from psdr import (MonomialTensorBasis, 
@@ -27,7 +29,7 @@ def test_equivalence(m = 3, p = 5):
 	
 	for U1 in Us:
 		for U2 in Us:
-			print scipy.linalg.svdvals(U1.T.dot(U2))
+			print(scipy.linalg.svdvals(U1.T.dot(U2)))
 			assert np.all(np.isclose(scipy.linalg.svdvals(U1.T.dot(U2)), 1.))
 
 
@@ -65,7 +67,7 @@ def test_hessian(m = 2, p = 5):
 
 	for basis in bases:
 		for i in range(len(basis)):
-			print "i", i
+			print("i", i)
 			obj = lambda x: basis.V(x.reshape(1,-1))[0,i]
 			hess = lambda x: basis.DDV(x.reshape(1,-1))[0,i]
 			assert check_hessian(X[0], obj, hess) < 5e-5
@@ -73,7 +75,7 @@ def test_hessian(m = 2, p = 5):
 		
 		basis.set_scale(X)
 		for i in range(len(basis)):
-			print "i", i
+			print("i", i)
 			obj = lambda x: basis.V(x.reshape(1,-1))[0,i]
 			hess = lambda x: basis.DDV(x.reshape(1,-1))[0,i]
 			assert check_hessian(X[0], obj, hess) < 5e-5

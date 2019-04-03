@@ -4,8 +4,8 @@ import numpy as np
 import cvxpy as cp
 import warnings
 
-from domains import Domain, UnboundedDomain
-from gn import trajectory_linear, linesearch_armijo
+from .domains import Domain, UnboundedDomain
+from .gn import trajectory_linear, linesearch_armijo
 
 
 __all__ = ['minimax',

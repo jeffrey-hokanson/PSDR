@@ -33,7 +33,7 @@ def bspline(x, v, throatIndex, slopeLimits, xLimits=(None,None), delta=1e-2,
     
     # Assume x is an 1xN numpy array with equal number of x- and y-coordinates
     n_local = len(x);
-    nx = n_local/2;
+    nx = n_local//2;
     
     # Prepare linear constraint matrices, vectors, and counters
     B = np.zeros((100,n_local)); # temporary linear constraint matrix

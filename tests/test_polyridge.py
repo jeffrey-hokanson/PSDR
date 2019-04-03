@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 import scipy.linalg
 from psdr import PolynomialRidgeApproximation, LegendreTensorBasis, PolynomialRidgeFunction
@@ -35,9 +36,9 @@ def test_polyridge_der():
 
 	x = np.random.randn(m)
 
-	print prf.eval(x)
-	print prf.grad(x)
-	print prf.hessian(x)
+	print(prf.eval(x))
+	print(prf.grad(x))
+	print(prf.hessian(x))
 	
 	assert check_derivative(x, prf.eval, lambda x: prf.grad(x) ) < 1e-7
 	assert check_hessian(x, prf.eval, lambda x: prf.hessian(x) ) < 1e-5
@@ -122,8 +123,8 @@ def test_minimax_gradient():
 	res = lambda U_c: pra._residual(X, fX, U_c)
 	jac = lambda U_c: pra._jacobian(X, fX, U_c)
 	
-	print res(U_c)
-	print jac(U_c)
+	print(res(U_c))
+	print(jac(U_c))
 
 	err = check_jacobian(U_c, res, jac)	
 	assert err < 1e-6
@@ -152,7 +153,7 @@ def test_exact():
 	pra.fit(X, fX, U0 = U, verbose = 1)
 	# Because the data is an exact ridge function, we should (I think) converge to the global solution
 	for fX1, fX2 in zip(pra(X), fX):
-		print "%10.5e  %10.5e" % (fX1,fX2)
+		print("%10.5e  %10.5e" % (fX1,fX2))
 	assert np.all(np.isclose(pra(X), fX))
 
 def exact_data(M = 100, m = 10, n = 1, p = 3):

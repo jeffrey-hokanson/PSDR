@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from psdr import LinQuadDomain, BoxDomain
 
@@ -15,7 +16,7 @@ def test_isinside():
 
 	assert np.all(dom.isinside(0.5*X))
 	assert np.all(dom.isinside(X))
-	print dom.isinside(1.1*X)
+	print(dom.isinside(1.1*X))
 	assert np.all(~dom.isinside(1.1*X))
 
 
@@ -32,7 +33,7 @@ def test_extent_quad(m = 5):
 	x0 *= 0.1/np.linalg.norm(x0)
 	alpha = dom._extent_quad(x0, p)
 	norm = np.linalg.norm(L.dot(x0 + alpha*p - y))
-	print alpha, norm, rho
+	print(alpha, norm, rho)
 	assert np.isclose( norm, rho)
 
 	# Now a pathological case where the direction is in the nullspace of the metric 
@@ -75,14 +76,14 @@ def test_closest_point(m = 5):
 	x0 *= 5/np.linalg.norm(x0)
 
 	x = dom.closest_point(x0)
-	print "x0", x0/np.linalg.norm(x0)
-	print "x ", x
+	print("x0", x0/np.linalg.norm(x0))
+	print("x ", x)
 	assert np.all(np.isclose(x, x0/np.linalg.norm(x0)))
 
 	# Check when provided a L matrix	
 	x = dom.closest_point(x0, L = L)
-	print "x0", x0/np.linalg.norm(x0)
-	print "x ", x
+	print("x0", x0/np.linalg.norm(x0))
+	print("x ", x)
 	assert np.all(np.isclose(x, x0/np.linalg.norm(x0)))
 
 def test_constrained_least_squares(m = 5):
@@ -97,8 +98,8 @@ def test_constrained_least_squares(m = 5):
 
 	x1 = dom.closest_point(x0)
 	x2 = dom.constrained_least_squares(L, x0)
-	print "x1", x1
-	print "x2", x2
+	print("x1", x1)
+	print("x2", x2)
 	assert np.all(np.isclose(x1,x2))
 
 
@@ -127,5 +128,5 @@ def test_bad_scaling():
 	x1 = dom1.corner(p)
 	x2 = dom2.corner(p, verbose = True, solver = 'ECOS', abstol = 4e-10, reltol = 1e-14, feastol = 1e-14, max_iters = 500)
 	for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
-		print "x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_)
+		print("x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_))
 	assert np.all(np.isclose(x1,x2))	

@@ -4,9 +4,10 @@ from __future__ import print_function
 import numpy as np
 import scipy.optimize
 import cvxpy as cp
-from domains import UnboundedDomain
 import warnings
-from gn import trajectory_linear
+
+from .domains import UnboundedDomain
+from .gn import trajectory_linear
 
 class InfeasibleException(Exception):
 	pass

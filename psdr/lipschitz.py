@@ -10,12 +10,12 @@ from itertools import combinations
 
 from tqdm import tqdm
 
-from domains import Domain	
-from subspace import SubspaceBasedDimensionReduction
-from geometry import candidate_furthest_points
-from minimax import minimax
-from function import BaseFunction
-from pgf import PGF
+from .domains import Domain	
+from .subspace import SubspaceBasedDimensionReduction
+from .geometry import candidate_furthest_points
+from .minimax import minimax
+from .function import BaseFunction
+from .pgf import PGF
 
 __all__ = ['LipschitzMatrix', 'LipschitzConstant']
 
