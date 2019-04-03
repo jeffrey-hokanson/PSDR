@@ -16,7 +16,7 @@ from scipy.spatial import ConvexHull
 import cvxpy as cp
 import warnings
 
-
+TOL = 1e-5
 
 from .quadrature import *
 
@@ -239,7 +239,7 @@ class Domain(object):
 	def _extent(self, x, p):
 		raise NotImplementedError
 
-	def isinside(self, X):
+	def isinside(self, X, tol = TOL):
 		""" Determine if points are inside the domain
 
 		Parameters
@@ -254,14 +254,14 @@ class Domain(object):
 			if X.shape[0] != len(self):
 				return False
 			X = X.reshape(-1, len(self)) 	
-			return self._isinside(X).flatten()
+			return self._isinside(X, tol = tol).flatten()
 		else:
 			# Check if the dimensions match
 			if X.shape[1] != len(self):
 				return np.zeros(X.shape[0], dtype = np.bool)
-			return self._isinside(X)
+			return self._isinside(X, tol = tol)
 
-	def _isinside(self, X):
+	def _isinside(self, X, tol = TOL):
 		raise NotImplementedError
 
 	def normalize(self, X):
@@ -787,7 +787,10 @@ class UnboundedDomain(Domain):
 
 	Parameters
 	----------
-
+	dimension: int
+		Number of unbounded dimensions
+	names: list of strings
+		Names for each dimension
 
 	"""
 	def __init__(self, dimension, names = None):
@@ -812,7 +815,7 @@ class UnboundedDomain(Domain):
 	def _unnormalize(self, X_norm):
 		return X_norm
 
-	def _isinside(self, X):
+	def _isinside(self, X, tol = None):
 		if X.shape[1]== len(self):
 			return np.ones(X.shape[0],dtype = np.bool)
 		else:
@@ -1036,8 +1039,8 @@ class LinQuadDomain(Domain):
 			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, Ls = self.Ls_norm, ys = self.ys_norm, rhos = self.rhos_norm,
 			names = names_norm)
 
-	def _isinside(self, X):
-		return self._isinside_bounds(X) & self._isinside_ineq(X) & self._isinside_eq(X) & self._isinside_quad(X)
+	def _isinside(self, X, tol = TOL):
+		return self._isinside_bounds(X, tol = tol) & self._isinside_ineq(X, tol = tol) & self._isinside_eq(X, tol = tol) & self._isinside_quad(X, tol = tol)
 
 	def _extent(self, x, p):
 		# Check that direction satisfies equality constraints to a tolerance
@@ -1213,8 +1216,8 @@ class LinIneqDomain(LinQuadDomain):
 	def __init__(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None, names = None, **kwargs):
 		LinQuadDomain.__init__(self, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, names = None, **kwargs)
 
-	def _isinside(self, X):
-		return self._isinside_bounds(X) & self._isinside_ineq(X) & self._isinside_eq(X)
+	def _isinside(self, X, tol = TOL):
+		return self._isinside_bounds(X, tol = tol) & self._isinside_ineq(X, tol = tol) & self._isinside_eq(X, tol = tol)
 
 	def _extent(self, x, p):
 		# Check that direction satisfies equality constraints to a tolerance
@@ -1372,8 +1375,8 @@ class BoxDomain(LinIneqDomain):
 	def _extent(self, x, p):
 		return self._extent_bounds(x, p)
 
-	def _isinside(self, X):
-		return self._isinside_bounds(X)
+	def _isinside(self, X, tol = TOL):
+		return self._isinside_bounds(X, tol = tol)
 
 	def _normalized_domain(self):
 		names_norm = [name + ' (normalized)' for name in self.names]
@@ -1391,11 +1394,6 @@ class BoxDomain(LinIneqDomain):
 	@property
 	def b_eq(self): return np.zeros((0))
 	
-	def _isinside(self, X):
-		return self._isinside_bounds(X) 
-
-	def _extent(self, x, p):
-		return self._extent_bounds(x, p)
 	
 	def quadrature_rule(self, N, method = 'auto'):
 		r""" Constructs quadrature rule for the domain
@@ -1493,7 +1491,7 @@ class PointDomain(BoxDomain):
 	def _extent(self, x, p):
 		return 0
 
-	def _isinside(self, X):
+	def _isinside(self, X, tol = TOL):
 		Pcopy = np.tile(self._point.reshape(1,-1), (X.shape[0],1))
 		return np.all(X == Pcopy, axis = 1)	
 
@@ -1593,11 +1591,11 @@ class TensorProductDomain(Domain):
 			X.append(dom.sample(draw = draw))
 		return np.hstack(X)
 
-	def _isinside(self, X):
+	def _isinside(self, X, tol = TOL):
 		inside = np.ones(X.shape[0], dtype = np.bool)
 		for dom, I in zip(self.domains, self._slices):
 			#print(dom, I, dom.isinside(X[:,I]))
-			inside = inside & dom.isinside(X[:,I])
+			inside = inside & dom.isinside(X[:,I], tol = tol)
 		return inside
 
 	def _extent(self, x, p):
@@ -1873,8 +1871,8 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 	def b_eq(self): return np.zeros(0)
 
 
-	def _isinside(self, X):
-		return self._isinside_quad(X) 
+	def _isinside(self, X, tol = TOL):
+		return self._isinside_quad(X, tol = tol) 
 
 	def _pdf(self, X):
 		# Mahalanobis distance
