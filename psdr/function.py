@@ -55,20 +55,20 @@ class Function(BaseFunction, Domain):
 		The domain on which the function is posed	
 	vectorized: bool, default: False
 		If True, the functions are vectorized for use with numpy.
-	fun_kwargs: dict, default: empty
+	kwargs: dict, default: empty
 		Keyword arguments to pass to the functions when evaluating function
 	dask_client: dask.distributed.Client
 		Client to use for multiprocessing 
 	"""
 
-	# TODO: Implement fancy pool-features
-
-	def __init__(self, funs, domain, grads = None, fd_grad = None, vectorized = False, fun_kwargs = None,
+	def __init__(self, funs, domain, grads = None, fd_grad = None, vectorized = False, kwargs = {},
 		dask_client = None):
 
 		self.dask_client = dask_client
 
 		self.vectorized = vectorized
+
+		self.kwargs = kwargs
 		
 		if callable(funs):
 			self._funs = [funs]
@@ -132,21 +132,21 @@ class Function(BaseFunction, Domain):
 		if len(X.shape) == 1:
 			x = X.flatten()
 			if callable(self._funs):
-				return self._funs(x)
+				return self._funs(x, **self.kwargs)
 			else:
-				return np.hstack([fun(x) for fun in self._funs])
+				return np.hstack([fun(x, **self.kwargs) for fun in self._funs])
 
 		elif len(X.shape) == 2:
 			if callable(self._funs):
 				if self.vectorized:
-					return self._funs(X)
+					return self._funs(X, **self.kwargs)
 				else:
-					return np.vstack([self._funs(x) for x in X])
+					return np.vstack([self._funs(x, **self.kwargs) for x in X])
 			else:
 				if self.vectorized:
-					return np.hstack([ np.array(fun(X)).reshape(-1,1) for fun in self._funs])
+					return np.hstack([ np.array(fun(X, **self.kwargs)).reshape(-1,1) for fun in self._funs])
 				else:
-					return np.vstack([ np.hstack([fun(x) for fun in self._funs]) for x in X])
+					return np.vstack([ np.hstack([fun(x, **self.kwargs) for fun in self._funs]) for x in X])
 					
 		else:
 			raise NotImplementedError
@@ -161,12 +161,12 @@ class Function(BaseFunction, Domain):
 		X = self.domain_app.unnormalize(X_norm)
 		X = np.atleast_2d(X)
 
-		def subcall(funs_pickle, x):
+		def subcall(funs_pickle, x, **kwargs):
 			import cloudpickle
 			funs = [cloudpickle.loads(fun) for fun in funs_pickle]
-			return [fun(x) for fun in funs]
+			return [fun(x, **kwargs) for fun in funs]
 
-		results = [self.dask_client.submit(subcall, self._funs_pickle, x) for x in X]	
+		results = [self.dask_client.submit(subcall, self._funs_pickle, x, **self.kwargs) for x in X]	
 		if len(X_norm.shape) == 1:
 			return results[0]
 		else:
@@ -280,7 +280,7 @@ if __name__ == '__main__':
 	#exec(dill.source.getsource(borehole))	
 	#print(dill.dumps(borehole))
 
-	client = Client('tcp://192.168.128.88:8786')
+	client = Client('tcp://10.101.89.165:8786')
 
 	fun = Borehole(dask_client = client)
 
