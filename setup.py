@@ -18,6 +18,7 @@ setup(name='psdr',
 		'tqdm',
 		'dask',
 		'distributed',
+		# Required for python 2.7
 		'tornado<6.0.0',
 		],
 	)
