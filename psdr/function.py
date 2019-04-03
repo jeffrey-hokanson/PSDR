@@ -1,14 +1,18 @@
+from __future__ import print_function
 import numpy as np
-import dill
-# We set this so that functions can be transparently pickled
-# from the users perspective
-dill.settings['recurse'] = True
+import textwrap
+import inspect
+
+import cloudpickle
 
 from domains import Domain
 
 
 __all__ = ['Function', 'BaseFunction']
 
+# I've stopped using dill entirely because this issue prevents 
+# me from loading modules inside functions
+# https://github.com/uqfoundation/dill/issues/219	
 
 class BaseFunction(object):
 	r""" Abstract base class for functions
@@ -79,10 +83,10 @@ class Function(BaseFunction, Domain):
 
 		if dask_client is not None:
 			# Pickle the functions for later use when calling distributed code
-			self._funs_dill = []
+			self._funs_pickle = []
 			for fun in self._funs:	
 				# A big problem is when functions are imported from another module
-				# dill will simply want to import these functions;
+				# dill/cloudpickle will simply want to import these functions;
 				# i.e., the function is stored by a referrence to the file in which it originated.
 				# See discussion at https://github.com/uqfoundation/dill/issues/123
 				
@@ -93,14 +97,25 @@ class Function(BaseFunction, Domain):
 				# So we do something more sophisticated in order to pickle these functions.
 			
 				# (1) We bring the function into the local scope, evaluating the function definition
-				# inside this loop. 
-				exec(dill.source.getsource(fun))
+				# inside this loop.
+				# Specifically, we run the code inside a custom scope in order to 
+				# have the code load into dill/cloudpickle rather than passing around
+				# as a reference.  The limited scope prevents this from overwriting any local functions
 
+				# Get the code 
+				code = inspect.getsource(fun)
+				
+				# Strip indentation 
+				code = textwrap.dedent(code)
+				
+				# Execute code	
+				scope = {}
+				exec(code, scope, scope)
+	
 				# (2) We now pickle this function 
-				# eval(fun.__name__) is the name of the function we just executed
-				self._funs_dill.append(dill.dumps(eval(fun.__name__)))
+				# scope is a dictionary of functions, and the name allows us to specify which
+				self._funs_pickle.append(cloudpickle.dumps(scope[fun.__name__]))
 
-				#self._funs_dill.append((dill.source.getsource(fun), fun.__name__ ))
 
 		
 		self.domain_app = domain
@@ -144,14 +159,18 @@ class Function(BaseFunction, Domain):
 
 		X_norm = np.atleast_1d(X_norm)
 		X = self.domain_app.unnormalize(X_norm)
+		X = np.atleast_2d(X)
 
-		def subcall(funs_dill, x):
-			import dill
-			funs = [dill.loads(fun) for fun in funs_dill]
+		def subcall(funs_pickle, x):
+			import cloudpickle
+			funs = [cloudpickle.loads(fun) for fun in funs_pickle]
 			return [fun(x) for fun in funs]
 
-		return [self.dask_client.submit(subcall, self._funs_dill, x) for x in X]	
-		
+		results = [self.dask_client.submit(subcall, self._funs_pickle, x) for x in X]	
+		if len(X_norm.shape) == 1:
+			return results[0]
+		else:
+			return results
 
 	def grad(self, X_norm):
 		X_norm = np.atleast_1d(X_norm)
@@ -261,12 +280,12 @@ if __name__ == '__main__':
 	#exec(dill.source.getsource(borehole))	
 	#print(dill.dumps(borehole))
 
-	client = Client('tcp://10.101.89.84:8786')
+	client = Client('tcp://192.168.128.88:8786')
 
 	fun = Borehole(dask_client = client)
 
 	np.random.seed(0)	
-	X = fun.domain.sample(10)
+	X = fun.domain.sample(5)
 	res = fun.eval_async(X)
 	for r in res:
 		print(r.result())	

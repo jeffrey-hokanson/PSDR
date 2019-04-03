@@ -33,6 +33,7 @@ def borehole(X):
 
 	See: https://www.sfu.ca/~ssurjano/borehole.html
 	"""
+	import numpy as np
 	X = X.reshape(-1, 8)
 
 	# Split the variables
