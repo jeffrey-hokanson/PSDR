@@ -18,5 +18,6 @@ setup(name='psdr',
 		'tqdm',
 		'dask',
 		'distributed',
+		'tornado<6.0.0',
 		],
 	)
