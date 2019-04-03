@@ -22,11 +22,12 @@ def build_otl_circuit_domain():
 	lb = np.array([50, 25, 0.5, 1.2, 0.25, 50])
 	ub = np.array([150, 70, 3, 2.5, 1.2, 300])
 
-	return BoxDomain(lb, ub, names = ['R_b1', 'R_b2', 'R_f', 'R_c2', 'beta'])
+	return BoxDomain(lb, ub, names = ['R_b1', 'R_b2', 'R_f', 'R_c1', 'R_c2', 'beta'])
 
 def otl_circuit(x, return_grad = False):
-	if x.shape == 0:
-		x = x.reshape(-1,6)
+	import numpy as np
+	x = np.array(x).reshape(-1,6)
+	
 	Rb1 = x[:,0]
 	Rb2 = x[:,1]
 	Rf = x[:,2]
