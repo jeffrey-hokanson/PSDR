@@ -5,7 +5,7 @@ import scipy.linalg
 from scipy.linalg import solve, svd
 import scipy.spatial.qhull
 
-from pool import SequentialPool
+#from pool import SequentialPool
 #from opt import projected_closest_point
 
 from scipy.spatial.distance import cdist, pdist, squareform
@@ -128,158 +128,158 @@ def multiobjective_maximin_sample(X, domain, Ls, nboundary = 500):
 
 
 
-class Sampler(object):
-	def __init__(self, f, domain, pool = None, X0 = None, fX0 = None):
-		
-		# Copy over variables
-		self.f = f
-		self.domain = domain
-		
-		if pool is None:
-			pool = SequentialPool()
-		self.pool = pool
-
-		if X0 is None:
-			self.X = []
-		else:
-			self.X = [x for x in X0]
-		if fX0 is None:
-			self.fX = []
-		else:
-			self.fX = [fx for fx in fX0]
-		
-
-	def _draw_sample(self, Xrunning):
-		raise NotImplementedError
-
-	def sample(self, draw = 1):
-		""" 
-		"""
-		for k in range(draw):
-			Xrunning = np.zeros((0, len(self.domain))) 
-			xnew = self._draw_sample([Xrunning,])
-			job = self.pool.apply(self.f, args = [xnew,])
-			fxnew = job.output
-			self.X  += [xnew]
-			self.fX += [float(fxnew)]
-			
-
-	def parallel_sample(self, draw = 1, dt = 0.1):
-		# TODO: Add assertion about pool support async 
-		njobs = 0
-		jobs = []
-	
-		while njobs < draw:
-			# If we have a worker avalible 
-			if self.pool.avail_workers() > 0:
-				# Determine which jobs are done
-				done = [k for k, job in enumerate(jobs) if job.ready()]
-
-				# Get the updated information
-				Xnew = [jobs[k].args[0] for k in done]
-				fXnew = [jobs[k].output for k in done]
-
-				# Update the input/ouput pairs
-				self.X  += Xnew
-				self.fX += fXnew
-
-				# Delete the completed jobs
-				jobs = [jobs[k] for k in enumerate(jobs) if k not in done]
-				
-				# Extract the points that are currently running
-				Xrunning = [jobs.args[0] for k in jobs] 
-				
-				# Draw a sample and enqueue it
-				x = self._draw_sample(Xrunning)
-				jobs.append(self.pool.apply_async(self.f, args = [x,]))
-				njobs += 1	
-			else:
-				time.sleep(dt)
-
-		# Wait for all jobs to finish
-		self.pool.join()		
-				
-		Xnew  = [job.args[0] for job in jobs]
-		fXnew = [job.output for job in jobs]
-
-		# Update X, fX
-		self.X += Xnew
-		self.fX += fXnew
-
-
-
-class RandomSampler(Sampler):
-	def _draw_sample(self, Xrunning):
-		return self.domain.sample()	
-
-class UniformSampler(Sampler):
-	""" Sample uniformly on the normalized domain
-
-	"""
-	def __init__(self, f, domain, pool = None, X0 = None, fX0 = None):
-		Sampler.__init__(self, f, domain, pool = pool, X0 = X0, fX0 = fX0) 		
-		self.domain_norm = self.domain.normalized_domain()
-		self.L = np.eye(len(self.domain))
-
-	def _draw_sample(self, Xrunning):
-		Xall = np.array(self.X + Xrunning)
-		Xall_norm = self.domain.normalize(Xall)
-		
-		xnew_norm = maximin_sample(Xall_norm, self.domain_norm, self.L)
-		xnew = self.domain.unnormalize(xnew_norm)
-		return xnew
-
-class RidgeSampler(Sampler):
-	"""
-
-	Note: the ridge approximation is always formed on the normalized domain
-
-	Parameters
-	----------
-	pra: Instance of PolynomialRidgeApproximation
-	"""
-	def __init__(self, f, domain, pra, **kwargs):
-		Sampler.__init__(self, f, domain, **kwargs)
-		self.domain_norm = self.domain.normalized_domain()
-		self.pra = pra
-		self.U = None
-		self.fill_dist = np.inf
-
-	def _draw_sample(self, Xrunning):
-		if len(self.fX) <= len(self.domain)+1:
-			return self.domain.sample()
-
-		# Build ridge approximation
-		X_norm = self.domain.normalize(self.X)
-		fX = np.array(self.fX)
-		I = np.isfinite(fX)
-		try:
-			self.pra.fit(X_norm[I], fX[I])
-		except (UnderdeterminedException, IllposedException):
-			# If we can't yet solve the problem, sample randomly
-			return self.domain.sample()		
-
-		Xall = np.vstack(self.X + Xrunning)
-		Xall_norm = self.domain.normalize(Xall)
-		self.U = self.pra.U
-		xnew_norm = maximin_sample(Xall_norm, self.domain_norm, L = self.U.T)
-		self.fill_dist = np.min(cdist(self.U.T.dot(xnew_norm).reshape(1,-1), self.U.T.dot(Xall_norm.T).T))
-		xnew = self.domain.unnormalize(xnew_norm)
-		return xnew
-					
-if __name__ == '__main__':
-	from demos import golinski_volume, build_golinski_design_domain
-	from poly_ridge import PolynomialRidgeApproximation
-	dom = build_golinski_design_domain()
-		
-	f = golinski_volume
-	
-	np.random.seed(0)
-
-	pra = PolynomialRidgeApproximation(degree = 5, subspace_dimension = 1)
-	samp = RidgeSampler(f, dom, pra)
-	samp.sample(2)
-	for k in range(2,1000):
-		samp.sample()
-		print("%3d %5.2e" % (k, samp.fill_dist))
+#class Sampler(object):
+#	def __init__(self, f, domain, pool = None, X0 = None, fX0 = None):
+#		
+#		# Copy over variables
+#		self.f = f
+#		self.domain = domain
+#		
+#		if pool is None:
+#			pool = SequentialPool()
+#		self.pool = pool
+#
+#		if X0 is None:
+#			self.X = []
+#		else:
+#			self.X = [x for x in X0]
+#		if fX0 is None:
+#			self.fX = []
+#		else:
+#			self.fX = [fx for fx in fX0]
+#		
+#
+#	def _draw_sample(self, Xrunning):
+#		raise NotImplementedError
+#
+#	def sample(self, draw = 1):
+#		""" 
+#		"""
+#		for k in range(draw):
+#			Xrunning = np.zeros((0, len(self.domain))) 
+#			xnew = self._draw_sample([Xrunning,])
+#			job = self.pool.apply(self.f, args = [xnew,])
+#			fxnew = job.output
+#			self.X  += [xnew]
+#			self.fX += [float(fxnew)]
+#			
+#
+#	def parallel_sample(self, draw = 1, dt = 0.1):
+#		# TODO: Add assertion about pool support async 
+#		njobs = 0
+#		jobs = []
+#	
+#		while njobs < draw:
+#			# If we have a worker avalible 
+#			if self.pool.avail_workers() > 0:
+#				# Determine which jobs are done
+#				done = [k for k, job in enumerate(jobs) if job.ready()]
+#
+#				# Get the updated information
+#				Xnew = [jobs[k].args[0] for k in done]
+#				fXnew = [jobs[k].output for k in done]
+#
+#				# Update the input/ouput pairs
+#				self.X  += Xnew
+#				self.fX += fXnew
+#
+#				# Delete the completed jobs
+#				jobs = [jobs[k] for k in enumerate(jobs) if k not in done]
+#				
+#				# Extract the points that are currently running
+#				Xrunning = [jobs.args[0] for k in jobs] 
+#				
+#				# Draw a sample and enqueue it
+#				x = self._draw_sample(Xrunning)
+#				jobs.append(self.pool.apply_async(self.f, args = [x,]))
+#				njobs += 1	
+#			else:
+#				time.sleep(dt)
+#
+#		# Wait for all jobs to finish
+#		self.pool.join()		
+#				
+#		Xnew  = [job.args[0] for job in jobs]
+#		fXnew = [job.output for job in jobs]
+#
+#		# Update X, fX
+#		self.X += Xnew
+#		self.fX += fXnew
+#
+#
+#
+#class RandomSampler(Sampler):
+#	def _draw_sample(self, Xrunning):
+#		return self.domain.sample()	
+#
+#class UniformSampler(Sampler):
+#	""" Sample uniformly on the normalized domain
+#
+#	"""
+#	def __init__(self, f, domain, pool = None, X0 = None, fX0 = None):
+#		Sampler.__init__(self, f, domain, pool = pool, X0 = X0, fX0 = fX0) 		
+#		self.domain_norm = self.domain.normalized_domain()
+#		self.L = np.eye(len(self.domain))
+#
+#	def _draw_sample(self, Xrunning):
+#		Xall = np.array(self.X + Xrunning)
+#		Xall_norm = self.domain.normalize(Xall)
+#		
+#		xnew_norm = maximin_sample(Xall_norm, self.domain_norm, self.L)
+#		xnew = self.domain.unnormalize(xnew_norm)
+#		return xnew
+#
+#class RidgeSampler(Sampler):
+#	"""
+#
+#	Note: the ridge approximation is always formed on the normalized domain
+#
+#	Parameters
+#	----------
+#	pra: Instance of PolynomialRidgeApproximation
+#	"""
+#	def __init__(self, f, domain, pra, **kwargs):
+#		Sampler.__init__(self, f, domain, **kwargs)
+#		self.domain_norm = self.domain.normalized_domain()
+#		self.pra = pra
+#		self.U = None
+#		self.fill_dist = np.inf
+#
+#	def _draw_sample(self, Xrunning):
+#		if len(self.fX) <= len(self.domain)+1:
+#			return self.domain.sample()
+#
+#		# Build ridge approximation
+#		X_norm = self.domain.normalize(self.X)
+#		fX = np.array(self.fX)
+#		I = np.isfinite(fX)
+#		try:
+#			self.pra.fit(X_norm[I], fX[I])
+#		except (UnderdeterminedException, IllposedException):
+#			# If we can't yet solve the problem, sample randomly
+#			return self.domain.sample()		
+#
+#		Xall = np.vstack(self.X + Xrunning)
+#		Xall_norm = self.domain.normalize(Xall)
+#		self.U = self.pra.U
+#		xnew_norm = maximin_sample(Xall_norm, self.domain_norm, L = self.U.T)
+#		self.fill_dist = np.min(cdist(self.U.T.dot(xnew_norm).reshape(1,-1), self.U.T.dot(Xall_norm.T).T))
+#		xnew = self.domain.unnormalize(xnew_norm)
+#		return xnew
+#					
+#if __name__ == '__main__':
+#	from demos import golinski_volume, build_golinski_design_domain
+#	from poly_ridge import PolynomialRidgeApproximation
+#	dom = build_golinski_design_domain()
+#		
+#	f = golinski_volume
+#	
+#	np.random.seed(0)
+#
+#	pra = PolynomialRidgeApproximation(degree = 5, subspace_dimension = 1)
+#	samp = RidgeSampler(f, dom, pra)
+#	samp.sample(2)
+#	for k in range(2,1000):
+#		samp.sample()
+#		print("%3d %5.2e" % (k, samp.fill_dist))
 		 

@@ -13,9 +13,7 @@ from .minimax import *
 from .gn import *
 
 #from lipschitz import scalar_lipschitz, multivariate_lipschitz, check_lipschitz  
-from .redis_pool import RedisJob, RedisPool, RedisWorker
 #from opt.shared import LinProgException, InfeasibleConstraints
-from .pool import Pool, SequentialJob, SequentialPool
 from .sample import maximin_sample 
 
 import quadrature
