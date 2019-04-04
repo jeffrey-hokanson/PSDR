@@ -653,29 +653,3 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		self._finish(X, fX, U)
 	
 
-if __name__ == '__main__':
-	import matplotlib.pyplot as plt
-
-	np.random.seed(3)
-	p = 3
-	m = 4
-	n = 1
-	M = 500
-
-	U = orth(np.random.randn(m,n))
-	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
-	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
-
-
-	X = np.random.randn(M,m)
-	fX = prf.eval(X) 
-	fX += 1*np.random.uniform(-1,1, size = fX.shape)
-
-	#U0 = orth(np.random.randn(m,n))
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = 1, bound = 'lower')
-	pra.fit(X, fX, verbose = True)
-	
-
-	pra.shadow_plot(X, fX)
-	plt.show()
-
