@@ -2,7 +2,10 @@ from __future__ import print_function
 import numpy as np
 from psdr.demos import build_multif_domain
 
+
+
 def test_multif():
+	np.random.seed(0)
 	dom = build_multif_domain().normalized_domain()
 	#for i in range(len(dom)):
 	#	print("%10.2e, %10.2e" % (dom.norm_lb[i], dom.norm_ub[i])) 
