@@ -91,7 +91,7 @@ def corner(dom, p, **kwargs):
 		constraints = dom._build_constraints_norm(x_norm)
 		problem = cp.Problem(cp.Maximize(obj), constraints)
 		problem.solve(**kwargs)
-	if problem.status != 'optimal':
+	if problem.status not in ['optimal', 'optimal_inaccurate']:
 		raise SolverError
 	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
 
