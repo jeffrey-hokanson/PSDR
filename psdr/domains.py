@@ -512,6 +512,21 @@ class Domain(object):
 	def b(self): return np.zeros((0,))
 
 	@property
+	def A_aug(self): 
+		r""" Linear inequalities augmented with bound constraints as well
+		"""
+		I = np.eye(len(self))
+		Ilb = np.isfinite(self.lb)
+		Iub = np.isfinite(self.ub)
+		return np.vstack([self.A, -I[Ilb,:], I[Iub,:]])
+
+	@property
+	def b_aug(self):
+		Ilb = np.isfinite(self.lb)
+		Iub = np.isfinite(self.ub)
+		return np.hstack([self.b, -self.lb[Ilb], self.ub[Iub]])
+
+	@property
 	def A_eq(self): return np.zeros((0, len(self)))
 
 	@property

@@ -17,4 +17,4 @@ from .gn import *
 from .sample import maximin_sample 
 
 from .quadrature import *
- 
+from .vertex import voronoi_vertex 
