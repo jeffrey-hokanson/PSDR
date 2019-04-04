@@ -45,7 +45,7 @@ class GolinskiGearbox(Function):
 			41(3), 2003, pp 556--558
 
 	"""
-	def __init__(self):
+	def __init__(self, dask_client = None):
 		domain = build_golinski_design_domain() 
 		funs = [golinski_volume,
 				golinski_constraint1,
@@ -73,7 +73,7 @@ class GolinskiGearbox(Function):
 				golinski_constraint24_grad,
 				golinski_constraint25_grad,
 				]
-		Function.__init__(self, funs, domain, grads = grads, vectorized = True)
+		Function.__init__(self, funs, domain, grads = grads, vectorized = True, dask_client = dask_client)
 	
 
 

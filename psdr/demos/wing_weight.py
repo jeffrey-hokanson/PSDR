@@ -21,7 +21,7 @@ def build_wing_weight_domain():
 	# Sw, Wfw, A, Lam, q, lam, tc, Nz, Wdg, Wp
 	lb = np.array([150, 220, 6, -10, 16, 0.5, 0.08, 2.5, 1700, 0.025])
 	ub = np.array([200, 300, 10, 10, 45,   1, 0.18,   6, 2500, 0.08])
-	return BoxDomain(lb, ub)
+	return BoxDomain(lb, ub, names = ['S_w', 'W_fw', 'A', 'Lambda', 'q', 'lambda', 't_c', 'N_z', 'W_dg', 'W_p'])
 
 
 
