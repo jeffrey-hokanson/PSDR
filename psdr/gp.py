@@ -1,17 +1,19 @@
+from __future__ import print_function
 import numpy as np
 from scipy.spatial.distance import cdist, pdist, squareform
 import scipy.linalg
 from scipy.linalg import eigh, expm, logm
 from scipy.optimize import fmin_l_bfgs_b
+import scipy.optimize
 from itertools import product
 #from opt import check_gradient
 from .basis import LegendreTensorBasis
-
+from .function import BaseFunction
 __all__ = ['GaussianProcess']
 
 	
 	
-class GaussianProcess(object):
+class GaussianProcess(BaseFunction):
 	r""" Fits a Gaussian Process by maximizing the marginal likelihood
 
 	Given :math:`M` pairs of :math:`\mathbf{x}_i \in \mathbb{R}^m` and :math:`y_i \in \mathbb{R}`,
@@ -158,7 +160,14 @@ class GaussianProcess(object):
 			L = np.zeros((self.m*self.m,), dtype = ell.dtype)
 			L[self.tril_flat] = ell
 			L = L.reshape(self.m,self.m)
-			return scipy.linalg.expm(L) - np.eye(self.m)
+			#ew, V = scipy.linalg.eigh(L.dot(L.conj().T) )
+			#Lexp2 = V.dot(np.diag(0.5*np.expm1(ew))).dot(V.conj().T)
+			#Lexp = scipy.linalg.expm(L) - np.eye(self.m)
+			# This is a more numerically stable way to compute expm(L) - I
+			# (think of the Taylor series for this operator)
+			Lexp = L.dot(scipy.linalg.expm(L))
+			#print("error", np.linalg.norm(Lexp2 - Lexp))
+			return Lexp
 
 	def _log_marginal_likelihood(self, ell, X = None, y = None, return_obj = True, return_grad = False, return_alpha_beta = False):
 		
@@ -195,14 +204,19 @@ class GaussianProcess(object):
 		if return_alpha_beta:
 			return alpha, beta
 
-		ew, ev = scipy.linalg.eigh(K + self.nugget*np.eye(K.shape[0]))	
+		ew, ev = scipy.linalg.eigh(K + self.nugget*np.eye(K.shape[0]))
+		#if np.min(ew) <= 0:
+		#	bonus_regularization = -2*np.min(ew)+1e-14 
+		#	ew += bonus_regularization
+		#	K += bonus_regularization*np.eye(K.shape[0])
 
 		if return_obj:
 			# Should this be with yhat or y?
 			# yhat = y - np.dot(V, beta)
 			# Doesn't matter because alpha in nullspace of V.T
 			# RW06: (5.8)
-			obj = 0.5*np.dot(y, alpha) + 0.5*np.sum(np.log(ew))
+			with np.errstate(invalid = 'ignore'):
+				obj = 0.5*np.dot(y, alpha) + 0.5*np.sum(np.log(ew))
 			if not return_grad:
 				return obj
 		
@@ -217,7 +231,6 @@ class GaussianProcess(object):
 				# Approximation of the matrix exponential derivative [MH10]
 				h = 1e-10
 				dL = np.imag(self._make_L(ell + 1j*h*eidx))/h
-				#print "dL", dL
 				dY = np.dot(dL, X.T).T
 				for i in range(M):
 					# Evaluate the dot product
@@ -254,7 +267,7 @@ class GaussianProcess(object):
 			# Note flipped signs from RW06 eq. 5.9
 			grad[k] = 0.5*np.trace(Kinv_dK)
 			grad[k] -= 0.5*np.dot(alpha, np.dot(alpha, dK[:,:,k]))
-		
+
 		if return_obj and return_grad:
 			return obj, grad
 		if not return_obj:
@@ -314,7 +327,7 @@ class GaussianProcess(object):
 
 	
 		if L0 is None:
-			L0 = np.eye(m)
+			L0 = np.eye(self.m)
 
 		if self.structure == 'tril':
 			ell0 = np.array([L0[i,j] for i, j in self.tril_ij])
@@ -334,14 +347,20 @@ class GaussianProcess(object):
 
 
 	def _fit(self, ell0):
-		ell, obj, d = fmin_l_bfgs_b(self._obj, ell0, fprime = self._grad, disp = False)
+		# the implementation in l_bfgs_b seems flaky when we have invalid values
+		#ell, obj, d = fmin_l_bfgs_b(self._obj, ell0, fprime = self._grad, disp = True)
+		res = scipy.optimize.minimize(self._obj, 
+				ell0, 
+				jac = self._grad,
+				#method = 'L-BFGS-B',
+				#options = {'disp': True}, 
+			)
+		ell = res.x
 		self.L = self._make_L(ell)
 		self.alpha, self.beta = self._log_marginal_likelihood(ell, 
 			return_obj = False, return_grad = False, return_alpha_beta = True)
 
-			
-
-	def predict(self, Xnew, return_cov = False):
+	def eval(self, Xnew, return_cov = False):
 		Y = np.dot(self.L, self.X.T).T
 		Ynew = np.dot(self.L, Xnew.T).T
 		dij = cdist(Ynew, Y, 'sqeuclidean')	
