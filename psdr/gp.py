@@ -383,22 +383,3 @@ class GaussianProcess(BaseFunction):
 		else:
 			return fXnew
 
-if __name__ == '__main__':
-	m = 7
-	#np.random.seed(0)
-	X = np.random.randn(100,m)
-	#Xnew = np.linspace(-1,1,100).reshape(-1,1)
-	a = 2*np.ones(m)
-	y = np.dot(a.T, X.T).T**2 + 1
-
-	gp = GaussianProcess(degree = 1, structure = 'const')
-	gp.fit(X, y)
-	Xnew = np.random.randn(int(1e3),m)
-	gp.predict(Xnew)
-	#yhat, cov = gp.predict(Xnew, return_cov = True)
-	#print y
-	#print yhat
-	#print cov
-	#print y - gp.predict(X)
-	#print gp.beta
-	#print gp.L	

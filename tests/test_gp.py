@@ -64,18 +64,22 @@ def test_gp_fit(m = 3, M = 100):
 	a = np.ones(m)
 	b = np.ones(m)
 	b[0] = 0
-	f = lambda x: x.dot(a) + x.dot(b)**2
+	f = lambda x: np.sin(x.dot(a)) + x.dot(b)**2
 	fun = Function(f, dom) 
 	X = dom.sample(M)
 	fX = f(X)
 	for structure in ['const', 'diag', 'tril']:
-		gp = GaussianProcess(structure = structure)
-		gp.fit(X, fX)
-		print(gp.L)
-		I = ~np.isclose(gp(X), fX)
-		print(fX[I])
-		print(gp(X[I]))
-		assert np.all(np.isclose(gp(X), fX, atol = 1e-5)), "we should interpolate samples"
+		for degree in [None, 0, 1]:
+			gp = GaussianProcess(structure = structure, degree = degree)
+			gp.fit(X, fX)
+			print(gp.L)
+			I = ~np.isclose(gp(X), fX)
+			print(fX[I])
+			print(gp(X[I]))
+			assert np.all(np.isclose(gp(X), fX, atol = 1e-5)), "we should interpolate samples"
+
+			_, cov = gp.eval(X, return_cov = True)
+			assert np.all(np.isclose(cov, 0, atol = 1e-3)), "Covariance should be small at samples"
 
 if __name__ == '__main__':
 	test_gp_fit()
