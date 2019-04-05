@@ -27,9 +27,9 @@ class BaseFunction(object):
 	def hessian(self, X):
 		raise NotImplementedError
 
-	def __call__(self, X, return_grad = False):
+	def __call__(self, X, return_grad = False, **kwargs):
 		if return_grad:
-			return self.eval(X), self.grad(X)
+			return self.eval(X, **kwargs), self.grad(X)
 		else:
 			return self.eval(X)
 
