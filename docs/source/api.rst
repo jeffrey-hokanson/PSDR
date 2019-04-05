@@ -5,7 +5,7 @@ API Documentation
    domain 
    basis
    function
-   pools
+   geometry
    samplers
    subspace
    surrogate
