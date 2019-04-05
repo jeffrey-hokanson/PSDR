@@ -43,6 +43,18 @@ def linear_fit(A, b, norm = 2, bound = None):
 
 
 class PolynomialFunction(BaseFunction):
+	r""" A polynomial function in a Legendre basis 	
+
+
+	Parameters
+	----------
+	dimension: int
+		Input dimension
+	degree: int
+		Degree of polynomial
+	coef: array-like
+		Coefficients of polynomial	
+	"""
 	def __init__(self, dimension, degree, coef):
 		self.basis = LegendreTensorBasis(dimension, degree) 
 		self.coef = coef
@@ -94,6 +106,21 @@ class PolynomialFunction(BaseFunction):
 	
 
 class PolynomialApproximation(PolynomialFunction):
+	r""" Construct a polynomial approximation
+
+	Parameters
+	----------
+	degree: int
+		Degree of polynomial
+	basis: ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
+		Basis in which to express the polynomial
+	norm: [1, 2, np.inf]
+		Norm in which to find the approximation
+	bound: [None, 'lower', 'upper']
+		If None, construct approximation in the specified norm;
+		if 'lower' or 'upper', additionally enforce the constraint that
+		the approximation is below or above the measured samples	
+	"""
 	def __init__(self, degree, basis = 'legendre', norm = 2, bound = None):
 
 		degree = int(degree)
@@ -136,11 +163,3 @@ class PolynomialApproximation(PolynomialFunction):
 
 		self.coef = linear_fit(V, fX, norm = self.norm, bound = self.bound)
 
-if __name__ == '__main__':
-	X = np.random.randn(100, 5)
-	fX = np.random.randn(100,)
-
-	poly = PolynomialApproximation(degree = 2)
-	poly.fit(X, fX)
-	print(poly.eval(X).shape)
-	print(poly.grad(X).shape)
