@@ -102,6 +102,7 @@ def voronoi_vertex(domain, Xhat, X0):
 			# If there are no active constraints, don't do anything
 			if nullspace.shape[1]>0:
 				Q, R = np.linalg.qr(nullspace)
+				print('k=%d: %d' % (k, Q.shape[1]))
 				h[i] -= Q.dot(Q.T.dot(h[i]))
 		
 		# Now we find the furthest we can step along this direction before either hitting a
