@@ -36,7 +36,7 @@ class SubspaceBasedDimensionReduction(object):
 		raise NotImplementedError
 
 
-	def shadow_plot(self, X = None, fX = None, dim = 1, ax = None, pgfname = None):
+	def shadow_plot(self, X = None, fX = None, dim = 1, ax = 'auto', pgfname = None):
 		r""" Draw a shadow plot
 
 
@@ -48,7 +48,7 @@ class SubspaceBasedDimensionReduction(object):
 			Values of function at sample points
 		dim: int, [1,2]
 			Dimension of shadow plot
-		ax: matplotlib.pyplot.axis
+		ax: 'auto', matplotlib.pyplot.axis, or None
 			Axis on which to draw the shadow plot
 
 		Returns
@@ -56,7 +56,7 @@ class SubspaceBasedDimensionReduction(object):
 		ax: matplotlib.pyplot.axis
 			Axis on which the plot is drawn
 		"""
-		if ax is None:
+		if ax is 'auto':
 			if dim == 1:
 				fig, ax = plt.subplots(figsize = (6,6))
 			else:
@@ -67,9 +67,10 @@ class SubspaceBasedDimensionReduction(object):
 			X = self.X
 		
 		if dim == 1:
-			ax.plot(X.dot(self.U[:,0]), fX, 'k.')
-			ax.set_xlabel(r'active coordinate $\mathbf{u}^\top \mathbf{x}$')
-			ax.set_ylabel(r'$f(\mathbf{x})$')
+			if ax is not None:
+				ax.plot(X.dot(self.U[:,0]), fX, 'k.')
+				ax.set_xlabel(r'active coordinate $\mathbf{u}^\top \mathbf{x}$')
+				ax.set_ylabel(r'$f(\mathbf{x})$')
 
 			if pgfname is not None:
 				pgf = PGF()
@@ -79,11 +80,12 @@ class SubspaceBasedDimensionReduction(object):
 
 		elif dim == 2:
 			Y = self.U[:,0:2].T.dot(X.T).T
-			sc = ax.scatter(Y[:,0], Y[:,1], c = fX.flatten(), s = 3)
-			ax.set_xlabel(r'active coordinate 1 $\mathbf{u}_1^\top \mathbf{x}$')
-			ax.set_ylabel(r'active coordinate 2 $\mathbf{u}_2^\top \mathbf{x}$')
+			if ax is not None:
+				sc = ax.scatter(Y[:,0], Y[:,1], c = fX.flatten(), s = 3)
+				ax.set_xlabel(r'active coordinate 1 $\mathbf{u}_1^\top \mathbf{x}$')
+				ax.set_ylabel(r'active coordinate 2 $\mathbf{u}_2^\top \mathbf{x}$')
 
-			plt.colorbar(sc).set_label('f(x)')
+				plt.colorbar(sc).set_label('f(x)')
 			
 			if pgfname is not None:
 				raise NotImplementedError
