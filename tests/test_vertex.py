@@ -6,10 +6,10 @@ from psdr import voronoi_vertex, BoxDomain
 np.random.seed(0)
 
 def check_vertex(dom, Xhat, X0, L = None):
+	X = voronoi_vertex(dom, Xhat, X0, L = L )
 	if L is None:
 		L = np.eye(len(dom))
 	Lrank = np.linalg.matrix_rank(L)
-	X = voronoi_vertex(dom, Xhat, X0, L = L )
 	
 	print("All the points returned should be inside of the domain")
 	I = ~dom.isinside(X)
