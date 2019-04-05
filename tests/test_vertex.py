@@ -35,7 +35,7 @@ def test_vertex_box(m = 5):
 	X0 = dom.sample(100)
 	check_vertex(dom, Xhat, X0)
 
-def test_vertex_eq(m = 2):
+def test_vertex_eq(m = 5):
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	dom = dom.add_constraints(A_eq = np.ones(m), b_eq = [0])
 	Xhat = dom.sample(10)
