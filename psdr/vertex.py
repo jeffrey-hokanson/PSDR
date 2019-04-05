@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import numpy as np
 from scipy.spatial.distance import cdist
+import scipy.linalg
 
 from .domains import Domain
 
@@ -101,7 +102,7 @@ def voronoi_vertex(domain, Xhat, X0):
 			nullspace = np.hstack(nullspace)
 			# If there are no active constraints, don't do anything
 			if nullspace.shape[1]>0:
-				Q, R = np.linalg.qr(nullspace)
+				Q, R = scipy.linalg.qr(nullspace, overwrite_a = True, mode = 'economic')
 				print('k=%d: %d' % (k, Q.shape[1]))
 				h[i] -= Q.dot(Q.T.dot(h[i]))
 		
