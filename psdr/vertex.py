@@ -6,20 +6,26 @@ import scipy.linalg
 
 from .domains import Domain
 
-def voronoi_vertex(domain, Xhat, X0):
+def voronoi_vertex(domain, Xhat, X0, L = None):
 	r""" Constructs a subset of the Voronoi vertices on a given domain 
 
 
-	Given a domain :math:`\mathcal{D} \subset \mathbb{R}^m` and a set of points
-	:math:`\lbrace \widehat{\mathbf{x}}_j \rbrace_{j=1}^M`, the
-	vertices of the bounded Voronoi diagram :math:`\mathbf{v}_i \in \mathcal{D}`
+	Given a domain :math:`\mathcal{D} \subset \mathbb{R}^m`, a set of points
+	:math:`\lbrace \widehat{\mathbf{x}}_j \rbrace_{j=1}^M`, and a distance metric
+	
+	.. math::
+		
+		d(\mathbf{x}_1, \mathbf{x}_2) = \|\mathbf{L}(\mathbf{x}_1 - \mathbf{x}_2)\|_2
+
+	the vertices of the bounded Voronoi diagram :math:`\mathbf{v}_i \in \mathcal{D}`
 	are those points are those points that satisfy :math:`r` equidistance constraints
+	in the metric :math:`d`
 
 	.. math::
 
-		\| \mathbf{v}_i - \widehat{\mathbf{x}}_{\mathcal{I}_i[1]}\|_2 =
-		\| \mathbf{v}_i - \widehat{\mathbf{x}}_{\mathcal{I}_i[2]}\|_2 = \ldots = 
-		\| \mathbf{v}_i - \widehat{\mathbf{x}}_{\mathcal{I}_i[r]}\|_2 
+		\| \mathbf{L}(\mathbf{v}_i - \widehat{\mathbf{x}}_{\mathcal{I}_i[1]})\|_2 =
+		\| \mathbf{L}(\mathbf{v}_i - \widehat{\mathbf{x}}_{\mathcal{I}_i[2]})\|_2 = \ldots = 
+		\| \mathbf{L}(\mathbf{v}_i - \widehat{\mathbf{x}}_{\mathcal{I}_i[r]})\|_2 
 
 	and :math:`m-r` constraints from the domain.
 	
@@ -41,7 +47,9 @@ def voronoi_vertex(domain, Xhat, X0):
 	Xhat: array-like (M, m)
 		M existing points on the domain which define the Voronoi diagram
 	X0: array-like (N, m)
-		Initial points to use to find vertices		
+		Initial points to use to find vertices
+	L: array-like (m, m), optional
+		Weight on distance in 2-norm; defaults to the identity matrix	
 
 	Returns
 	-------
@@ -64,24 +72,36 @@ def voronoi_vertex(domain, Xhat, X0):
 	Xhat = np.atleast_2d(np.array(Xhat))
 	X0 = np.atleast_2d(np.array(X0))
 
+	m = len(domain)
+	
+	if L is None:
+		L = np.eye(m)
+	else:
+		L = np.array(L)
+		assert L.shape[1] == m, "Number of columns doesn't match dimension of the space"
+
+	Lrank = np.linalg.matrix_rank(L)
+
+	LTL = L.T.dot(L)
+
 	# Linear inequality constraints for the domain (including lower bound/upper bound box constraints)
 	A = domain.A_aug
 	b = domain.b_aug
 
-	m = len(domain)
-
 	# This algorithm terminates when each point has m active constraints as we can have no more improvement
-	# hence we substract the number of equality constraints to 	
-	for k in range(m - domain.A_eq.shape[0]):
+	# hence we substract the number of equality constraints
+	# we also subtract the rank-deficency of L because this results in zero-steps  	
+	for k in range(m - domain.A_eq.shape[0] - (m - Lrank)):
 		# Find the nearest neighbors
 		# As we intend to do this in high dimensions, 
 		# we don't use a tree-based distance approach
 		# as these don't scale well
-		D = cdist(X0, Xhat)
+		D = cdist(L.dot(X0.T).T, L.dot(Xhat.T).T)
 		I = np.argsort(D, axis = 1)
 		
 		# set the search direction to move away from the closest point
 		h = X0 - Xhat[I[:,0]]
+		h = LTL.dot(h.T).T
 		# which inequality constraints on the domain are active
 		active = np.isclose(A.dot(X0.T).T , b)
 		
@@ -95,15 +115,16 @@ def voronoi_vertex(domain, Xhat, X0):
 
 			# constraints from search directions
 			for j in range(1, k+1):
-				if np.isclose(D[i,I[i,0]], D[i,I[i,j]]):
-					nullspace += [ (Xhat[I[i,0]] - Xhat[I[i,j]]).reshape(-1,1)]
-					h[i] += (X0[i] - Xhat[I[i,j]])
+				if np.isclose(D[i,I[i,0]], D[i,I[i,j]]):	
+					nullspace += [LTL.dot(Xhat[I[i,0]] - Xhat[I[i,j]]).reshape(-1,1)]
+					#h[i] += (X0[i] - Xhat[I[i,j]])
 
 			nullspace = np.hstack(nullspace)
 			# If there are no active constraints, don't do anything
 			if nullspace.shape[1]>0:
 				Q, R = scipy.linalg.qr(nullspace, overwrite_a = True, mode = 'economic')
 				h[i] -= Q.dot(Q.T.dot(h[i]))
+				#print("k=%d, constraints %d, norm %g" % (k, Q.shape[1], np.linalg.norm(h[i])))
 		
 		# Now we find the furthest we can step along this direction before either hitting a
 		# (1) separating hyperplane separating x0 and points in Xhat or 
@@ -116,14 +137,14 @@ def voronoi_vertex(domain, Xhat, X0):
 			# we setup a hyperplane (p - p0)^* n  = 0 
 			# where p0 is a point on the hyperplane
 			# separating the closest point Xhat[:,I[:,0]] and xhat
-			p0 = 0.5*(xhat + Xhat[I[:,0]])
-			n = xhat - Xhat[I[:,0]]
+			p0 = 0.5*(L.dot( (xhat + Xhat[I[:,0]]).T).T)
+			n = L.dot( (xhat - Xhat[I[:,0]]).T).T
 
 			# Inner product of normal n with search direction h
-			nh = np.sum(n*h, axis = 1)
+			nh = np.sum(n*L.dot(h.T).T, axis = 1)
 
 			# Inner product for the numerator (x0 - p0)^* n
-			numerator = -np.sum( (X0 - p0)*n, axis = 1)
+			numerator = -np.sum( (L.dot(X0.T).T - p0)*n, axis = 1)
 			
 			alpha_c = np.inf*np.ones(alpha.shape)
 			act = ~np.isclose(np.abs(nh), 0) 
