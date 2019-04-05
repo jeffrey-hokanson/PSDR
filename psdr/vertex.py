@@ -87,13 +87,10 @@ def voronoi_vertex(domain, Xhat, X0):
 		for i in range(X0.shape[0]):
 			# For each point, project onto the feasible directions
 			nullspace = [domain.A_eq.T]
-			n_eq = domain.A_eq.shape[0]
 
 			# active inequality constraints
 			for j in range(A.shape[0]):
 				if active[i,j] : nullspace += [A[j].reshape(-1,1)]
-
-			n_ineq = np.hstack(nullspace).shape[1] - n_eq
 
 			# constraints from search directions
 			for j in range(1, k+1):
@@ -101,9 +98,11 @@ def voronoi_vertex(domain, Xhat, X0):
 					nullspace += [ (Xhat[I[i,0]] - Xhat[I[i,j]]).reshape(-1,1)]
 					h[i] += (X0[i] - Xhat[I[i,j]])
 
-			n_int = np.hstack(nullspace).shape[1] - n_ineq - n_eq
-			Q, R = np.linalg.qr(np.hstack(nullspace))
-			h[i] -= Q.dot(Q.T.dot(h[i]))
+			nullspace = np.hstack(nullspace)
+			# If there are no active constraints, don't do anything
+			if nullspace.shape[0]>0:
+				Q, R = np.linalg.qr(nullspace)
+				h[i] -= Q.dot(Q.T.dot(h[i]))
 		
 		# Now we find the furthest we can step along this direction before either hitting a
 		# (1) separating hyperplane separating x0 and points in Xhat or 
