@@ -46,8 +46,3 @@ def gauss(N, a = 0, b = 1):
 
 	return x, w
 
-if __name__ == '__main__':
-	x, w = gauss(10)
-	print(x)
-	print(w)
-
