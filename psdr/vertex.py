@@ -99,6 +99,7 @@ def voronoi_vertex(domain, Xhat, X0):
 					h[i] += (X0[i] - Xhat[I[i,j]])
 
 			nullspace = np.hstack(nullspace)
+			print(nullspace.shape)
 			# If there are no active constraints, don't do anything
 			if nullspace.shape[0]>0:
 				Q, R = np.linalg.qr(nullspace)
