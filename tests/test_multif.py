@@ -1,10 +1,9 @@
 from __future__ import print_function
 import numpy as np
-from psdr.demos import build_multif_domain
+from psdr.demos import build_multif_domain, MULTIF
 
 
-
-def test_multif():
+def test_multif_domain():
 	np.random.seed(0)
 	dom = build_multif_domain().normalized_domain()
 	#for i in range(len(dom)):
@@ -20,3 +19,9 @@ def test_multif():
 		# TODO: This fails to due to some tolerances that are not respected, perhaps due to a scaling issue
 		assert dom.isinside(x, 1e-2), "Corner should be inside the domain"
 		#assert dom.extent(x, -p) > 0, "extent must be positive"
+
+def test_multif():
+	multif = MULTIF()
+	x = multif.domain.sample()
+	y = multif(x)
+	print(y)

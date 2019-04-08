@@ -6,8 +6,27 @@ This borrows code by Rick Fenrich
 """
 from __future__ import print_function
 import numpy as np
-
+from psdr import Function
 from ._multif_domains3d import buildDesignDomain, buildRandomDomain
+
+
+
+class MULTIF(Function):
+	r"""
+	""" 
+	def __init__(self, truncate = 1e-7, level = 0, su2_maxiter = 5000, workdir = None,
+		keep_data = False, verbose = False):
+		self.design_domain_app = buildDesignDomain(output = 'none')
+		self.design_domain_norm = self.design_domain_app.normalized_domain()
+		self.design_domain = self.design_domain_norm		
+
+		self.random_domain_app = buildRandomDomain(truncate = truncate)
+		self.random_domain_norm = self.random_domain_app.normalized_domain()
+		self.random_domain = self.random_domain_norm		
+
+		domain = self.design_domain_app * self.random_domain_app
+		Function.__init__(self, multif, domain, vectorized = False)
+
 
 def build_multif_domain(truncate = 1e-7):
 	design_domain = buildDesignDomain(output = 'none')
@@ -92,7 +111,7 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	# In order to run from inside jupyter, we need to call using Popen
 	# following https://github.com/takluyver/rt2-workshop-jupyter/blob/e7fde6565e28adf31a0f9003094db70c3766bd6d/Subprocess%20output.ipynb
 	args = shlex.split(call)
-	with open(workdir + '/output.log', 'a') as log:
+	with open(workdir + '/output.log', 'ab') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
 		while True:
 			# Read output from pipe
