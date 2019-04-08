@@ -23,6 +23,6 @@ script:
  - pytest --cov=psdr tests/
 
 after_success:
- - coveralls
+ - if python --version | grep -c "3.7" ; then coveralls ; fi
 
 
