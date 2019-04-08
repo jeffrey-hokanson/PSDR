@@ -21,7 +21,7 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 	constraints = None, constraint_grads = None, constraints_lb = None, constraints_ub = None,
 	maxiter = 100, bt_maxiter = 50, domain = None,
 	tol_dx = 1e-10, tol_obj = 1e-10,  verbose = False, **kwargs):
-	r""" Solves a nonlinear optimization by sequential least squares
+	r""" Solves a nonlinear optimization problem by a sequence of linear programs
 
 
 	Given the optimization problem
@@ -274,55 +274,55 @@ def sequential_lp(f, x0, jac, search_constraints = None,
 
 	return x
 			
-if __name__ == '__main__':
-	from polyridge import *
-	
-	np.random.seed(3)
-	p = 3
-	m = 4
-	n = 1
-	M = 100
-
-	norm = np.inf
-	norm = 2
-	U = orth(np.random.randn(m,n))
-	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
-	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
-
-	X = np.random.randn(M,m)
-	fX = prf.eval(X)
-
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = norm, scale = True)
-
-	def residual(U_c):
-		r = pra._residual(X, fX, U_c)
-		return r
-
-	def jacobian(U_c):
-		U = U_c[:m*n].reshape(m,n)
-		pra.set_scale(X, U)
-		J = pra._jacobian(X, fX, U_c)
-		return J
-	
-	# Trajectory
-	trajectory = lambda U_c, p, alpha: pra._trajectory(X, fX, U_c, p, alpha)
-
-	def search_constraints(U_c, pU_pc):
-	#	M, m = X.shape
-	#	N = len(self.basis)
-	#	n = self.subspace_dimension
-		U = U_c[:m*n].reshape(m,n)
-		constraints = [ pU_pc[k*m:(k+1)*m].__rmatmul__(U.T) == np.zeros(n) for k in range(n)]
-		return constraints
-
-		
-	U0 = orth(np.random.randn(m,n))
-	U0 = U
-	c = np.random.randn(len(coef))
-	pra.set_scale(X, U0)
-	U_c0 = np.hstack([U0.flatten(), c])
-
-	U_c = sequential_lp(residual, U_c0, jacobian, search_constraints, norm = norm, 
-		trajectory = trajectory, verbose = True)
-	print(U_c)
-	print(U)	
+#if __name__ == '__main__':
+#	from polyridge import *
+#	
+#	np.random.seed(3)
+#	p = 3
+#	m = 4
+#	n = 1
+#	M = 100
+#
+#	norm = np.inf
+#	norm = 2
+#	U = orth(np.random.randn(m,n))
+#	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
+#	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
+#
+#	X = np.random.randn(M,m)
+#	fX = prf.eval(X)
+#
+#	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = norm, scale = True)
+#
+#	def residual(U_c):
+#		r = pra._residual(X, fX, U_c)
+#		return r
+#
+#	def jacobian(U_c):
+#		U = U_c[:m*n].reshape(m,n)
+#		pra.set_scale(X, U)
+#		J = pra._jacobian(X, fX, U_c)
+#		return J
+#	
+#	# Trajectory
+#	trajectory = lambda U_c, p, alpha: pra._trajectory(X, fX, U_c, p, alpha)
+#
+#	def search_constraints(U_c, pU_pc):
+#	#	M, m = X.shape
+#	#	N = len(self.basis)
+#	#	n = self.subspace_dimension
+#		U = U_c[:m*n].reshape(m,n)
+#		constraints = [ pU_pc[k*m:(k+1)*m].__rmatmul__(U.T) == np.zeros(n) for k in range(n)]
+#		return constraints
+#
+#		
+#	U0 = orth(np.random.randn(m,n))
+#	U0 = U
+#	c = np.random.randn(len(coef))
+#	pra.set_scale(X, U0)
+#	U_c0 = np.hstack([U0.flatten(), c])
+#
+#	U_c = sequential_lp(residual, U_c0, jacobian, search_constraints, norm = norm, 
+#		trajectory = trajectory, verbose = True)
+#	print(U_c)
+#	print(U)	
