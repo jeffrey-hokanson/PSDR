@@ -6,11 +6,14 @@ python:
  - "2.7"
  - "3.7"
 
+services:
+ - docker
 
-# https://stackoverflow.com/a/48185032
 before_install:
-# Currently there is an issue with 1.16 and SCS
+ # Currently there is an issue with 1.16 and SCS; this installs a custom version
+ # https://stackoverflow.com/a/48185032
  - pip install -U --only-binary=numpy, scipy numpy==1.15.4
+ - docker pull jeffreyhokanson/oas:v1
 
 install:
  - pip install pytest
