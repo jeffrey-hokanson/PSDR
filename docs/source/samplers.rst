@@ -1,18 +1,18 @@
+========
 Samplers
 ========
 
-Samplers are classes that provide an interface to *design of computer experiments* methods
-for sampling a function's domain in some sense.
 
-.. autoclass:: psdr.Sampler
-   :members:
 
-Particular Sampling Strategies
-------------------------------
+Low Level Functions
+===================
 
-.. autoclass:: psdr.RandomSampler
+.. autofunction:: psdr.seq_maximin_sample
 
-.. autoclass:: psdr.UniformSampler
+.. autofunction:: psdr.fill_distance_estimate
 
-.. autoclass:: psdr.RidgeSampler
+
+
+
+
 

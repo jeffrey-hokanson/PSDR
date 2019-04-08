@@ -12,120 +12,134 @@ from scipy.spatial.distance import cdist, pdist, squareform
 
 from .geometry import sample_sphere, voronoi_vertices, candidate_furthest_points, sample_boundary 
 from .polyridge import UnderdeterminedException, IllposedException
+from .vertex import voronoi_vertex 
 
 
-def maximin_sample(X, domain, L, nboundary = 500):
-	"""Sequential maximin sampling using a given metric
-	
-	This sampling approach tries to find a new sample x 
-	that maximizes the minimum distance to the already sampled points
+__all__ = ['seq_maximin_sample', 'fill_distance_estimate' ]
 
-		x = argmax_{x in domain) min_{i} || L(x - x_i)||_2
+def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
+	r""" Performs one step of sequential maximin sampling. 
+
+	Given an existing set of samples :math:`\lbrace \widehat{\mathbf{x}}_j\rbrace_{j=1}^M\subset \mathcal{D}`
+	from the domain :math:`\mathcal{D} \subset \mathbb{R}^m`, this algorithm finds a point :math:`\mathbf{x} \in \mathcal{D}`
+	that approximately solves the problem
+
+	.. math::
+
+		\max_{\mathbf{x} \in \mathcal{D}} \min_{j=1,\ldots,M} \|\mathbf{L}(\mathbf{x} - \widehat{\mathbf{x}}_j)\|_2.
+
+	This algorithm uses :meth:`psdr.voronoi_vertex` to generate local maximizers of this problem
+	and then returns the best of these.
+
 
 	Parameters
 	----------
-	X: np.array (M,m)
-		Samples from domain
 	domain: Domain
-		Domain of dimension m on which f is posed
-	L: np.array(m,m)
-		Lipschitz matrix (not necessarily lower triangular
-	nboundary: int
-		Number of samples to take on the boundary of the domain
+		Domain on which to sample of dimension m
+	Xhat: array-like (?, m)
+		Existing samples on the domain
+	L: array-like (?, m) optional
+		Matrix defining the distance metric on the domain
+	Nsamp: int, default 1e4
+		Number of samples to use for vertex sampling
+	X0: array-like (?, m)
+		Samples from the domain to use in :meth:`psdr.voronoi_vertex`
 
 	Returns
 	-------
-	np.array(m)
-		Sample solving optimization problem
+	x: np.ndarray(m)
+		Sample from inside the domain
 	"""
 
-	# Construct a low-rank L if possible
-	U, s, VT = scipy.linalg.svd(L)
-	I = np.argwhere(s> 1e-10).flatten()
-	Lhat = np.diag(s[I]/s[0]).dot(VT[I,:])
+	if X0 is None:
+		X0 = domain.sample(Nsamp)
 
-	# Sample from the boundary and the largest point on the interior		
-	Xcan = candidate_furthest_points(X, domain, L = Lhat, nboundary = nboundary, ninterior = 1)
+	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = True)
 
-	# Determine which point is actually furthest away from current points
-	Ycan = np.dot(Lhat, Xcan.T).T
-	Y = np.dot(Lhat, X.T).T
-	dist = np.min(cdist(Ycan, Y), axis = 1)
-	k = np.argmax(dist)
-	return Xcan[k]
-
-def fill_distance(X, domain, L = None, **kwargs):
-	""" Computes the fill distance of a set of points
-
-	The fill distance of a set of points X = [ x_1, x_2, ..., x_N] subset Omega
-	for a bounded domain Omega is defined to be
-
-		sup_{x in Omega} min_i || L (x - x_i) ||_2
-
-	See [Def. 1.4, Wen04].  Here we introduce an optional scaling parameter
-
-	This code acts as a thin wrapper to maximin_sample.
-
-	Fill distance is also known as the "dispersion" of the set X.
-
-	Parameters
-	----------
-	X: np.array
-		Samples from domain
-	domain: Domain
-		Domain on which samples were drawn
-	L: None or np.array
-		Weighting on 2-norm; defaults to the identity matrix
-	kwargs:
-		Additional arguments passed to maximin_sample 
-
-	Returns
-	-------
-	float:
-		estimated fill distance
-	
-	Bibliography
-	------------
-	[Wen04] "Scattered Data Approximation", Holger Wendland, 
-		Cambridge University Press, 2004.
-	""" 
-	if L is None:
-		L = np.eye(len(domain))
-
-	x_new = maximin_sample(X, domain, L = L, **kwargs)
-
-	# Now compute the fill distance
-	Lx_new = np.dot(L, x_new).reshape(1,len(domain))
-	LX = np.dot(L, X.T).T
-	fill_dist = np.min(cdist(Lx_new, LX))
-	return fill_dist	
-	
-
-def multiobjective_maximin_sample(X, domain, Ls, nboundary = 500):
-	""" Similar to maximin_sample, but choses based on largest distance
-
-	"""
-
-	if max( [L.shape[0] > 1 for L in Ls]):
-		# If at least one L is not one dimensional, sample the boundary only once
-		Xbndry = sample_boundary(nboundary)
-		Xinterior = [maximin_sample(X, domain, L, nboundary = 0) for L in Ls] 
-		Xcan = np.vstack([Xinterior, Xbndry])
+	# Euclidean distance
+	De = cdist(Xcan, Xhat)
+	if L is not None:
+		D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
 	else:
-		Xcan = [maximin_sample(X, domain, L, nboundary = nboundary) for L in Ls]
+		D = De
 
-	ibest = []
-	dist_best = []
-	for k, L in enumerate(Ls):
-		Y = np.dot(L, X.T).T
-		Ycan = np.dot(L, Xcan.T).T
-		dist = np.min(cdist(Ycan,Y), axis = 1)
-		ibest.append(np.argmax(dist))
-		dist_best.append(dist[ibest[-1]])
+	# Find the distance to the closest neighbor
+	d = np.min(D, axis = 1)
+	de = np.min(De, axis = 1)
 
-	k = np.argmax(dist_best)
-	i = ibest[k] 
+	# The index of the candidate point that is furthest
+	# away from all its neighbors
+	i = np.argmax(d)
+
+	# Find points that are equivalent in distance 
+	I = np.isclose(d[i], d)
+
+	# Zero out their Euclidean distance we don't chose those	
+	de[~I] = 0.
+
+	# return the furthest point 
+	i = np.argmax(de)
+
 	return Xcan[i]
+
+
+def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None ):
+	r""" Estimate the fill distance of the points Xhat in the domain
+
+	The *fill distance* (Def. 1.4 of [Wen04]_) or *dispersion*
+	is the furthest distance between any point :math:`\mathbf{x} \in \mathcal{D}` 
+	and a set of points 
+	:math:`\lbrace \widehat{\mathbf{x}}_j \rbrace_{j=1}^m \subset \mathcal{D}`:
+		
+	.. math::
+
+		\sup_{\mathbf{x} \in \mathcal{D}} \min_{j=1,\ldots,M} \|\mathbf{L}(\mathbf{x} - \widehat{\mathbf{x}}_j)\|_2.
+
+	Similar to :meth:`psdr.seq_maximin_sample`, this uses :meth:`psdr.voronoi_vertex` to find 
+	a subset of local maximizers and returns the best of these.
+
+	Parameters
+	----------
+	domain: Domain
+		Domain on which to compute the dispersion
+	Xhat: array-like (?, m)
+		Existing samples on the domain
+	L: array-like (?, m) optional
+		Matrix defining the distance metric on the domain
+	Nsamp: int, default 1e4
+		Number of samples to use for vertex sampling
+	X0: array-like (?, m)
+		Samples from the domain to use in :meth:`psdr.voronoi_vertex`
+
+	Returns
+	-------
+	d: float
+		Fill distance lower bound
+
+	References
+	----------
+	..  [Wen04] Scattered Data Approximation. Holger Wendland.
+			Cambridge University Press, 2004.
+			https://doi.org/10.1017/CBO9780511617539
+	"""
+	
+	if X0 is None:
+		X0 = domain.sample(Nsamp)
+
+	# Since we only care about distance in L, we can terminate early if L is rank-deficient
+	# and hence we turn off the randomization
+	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = False)
+
+	# Euclidean distance
+	if L is not None:
+		D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
+	else:
+		D = cdist(Xcan, Xhat)
+
+	d = np.min(D, axis = 1)
+	return float(np.max(d))
+
+	
 
 
 
