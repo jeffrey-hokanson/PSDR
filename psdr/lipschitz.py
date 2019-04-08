@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from .domains import Domain	
 from .subspace import SubspaceBasedDimensionReduction
-from .geometry import candidate_furthest_points
+from .vertex import voronoi_vertex
 from .minimax import minimax
 from .function import BaseFunction
 from .pgf import PGF
@@ -335,7 +335,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		
 		return lb, ub
 	
-	def bounds_domain(self, X, fX, domain, verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
+	def bounds_domain(self, X, fX, domain, Nsamp = int(1e3), verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
 		r""" Compute the uncertainty for any point inside a domain
 
 		Parameters
@@ -346,10 +346,14 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			Array of function values
 		domain: Domain
 			Domain on which to find exterma of limits
+		Nsamp: int, optional
+			Number of Voronoi vertices to sample to find exterma
 		verbose: bool (default: False)
 			If True, print the iteration history for the optimization program for each initalization
-		progress: bool (default: False
+		progress: bool (default: False)
 			If True, show a progress bar for trying different initializations
+		tqdm_kwargs: dict, optional
+			Additional arguments to pass to tqdm for progress plotting
 
 		Returns
 		-------
@@ -360,8 +364,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		"""
 		lower_bound = LowerBound(self.L, X, fX)
 		upper_bound = UpperBound(self.L, X, fX)
-		
-		X0 = candidate_furthest_points(X, domain, L = self.L)
+	
+		X0 = domain.sample(Nsamp)
+		# Force these to be far apart
+		X0 = voronoi_vertex(domain, X, X0, L = self.L, randomize = False)
 		fX = fX.flatten()
 
 		# Iterate through all candidates

@@ -1,17 +1,7 @@
 from __future__ import print_function
 import numpy as np
-import time
-import scipy.linalg
-from scipy.linalg import solve, svd
-import scipy.spatial.qhull
+from scipy.spatial.distance import cdist
 
-#from pool import SequentialPool
-#from opt import projected_closest_point
-
-from scipy.spatial.distance import cdist, pdist, squareform
-
-from .geometry import sample_sphere, voronoi_vertices, candidate_furthest_points, sample_boundary 
-from .polyridge import UnderdeterminedException, IllposedException
 from .vertex import voronoi_vertex 
 
 
