@@ -5,8 +5,8 @@ from psdr import voronoi_vertex, BoxDomain
 
 np.random.seed(0)
 
-def check_vertex(dom, Xhat, X0, L = None):
-	X = voronoi_vertex(dom, Xhat, X0, L = L )
+def check_vertex(dom, Xhat, X0, L = None, randomize = True):
+	X = voronoi_vertex(dom, Xhat, X0, L = L, randomize = randomize )
 	if L is None:
 		L = np.eye(len(dom))
 	Lrank = np.linalg.matrix_rank(L)
@@ -15,8 +15,13 @@ def check_vertex(dom, Xhat, X0, L = None):
 	I = ~dom.isinside(X)
 	print(X[I])
 	assert np.all(dom.isinside(X)), "All voronoi vertices must be inside the domain" 
+
+	if randomize:
+		m_constraints = len(dom)
+	else:
+		m_constraints = Lrank
 	
-	print("All points should satisfy m=%d constraints" % Lrank)
+	print("All points should satisfy m=%d constraints" % m_constraints)
 	A = dom.A_aug
 	b = dom.b_aug
 	D = cdist(L.dot(X.T).T, L.dot(Xhat.T).T)
@@ -30,7 +35,7 @@ def check_vertex(dom, Xhat, X0, L = None):
 			(i, n_hyper+n_eq+n_ineq, n_hyper, n_eq, n_ineq))
 		print(x)
 		print(np.sort(D[i,:] - np.min(D[i,:])))
-		assert n_hyper + n_eq + n_ineq >= Lrank 
+		assert n_hyper + n_eq + n_ineq >= m_constraints
 
 def test_vertex_box(m = 5):
 	dom = BoxDomain(-np.ones(m), np.ones(m))
@@ -52,6 +57,14 @@ def test_vertex_low_rank(m = 5):
 	L = np.diag(1./np.arange(1,m+1))
 	L[0,0] = 0.
 	check_vertex(dom, Xhat, X0, L = L)
+
+def test_vertex_low_rank_nonrandomize(m = 5):
+	dom = BoxDomain(-np.ones(m), np.ones(m))
+	Xhat = dom.sample(10)
+	X0 = dom.sample(100)
+	L = np.diag(1./np.arange(1,m+1))
+	L[0,0] = 0.
+	check_vertex(dom, Xhat, X0, L = L, randomize = False)
 
 def test_vertex_rectangular(m = 5):
 	dom = BoxDomain(-np.ones(m), np.ones(m))

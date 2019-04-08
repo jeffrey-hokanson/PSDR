@@ -6,7 +6,7 @@ import scipy.linalg
 
 from .domains import Domain
 
-def voronoi_vertex(domain, Xhat, X0, L = None):
+def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 	r""" Constructs a subset of the Voronoi vertices on a given domain 
 
 
@@ -50,6 +50,11 @@ def voronoi_vertex(domain, Xhat, X0, L = None):
 		Initial points to use to find vertices
 	L: array-like (m, m), optional
 		Weight on distance in 2-norm; defaults to the identity matrix	
+	randomize: bool, optional (default: True)
+		If true, when L is rank deficient add a random direction at each step
+		such that we find points on the boundary of the domain satisfying m
+		constraints.
+
 
 	Returns
 	-------
@@ -91,17 +96,22 @@ def voronoi_vertex(domain, Xhat, X0, L = None):
 	# This algorithm terminates when each point has m active constraints as we can have no more improvement
 	# hence we substract the number of equality constraints
 	# we also subtract the rank-deficency of L because this results in zero-steps  	
-	for k in range(m - domain.A_eq.shape[0] - (m - Lrank)):
+	for k in range(m - domain.A_eq.shape[0]):
+		if k >= Lrank and not randomize:
+			break
+
 		# Find the nearest neighbors
 		# As we intend to do this in high dimensions, 
 		# we don't use a tree-based distance approach
 		# as these don't scale well
 		D = cdist(L.dot(X0.T).T, L.dot(Xhat.T).T)
 		I = np.argsort(D, axis = 1)
-		
+
 		# set the search direction to move away from the closest point
 		h = X0 - Xhat[I[:,0]]
 		h = LTL.dot(h.T).T
+			 
+
 		# which inequality constraints on the domain are active
 		active = np.isclose(A.dot(X0.T).T , b)
 		
@@ -124,6 +134,14 @@ def voronoi_vertex(domain, Xhat, X0, L = None):
 			if nullspace.shape[1]>0:
 				Q, R = scipy.linalg.qr(nullspace, overwrite_a = True, mode = 'economic')
 				h[i] -= Q.dot(Q.T.dot(h[i]))
+				if np.isclose(np.linalg.norm(h[i]), 0) and randomize:
+					# If L is low-rank we can have situations where h[i]	
+					# as constructed above is in the nullspace of constraints
+					# and hence is approximately zero.  When randomize=True
+					# we choose a random search direction so we can still make 
+					# progress towards satisfying m constraints.
+					h[i] = np.random.randn(*h[i].shape)
+					h[i] -= Q.dot(Q.T.dot(h[i]))
 				#print("k=%d, constraints %d, norm %g" % (k, Q.shape[1], np.linalg.norm(h[i])))
 		
 		# Now we find the furthest we can step along this direction before either hitting a
