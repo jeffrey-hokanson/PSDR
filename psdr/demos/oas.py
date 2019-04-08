@@ -46,7 +46,7 @@ def build_oas_random_domain():
 	return TensorProductDomain([E,G,rho])
 
 
-def oas_func(x, version = 'v1', workdir = None, verbose = False):
+def oas_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False):
 	r"""
 
 
@@ -71,7 +71,6 @@ def oas_func(x, version = 'v1', workdir = None, verbose = False):
 
 	# Copy the inputs to a file
 	np.savetxt(workdir + '/my.input', x, fmt = '%.15e')
-	
 	call = "docker run -t --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/oas:%s /workdir/my.input" % (workdir, version)
 	args = shlex.split(call)
 	with open(workdir + '/output.log', 'a') as log:
@@ -93,7 +92,8 @@ def oas_func(x, version = 'v1', workdir = None, verbose = False):
 
 	Y = np.loadtxt(workdir + '/my.output')
 
-	#shutil.rmtree(workdir) 
+	if not keep_data:
+		shutil.rmtree(workdir) 
 	return Y	
 	
 
@@ -102,6 +102,5 @@ def oas_func(x, version = 'v1', workdir = None, verbose = False):
 if __name__ == '__main__':
 	oas = OpenAeroStruct()
 	X = oas.sample(10)
-	print(oas.domain_app.names)
 	Y = oas(X)	
 	print(Y)
