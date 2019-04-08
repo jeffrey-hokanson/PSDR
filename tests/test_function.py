@@ -37,5 +37,33 @@ def test_func():
 		print(r.result())
 		assert np.isclose(x, r.result())
 
+
+def test_mult_output(M= 10,m = 5):
+	dom = BoxDomain(-np.ones(m), np.ones(m))
+	X = dom.sample(M)
+
+	a = np.random.randn(m)
+	b = np.random.randn(m)
+
+	def fun_a(X):
+		return X.T.dot(a)
+	
+	def fun_b(X):
+		return X.T.dot(b)
+	
+	def fun(X):
+		return np.vstack([X.dot(a), X.dot(b)]).T
+
+
+	for vectorized in [True, False]:
+		myfun = Function(fun, dom, vectorized = vectorized)
+		print(fun(X))
+		print("vectorized", vectorized)
+		print(myfun(X).shape)
+		assert myfun(X).shape == (M, 2) 
+		print(myfun(X[0]).shape)
+		assert myfun(X[0]).shape == (2,)
+
+		
 if __name__ == '__main__':
-	test_func()	
+	test_mult_output()	

@@ -18,7 +18,7 @@ class BaseFunction(object):
 	r""" Abstract base class for functions
 
 	"""
-	def eval(self, X):
+	def eval(self, X, **kwargs):
 		return self.__call__(X, return_grad = False)
 
 	def grad(self, X):
@@ -131,22 +131,16 @@ class Function(BaseFunction, Domain):
 
 		if len(X.shape) == 1:
 			x = X.flatten()
-			if callable(self._funs):
-				return self._funs(x, **self.kwargs)
-			else:
-				return np.hstack([fun(x, **self.kwargs) for fun in self._funs])
+			return np.hstack([fun(x, **self.kwargs) for fun in self._funs]).flatten()
 
 		elif len(X.shape) == 2:
-			if callable(self._funs):
-				if self.vectorized:
-					return self._funs(X, **self.kwargs)
-				else:
-					return np.vstack([self._funs(x, **self.kwargs) for x in X])
+			if self.vectorized:
+				fX = [fun(X, **self.kwargs) for fun in self._funs]
+				for fXi in fX:
+					assert len(fXi) == X.shape[0], "Must provide an array with %d entires; got %d" % (X.shape[0], len(fXi) )
+				return np.hstack(fX)
 			else:
-				if self.vectorized:
-					return np.hstack([ np.array(fun(X, **self.kwargs)).reshape(-1,1) for fun in self._funs])
-				else:
-					return np.vstack([ np.hstack([fun(x, **self.kwargs) for fun in self._funs]) for x in X])
+				return np.vstack([ np.hstack([fun(x, **self.kwargs) for fun in self._funs]) for x in X])
 					
 		else:
 			raise NotImplementedError
