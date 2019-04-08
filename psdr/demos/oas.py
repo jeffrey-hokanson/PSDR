@@ -73,7 +73,7 @@ def oas_func(x, version = 'v1', workdir = None, verbose = False, keep_data = Fal
 	np.savetxt(workdir + '/my.input', x, fmt = '%.15e')
 	call = "docker run -t --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/oas:%s /workdir/my.input" % (workdir, version)
 	args = shlex.split(call)
-	with open(workdir + '/output.log', 'a') as log:
+	with open(workdir + '/output.log', 'ab') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
 		while True:
 			# Read output from pipe
