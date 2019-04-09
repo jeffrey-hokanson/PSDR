@@ -7,6 +7,11 @@ import cloudpickle
 
 from .domains import Domain
 
+def merge(x, y):
+	z = x.copy()
+	z.update(y)
+	return z
+
 
 __all__ = ['Function', 'BaseFunction']
 
@@ -31,7 +36,7 @@ class BaseFunction(object):
 		if return_grad:
 			return self.eval(X, **kwargs), self.grad(X)
 		else:
-			return self.eval(X)
+			return self.eval(X, **kwargs)
 
 
 class Function(BaseFunction, Domain):
@@ -125,22 +130,24 @@ class Function(BaseFunction, Domain):
 
 
 
-	def eval(self, X_norm):
+	def eval(self, X_norm, **kwargs):
 		X_norm = np.atleast_1d(X_norm)
 		X = self.domain_app.unnormalize(X_norm)
 
+		kwargs = merge(self.kwargs, kwargs)
+
 		if len(X.shape) == 1:
 			x = X.flatten()
-			return np.hstack([fun(x, **self.kwargs) for fun in self._funs]).flatten()
+			return np.hstack([fun(x, **kwargs) for fun in self._funs]).flatten()
 
 		elif len(X.shape) == 2:
 			if self.vectorized:
-				fX = [fun(X, **self.kwargs) for fun in self._funs]
+				fX = [fun(X, **kwargs) for fun in self._funs]
 				for fXi in fX:
 					assert len(fXi) == X.shape[0], "Must provide an array with %d entires; got %d" % (X.shape[0], len(fXi) )
 				return np.hstack(fX)
 			else:
-				return np.vstack([ np.hstack([fun(x, **self.kwargs) for fun in self._funs]) for x in X])
+				return np.vstack([ np.hstack([fun(x, **kwargs) for fun in self._funs]) for x in X])
 					
 		else:
 			raise NotImplementedError
@@ -216,9 +223,9 @@ class Function(BaseFunction, Domain):
 		# Try return_grad the function definition
 		
 
-	def __call__(self, X_norm, return_grad = False):
+	def __call__(self, X_norm, return_grad = False, **kwargs):
 		if not return_grad:
-			return self.eval(X_norm)
+			return self.eval(X_norm, **kwargs)
 
 		if return_grad:
 			try: 
@@ -226,7 +233,7 @@ class Function(BaseFunction, Domain):
 				raise TypeError	
 
 			except TypeError:
-				return self.eval(X_norm), self.grad(X_norm)					
+				return self.eval(X_norm, **kwargs), self.grad(X_norm, **kwargs)					
 	
 	def __get__(self, i):
 		"""Get a particular sub-function as another Function"""
