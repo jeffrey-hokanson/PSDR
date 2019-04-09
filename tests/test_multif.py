@@ -22,14 +22,7 @@ def test_multif_domain():
 
 def test_multif():
 	multif = MULTIF()
-	print(multif.domain.lb)
-	print(multif.domain.ub)
-	print(len(multif.domain))
 	x = multif.domain.sample()
-	print(x)
-	print(multif.domain.isinside(x))
-	for name in multif.domain.names:
-		print(name)
 	y = multif(x, verbose = True)
 	print(y)
 

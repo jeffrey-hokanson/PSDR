@@ -101,7 +101,7 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	np.savetxt(workdir + '/general-3d.in', x.reshape(-1,1), fmt = '%.15e')
 	
 	# Now call multif
-	call = "docker run -t --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/multif:%s" % (workdir, version)
+	call = 'docker run -t --rm --mount type=bind,source="%s",target="/workdir" --user root --workdir /workdir jeffreyhokanson/multif:%s' % (workdir, version)
 	call += " -f general-3d.cfg -l %d " % (level,)
 	if cores is not None:
 		# This seems to work on Linux
@@ -215,47 +215,3 @@ qoi_names = [
 	'Baffle 5 Struct. Fail. (KS)', # 46
 	]
 
-input_names = [' ']*136
-
-input_names[-40:] = [
-	'CMC Density', 
-	'CMC Elastic Modulus',
-	'CMC Poisson Ratio',
-	'CMC Thermal Conductivity',
-	'CMC Thermal Expansion Coef',
-	'CMC Principle Failure Strain',
-	'CMC Max Service Temperature',
-	'GR-BMI Density',
-	'GR-BMI Elastic Modulus 1',
-	'GR-BMI Elastic Modulus 2',
-	'GR-BMI Shear Modulus',
-	'GR-BMI Poisson Ratio',
-	'GR-BMI Mutual Influence Coef 1',
-	'GR-BMI Mutual Influence Coef 2',
-	'GR-BMI Thermal Conductivity 1',
-	'GR-BMI Thermal Conductivity 2',
-	'GR-BMI Thermal Conductivity 3',
-	'GR-BMI Thermal Expansion Coef 1',
-	'GR-BMI Thermal Expansion Coef 2',
-	'GR-BMI Thermal Expansion Coef 3',
-	'GR-BMI Local Failure Strain 1',
-	'GR-BMI Local Failure Strain 2',
-	'GR-BMI Local Failure Strain 3',
-	'GR-BMI Local Failure Strain 4',
-	'GR-BMI Local Failure Strain 5',
-	'GR-BMI Max Service Temperature',
-	'TI-HC Density',
-	'TI-HC Elastic Modulus',
-	'TI-HC Poisson Ratio',
-	'TI-HC Thermal Conductivity',
-	'TI-HC Thermal Expansion Coef',
-	'TI-HC Yield Stress',
-	'TI-HC Max Service Temperature',
-	'Air Thermal Conductivity',
-	'Panel Yield Stress',
-	'Inlet PSTAG',
-	'Inlet TSTAG',
-	'ATM Pressure',
-	'ATM Temperature',
-	'Heat Transfer Coef to Env.',
-	]		
