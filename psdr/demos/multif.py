@@ -16,7 +16,7 @@ class MULTIF(Function):
 	""" 
 	def __init__(self, truncate = 1e-7, level = 0, su2_maxiter = 5000, workdir = None,
 		keep_data = False, verbose = False):
-		self.design_domain_app = buildDesignDomain(output = 'none')
+		self.design_domain_app = buildDesignDomain(output = 'none', solver = 'CVXOPT', verbose = False)
 		self.design_domain_norm = self.design_domain_app.normalized_domain()
 		self.design_domain = self.design_domain_norm		
 

@@ -34,6 +34,12 @@ __all__ = ['Domain',
 		'TensorProductDomain',
 	] 
 
+def merge(x, y):
+	z = x.copy()
+	z.update(y)
+	return z
+
+
 class EmptyDomain(Exception):
 	pass 
 
@@ -303,10 +309,10 @@ class Domain(object):
 	def _unnormalize(self, X_norm):
 		raise NotImplementedError
 	
-	def normalized_domain(self):
+	def normalized_domain(self, **kwargs):
 		""" Return a domain with units normalized corresponding to this domain
 		"""
-		return self._normalized_domain()
+		return self._normalized_domain(**kwargs)
 	
 	def __mul__(self, other):
 		""" Combine two domains
@@ -895,9 +901,10 @@ class LinQuadDomain(Domain):
 		
 		self._init_names(names)	
 
-		if len(kwargs) == 0:
-			#kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False}
-			kwargs ={} 
+		#if len(kwargs) == 0:
+		#	#kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False}
+		#	kwargs ={} 
+		
 		self.kwargs = kwargs
 	
 	
@@ -1048,11 +1055,12 @@ class LinQuadDomain(Domain):
 	################################################################################		
 	# Normalization 
 	################################################################################		
-	def _normalized_domain(self):
+	def _normalized_domain(self, **kwargs):
 		names_norm = [name + ' (normalized)' for name in self.names]
+		
 		return LinQuadDomain(lb = self.lb_norm, ub = self.ub_norm, A = self.A_norm, b = self.b_norm, 
 			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, Ls = self.Ls_norm, ys = self.ys_norm, rhos = self.rhos_norm,
-			names = names_norm)
+			names = names_norm, **merge(self.kwargs, kwargs))
 
 	def _isinside(self, X, tol = TOL):
 		return self._isinside_bounds(X, tol = tol) & self._isinside_ineq(X, tol = tol) & self._isinside_eq(X, tol = tol) & self._isinside_quad(X, tol = tol)
@@ -1125,22 +1133,14 @@ class LinQuadDomain(Domain):
 	
 
 	def _closest_point(self, x0, L = None, **kwargs):
-		if len(kwargs) == 0:
-			kwargs = self.kwargs
-		return closest_point(self, x0, L = L, **kwargs)
+		return closest_point(self, x0, L = L, **merge(self.kwargs, kwargs))
 
 
 	def _corner(self, p, **kwargs):
-		if len(kwargs) == 0:
-			kwargs = self.kwargs
- 
-		return corner(self, p, **kwargs)
+		return corner(self, p, **merge(self.kwargs, kwargs))
 
 	def _constrained_least_squares(self, A, b, **kwargs):
-		if len(kwargs) == 0:
-			kwargs = self.kwargs
-
-		return constrained_least_squares(self, A, b, **kwargs)
+		return constrained_least_squares(self, A, b, **merge(self.kwargs, kwargs) )
 
 	################################################################################		
 	# 
@@ -1241,10 +1241,10 @@ class LinIneqDomain(LinQuadDomain):
 		else:
 			return 0. 
 	
-	def _normalized_domain(self):
+	def _normalized_domain(self, **kwargs):
 		names_norm = [name + ' (normalized)' for name in self.names]
 		return LinIneqDomain(lb = self.lb_norm, ub = self.ub_norm, A = self.A_norm, b = self.b_norm, 
-			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, names = names_norm)
+			A_eq = self.A_eq_norm, b_eq = self.b_eq_norm, names = names_norm, **merge(self.kwargs, kwargs))
  
  
 	def chebyshev_center(self):
@@ -1393,7 +1393,7 @@ class BoxDomain(LinIneqDomain):
 	def _isinside(self, X, tol = TOL):
 		return self._isinside_bounds(X, tol = tol)
 
-	def _normalized_domain(self):
+	def _normalized_domain(self, **kwargs):
 		names_norm = [name + ' (normalized)' for name in self.names]
 		return BoxDomain(lb = self.lb_norm, ub = self.ub_norm, names = names_norm)
 
@@ -1638,8 +1638,8 @@ class TensorProductDomain(Domain):
 	def _normalize_der(self):
 		return np.diag(np.hstack([np.diag(dom._normalize_der()) for dom in self.domains]))
 
-	def _normalized_domain(self):
-		domains_norm = [dom.normalized_domain() for dom in self.domains]
+	def _normalized_domain(self, **kwargs):
+		domains_norm = [dom.normalized_domain(**kwargs) for dom in self.domains]
 		return TensorProductDomain(domains = domains_norm)
 
 	
@@ -1856,11 +1856,12 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 		# the center is *not* the mean of the coordinate-wise bounds
 		return np.copy(self.mean)
 
-	def _normalized_domain(self):
+	def _normalized_domain(self, **kwargs):
 		# We need to do this to keep the sampling measure correct
 		names_norm = [name + ' (normalized)' for name in self.names]
 		D = self._normalize_der()
-		return NormalDomain(self.normalize(self.mean), D.dot(self.cov).dot(D.T), truncate = self.truncate, names = names_norm)
+		return NormalDomain(self.normalize(self.mean), D.dot(self.cov).dot(D.T), truncate = self.truncate, names = names_norm, 
+			**merge(self.kwargs, kwargs))
 
 	
 
@@ -1956,7 +1957,7 @@ class LogNormalDomain(BoxDomain, RandomDomain):
 		X = self.normal_domain.sample(draw)
 		return np.array(self.offset).reshape(-1,1) + self.scaling*np.exp(X)
 
-	def _normalized_domain(self):
+	def _normalized_domain(self, **kwargs):
 		names_norm = [name + ' (normalized)' for name in self.names]
 		if self.truncate is not None:
 			c = self._center()

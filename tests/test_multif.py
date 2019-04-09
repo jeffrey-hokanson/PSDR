@@ -22,6 +22,15 @@ def test_multif_domain():
 
 def test_multif():
 	multif = MULTIF()
+	print(multif.domain.lb)
+	print(multif.domain.ub)
+	print(len(multif.domain))
 	x = multif.domain.sample()
+	print(x)
+	print(multif.domain.isinside(x))
+	print(multif.domain.names)
 	y = multif(x)
 	print(y)
+
+if __name__ == '__main__':
+	test_multif()
