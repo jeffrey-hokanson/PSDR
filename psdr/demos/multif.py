@@ -101,7 +101,8 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	np.savetxt(workdir + '/general-3d.in', x.reshape(-1,1), fmt = '%.15e')
 	
 	# Now call multif
-	uid = os.getuid() 
+	uid = os.getuid()
+	# We specify the user ID so we can later delete the results by the local user 
 	call = 'docker run -t --rm --mount type=bind,source="%s",target="/workdir" --workdir /workdir --user %d' % (workdir, uid)
 	call += ' jeffreyhokanson/multif:%s' % (version,)
 	call += " -f general-3d.cfg -l %d " % (level,)
