@@ -1543,20 +1543,20 @@ class ConvexHullDomain(LinIneqDomain):
 	X: array-like (M, m)
 		Points from which to build the convex hull of points.
 	"""
-	def __init__(self, X, names = None):
+	def __init__(self, X, names = None, **kwargs):
 		self.X = np.copy(X)
 		if self.X.shape[1] > 1:
 			self.hull = ConvexHull(self.X) 
 			A = self.hull.equations[:,:-1]
 			b = -self.hull.equations[:,-1]
-			LinIneqDomain.__init__(self, A, b, names = names)
+			LinIneqDomain.__init__(self, A, b, names = names, **kwargs)
 			self.vertices = np.copy(self.X[self.hull.vertices])
 		else:
 			lb = np.atleast_1d(np.min(X))
 			ub = np.atleast_1d(np.max(X))
 			A = np.zeros((0, 1))
 			b = np.zeros((0,))
-			LinIneqDomain.__init__(self, A, b, lb = lb, ub = ub, names = names)
+			LinIneqDomain.__init__(self, A, b, lb = lb, ub = ub, names = names, **kwargs)
 			self.vertices = np.array([lb, ub]).reshape(-1,1)
 
 class TensorProductDomain(Domain):
