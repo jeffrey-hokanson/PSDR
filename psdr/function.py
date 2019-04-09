@@ -8,6 +8,7 @@ import cloudpickle
 from .domains import Domain
 
 def merge(x, y):
+	""" merge two dictionaries"""
 	z = x.copy()
 	z.update(y)
 	return z
@@ -39,7 +40,7 @@ class BaseFunction(object):
 			return self.eval(X, **kwargs)
 
 
-class Function(BaseFunction, Domain):
+class Function(BaseFunction):
 	r"""Wrapper around function specifying the domain
 
 	Provided a function :math:`f: \mathcal{D} \subset \mathbb{R}^m \to \mathbb{R}^d`,
@@ -239,70 +240,72 @@ class Function(BaseFunction, Domain):
 		"""Get a particular sub-function as another Function"""
 		raise NotImplemented
 
-	##############################################################################
-	# Domain Aliases
-	##############################################################################
+# 	I've decided that it is better to access domain features through fun.domain
+#	rather than making the function a domain as well
+#	##############################################################################
+#	# Domain Aliases
+#	##############################################################################
+#
+#	def _closest_point(self, x0, L = None, **kwargs):
+#		return self.domain_norm._closest_point(x0, L = L, **kwargs)
+#
+#	def _corner(self, p, **kwargs):
+#		return self.domain_norm._corner(p, **kwargs)
+#
+#	def _extent(self, x, p):
+#		return self.domain_norm._extent(x, p)
+#
+#	def _isinside(self, X):
+#		return self.domain_norm._isinside(X)	 
+#	
+#	def _constrained_least_squares(self, A, b, **kwargs):
+#		return self.domain_norm._constrained_least_squares(A, b, **kwargs)
+#
+#	def _sample(self, draw = 1):
+#		return self.domain_norm._sample(draw)
+#
+#
+#	# We remove multiplication because it doesn't make any sense with how it interacts with
+#	# the call statements for the function
+#	def __mul__(self, other):
+#		raise NotImplementedError 
+#	
+#	def __rmul__(self, other):
+#		raise NotImplementedError 
 
-	def _closest_point(self, x0, L = None, **kwargs):
-		return self.domain_norm._closest_point(x0, L = L, **kwargs)
-
-	def _corner(self, p, **kwargs):
-		return self.domain_norm._corner(p, **kwargs)
-
-	def _extent(self, x, p):
-		return self.domain_norm._extent(x, p)
-
-	def _isinside(self, X):
-		return self.domain_norm._isinside(X)	 
-	
-	def _constrained_least_squares(self, A, b, **kwargs):
-		return self.domain_norm._constrained_least_squares(A, b, **kwargs)
-
-	def _sample(self, draw = 1):
-		return self.domain_norm._sample(draw)
-
-
-	# We remove multiplication because it doesn't make any sense with how it interacts with
-	# the call statements for the function
-	def __mul__(self, other):
-		raise NotImplementedError 
-	
-	def __rmul__(self, other):
-		raise NotImplementedError 
-
-if __name__ == '__main__':
-	from dask.distributed import Client
-	from demos import borehole, build_borehole_domain, Borehole
-	#from demos import Borehole
-
-
-	#print(dill.source.getsource(borehole))
-	#print(locals())
-	#exec(dill.source.getsource(borehole))	
-	#print(dill.dumps(borehole))
-
-	client = Client('tcp://10.101.89.165:8786')
-
-	fun = Borehole(dask_client = client)
-
-	np.random.seed(0)	
-	X = fun.domain.sample(5)
-	res = fun.eval_async(X)
-	for r in res:
-		print(r.result())	
-
-
-	#print(fun._funs_dill)
-	#x = fun.domain_app.sample()
-	#res = client.submit(borehole, x) 
-	#print(res.result())	
-	#print(fun._funs_dill)
-
-	#dom = build_borehole_domain()
-	#fun = Function(borehole, dom, dask_client = client)
-	#print dill.dumps(borehole)
-	#X = fun.domain.sample(10)
-
-	#print fun.eval_async(X)
+#if __name__ == '__main__':
+#	from dask.distributed import Client
+#	from demos import borehole, build_borehole_domain, Borehole
+#	#from demos import Borehole
+#
+#
+#	#print(dill.source.getsource(borehole))
+#	#print(locals())
+#	#exec(dill.source.getsource(borehole))	
+#	#print(dill.dumps(borehole))
+#
+#	client = Client('tcp://10.101.89.165:8786')
+#
+#	fun = Borehole(dask_client = client)
+#
+#	np.random.seed(0)	
+#	X = fun.domain.sample(5)
+#	res = fun.eval_async(X)
+#	for r in res:
+#		print(r.result())	
+#
+#
+#	#print(fun._funs_dill)
+#	#x = fun.domain_app.sample()
+#	#res = client.submit(borehole, x) 
+#	#print(res.result())	
+#	#print(fun._funs_dill)
+#
+#	#dom = build_borehole_domain()
+#	#fun = Function(borehole, dom, dask_client = client)
+#	#print dill.dumps(borehole)
+#	#X = fun.domain.sample(10)
+#
+#	#print fun.eval_async(X)
 
 

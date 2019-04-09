@@ -12,7 +12,7 @@ def test_grad():
 	wing = WingWeight()
 	
 	for fun in [borehole, gb, otl, piston, robotarm, wing]:
-		x = fun.sample(1)
+		x = fun.domain.sample(1)
 		grad = lambda x: fun.grad(x).T
 		print(fun(x))
 		print(grad(x))

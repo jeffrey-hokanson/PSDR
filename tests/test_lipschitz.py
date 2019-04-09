@@ -9,7 +9,7 @@ np.random.seed(0)
 def test_lipschitz_grad(N = 10):
 
 	func = OTLCircuit()
-	X = func.sample(N)
+	X = func.domain.sample(N)
 	grads = func.grad(X)
 	
 	lip = LipschitzMatrix(ftol = 1e-10, gtol = 1e-10, verbose = True)
@@ -25,7 +25,7 @@ def test_lipschitz_grad(N = 10):
 def test_lipschitz_func(M = 20):
 
 	func = OTLCircuit()
-	X = func.sample(M)
+	X = func.domain.sample(M)
 	fX = func(X)
 	
 	lip = LipschitzMatrix(ftol = 1e-10, gtol = 1e-10, verbose = True)
@@ -44,10 +44,10 @@ def test_lipschitz_func(M = 20):
 
 def test_solver(N = 50, M = 0):
 	func = OTLCircuit()
-	X = func.sample(N)
+	X = func.domain.sample(N)
 	grads = func.grad(X)
 
-	X = func.sample(M)
+	X = func.domain.sample(M)
 	fX = func(X)
 	X = None
 	fX = None	
