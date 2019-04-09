@@ -101,7 +101,9 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 	np.savetxt(workdir + '/general-3d.in', x.reshape(-1,1), fmt = '%.15e')
 	
 	# Now call multif
-	call = 'docker run -t --rm --mount type=bind,source="%s",target="/workdir" --user root --workdir /workdir jeffreyhokanson/multif:%s' % (workdir, version)
+	uid = os.getuid() 
+	call = 'docker run -t --rm --mount type=bind,source="%s",target="/workdir" --workdir /workdir --user %d' % (workdir, uid)
+	call += ' jeffreyhokanson/multif:%s' % (version,)
 	call += " -f general-3d.cfg -l %d " % (level,)
 	if cores is not None:
 		# This seems to work on Linux
