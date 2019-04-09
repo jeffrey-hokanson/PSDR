@@ -147,7 +147,6 @@ def buildDesignDomain(output='verbose', **kwargs):
 	bwall = np.vstack((bwall,bcouple))
 
 	inner_wall_domain = LinIneqDomain(Awall, np.squeeze(bwall), **kwargs)
-
 	# As the range of each of these directions is less than one, 
 	# this old code setup scaling for the normalized domain with lower and upper bounds 
 	#x_wall, _ = inner_wall_domain.chebyshev_center() # use center shape as baseline
@@ -164,7 +163,7 @@ def buildDesignDomain(output='verbose', **kwargs):
 		ub[i] = inner_wall_domain.corner(ei)[i]
 
 	#inner_wall_domain = LinIneqDomain(Awall, np.squeeze(bwall), lb = lb, ub = ub, center = x_wall)
-	inner_wall_domain = LinIneqDomain(Awall, np.squeeze(bwall), lb = lb, ub = ub, **kwargs)
+	inner_wall_domain = LinIneqDomain(Awall, np.squeeze(bwall), lb = lb, ub = ub, names = 'inner wall', **kwargs)
 						 
 	# -------------------------------- THERMAL LAYER -----------------------------
 	A4, b4 = piecewiseBilinearAxial(LAYER1_THICKNESS_LOCATIONS, LAYER1_THICKNESS_ANGLES,
@@ -178,10 +177,10 @@ def buildDesignDomain(output='verbose', **kwargs):
 	lb = np.hstack((lb_perc*x_thermal[0], 0.01*np.ones(12)))
 	ub = np.hstack((ub_perc*x_thermal[0], 0.05*np.ones(12)))
 	#thermal_layer_domain = LinIneqDomain(Athermal, np.squeeze(bthermal), lb = lb, ub = ub, center = x_thermal)
-	thermal_layer_domain = LinIneqDomain(Athermal, np.squeeze(bthermal), lb = lb, ub = ub, **kwargs)
+	thermal_layer_domain = LinIneqDomain(Athermal, np.squeeze(bthermal), lb = lb, ub = ub, names = 'thermal layer', **kwargs)
 	
 	# -------------------------------- AIR GAP -----------------------------------
-	air_gap_domain  = UniformDomain(0.003, 0.05)#, center = 0.0254)
+	air_gap_domain  = UniformDomain(0.003, 0.05, names = 'air gap')#, center = 0.0254)
 	
 	# -------------------------------- INNER LOAD LAYER --------------------------
 	A5, b5 = piecewiseBilinearAxial(LAYER3_THICKNESS_LOCATIONS, LAYER3_THICKNESS_ANGLES,
@@ -194,7 +193,7 @@ def buildDesignDomain(output='verbose', **kwargs):
 	x_load1 = np.array([x_load1[i] for i in range(len(x_load1)) if LAYER3_DV[i] != 0 ]);  
 	lb = np.hstack((lb_perc*x_load1[0], 0.001*np.ones(12)))
 	ub = np.hstack((ub_perc*x_load1[0], 0.006*np.ones(12)))
-	load_layer_inner_domain = LinIneqDomain(Aload1, np.squeeze(bload1), lb = lb, ub = ub, **kwargs)#, center = x_load1)
+	load_layer_inner_domain = LinIneqDomain(Aload1, np.squeeze(bload1), lb = lb, ub = ub, names = 'inner load layer', **kwargs)#, center = x_load1)
 	
 	# -------------------------------- MIDDLE LOAD LAYER -------------------------
 	A6, b6 = piecewiseBilinearAxial(LAYER4_THICKNESS_LOCATIONS, LAYER4_THICKNESS_ANGLES,
@@ -207,7 +206,7 @@ def buildDesignDomain(output='verbose', **kwargs):
 	x_load2 = np.array([x_load2[i] for i in range(len(x_load2)) if LAYER4_DV[i] != 0 ]);  
 	lb = np.hstack((lb_perc*x_load2[0], 0.0064*np.ones(12)))
 	ub = np.hstack((ub_perc*x_load2[0], 0.0159*np.ones(12)))
-	load_layer_middle_domain = LinIneqDomain(Aload2, np.squeeze(bload2), lb = lb, ub = ub, **kwargs)# , center = x_load2)
+	load_layer_middle_domain = LinIneqDomain(Aload2, np.squeeze(bload2), lb = lb, ub = ub, names = 'middle load layer', **kwargs)# , center = x_load2)
 	
 	# -------------------------------- OUTER LOAD LAYER --------------------------
 	A7, b7 = piecewiseBilinearAxial(LAYER5_THICKNESS_LOCATIONS, LAYER5_THICKNESS_ANGLES,
@@ -220,7 +219,7 @@ def buildDesignDomain(output='verbose', **kwargs):
 	x_load3 = np.array([x_load3[i] for i in range(len(x_load3)) if LAYER5_DV[i] != 0 ]);  
 	lb = np.hstack((lb_perc*x_load3[0], 0.001*np.ones(12)))
 	ub = np.hstack((ub_perc*x_load3[0], 0.006*np.ones(12)))
-	load_layer_outer_domain = LinIneqDomain(Aload3, np.squeeze(bload3), lb = lb, ub = ub, **kwargs)#, center = x_load3)
+	load_layer_outer_domain = LinIneqDomain(Aload3, np.squeeze(bload3), lb = lb, ub = ub, names = 'outer load layer', **kwargs)#, center = x_load3)
 	
 	# -------------------------------- STRINGERS ---------------------------------
 	A8, b8 = piecewiseBilinearAxial(STRINGERS_BREAK_LOCATIONS, STRINGERS_ANGLES,
@@ -239,7 +238,7 @@ def buildDesignDomain(output='verbose', **kwargs):
 		0.00682246])
 	lb = np.hstack((x_stringers[0:4]-0.2, 0.002*np.ones(12)));
 	ub = np.hstack((x_stringers[0:4]+0.2, 0.01*np.ones(12)));
-	stringers_domain = LinIneqDomain(Astringers, np.squeeze(bstringers), lb = lb, ub = ub, **kwargs)#, center = x_stringers)
+	stringers_domain = LinIneqDomain(Astringers, np.squeeze(bstringers), lb = lb, ub = ub, names = 'stringers', **kwargs)#, center = x_stringers)
 	
 	# -------------------------------- BAFFLES -----------------------------------
 	A9, b9 = baffles(BAFFLES_LOCATION, BAFFLES_THICKNESS, 
@@ -250,7 +249,7 @@ def buildDesignDomain(output='verbose', **kwargs):
 	x_baffles = np.array([x_baffles[i] for i in range(len(x_baffles)) if BAFFLES_DV[i] != 0]);
 	lb = np.hstack((x_baffles[0:4]-0.15, 0.0074*np.ones(5)));
 	ub = np.hstack((x_baffles[0:4]+0.15, 0.0359*np.ones(5)));
-	baffles_domain = LinIneqDomain(Abaffles, np.squeeze(bbaffles), lb = lb, ub = ub, **kwargs)#, center = x_baffles)
+	baffles_domain = LinIneqDomain(Abaffles, np.squeeze(bbaffles), lb = lb, ub = ub, names = 'baffles', **kwargs)#, center = x_baffles)
 
 	
 	# -------------------------------- FULL CONSTRAINTS --------------------------
@@ -271,81 +270,81 @@ def buildRandomDomain(output='verbose', truncate = None):
 
 	random_domains = [
 	#			CMC_DENSITY, 1,
-		LogNormalDomain(7.7803, 0.0182**2, truncate = truncate, names = ['CMC density']),
+		LogNormalDomain(7.7803, 0.0182**2, truncate = truncate, names = ['CMC density (kg/m^3)']),
 	#			CMC_ELASTIC_MODULUS, 1,
-		LogNormalDomain(4.2047, 0.0551**2, scaling = 1e9, truncate = truncate, names = ['CMC elastic modulus']),
+		LogNormalDomain(4.2047, 0.0551**2, scaling = 1e9, truncate = truncate, names = ['CMC elastic modulus (Pa)']),
 	#			CMC_POISSON_RATIO, 1,
 		UniformDomain(0.23, 0.43, names = ['CMC Poisson ratio']),
 	#			 CMC_THERMAL_CONDUCTIVITY, 1,
-		UniformDomain(1.37, 1.45, names = ['CMC thermal conductivity']),
+		UniformDomain(1.37, 1.45, names = ['CMC thermal conductivity (W/m-K)']),
 	#			CMC_THERMAL_EXPANSION_COEF, 1, 
-		UniformDomain(0.228e-6, 0.252e-6, names = ['CMC thermal expansion coef.']),	 
+		UniformDomain(0.228e-6, 0.252e-6, names = ['CMC thermal expansion coef. (1/K)']),	 
 	#			CMC_PRINCIPLE_FAILURE_STRAIN, 1, 
 		LogNormalDomain(-2.6694, 0.1421**2, scaling=1e-2, truncate = truncate, names = ['CMC principle failure strain'] ),
 	#			CMC_MAX_SERVICE_TEMPERATURE, 1, 
-		UniformDomain(963, 983, names = ['CMC max service temperature']),
+		UniformDomain(963, 983, names = ['CMC max service temperature (K)']),
 	#
 	#
 	#			GR-BMI_DENSITY, 1, 
-		UniformDomain(1563, 1573, names = ['GR-BMI density']), 
+		UniformDomain(1563, 1573, names = ['GR-BMI density (kg/m^3)']), 
 	#			GR-BMI_ELASTIC_MODULUS, 2,
-		UniformDomain(57e9, 63e9, names = ['GR-BMI elastic modulus 1']),
-		UniformDomain(57e9, 63e9, names = ['GR-BMI elastic modulus 2']),
+		UniformDomain(57e9, 63e9, names = ['GR-BMI elastic modulus 1 (Pa)']),
+		UniformDomain(57e9, 63e9, names = ['GR-BMI elastic modulus 2 (Pa)']),
 	#			GR-BMI_SHEAR_MODULUS, 1, 
-		UniformDomain(22.6e9, 24.0e9, names = ['GR-BMI shear modulus']),
+		UniformDomain(22.6e9, 24.0e9, names = ['GR-BMI shear modulus (Pa)']),
 	#			GR-BMI_POISSON_RATIO, 1,
 		UniformDomain(0.334, 0.354, names = ['GR-BMI Poisson ratio']), 
 	#			GR-BMI_MUTUAL_INFLUENCE_COEFS, 2, 
 		UniformDomain(-0.1, 0.1, names = ['GR-BMI mutual influence coef 1']),
 		UniformDomain(-0.1, 0.1, names = ['GR-BMI mutual influence coef 2']),
 	#			GR-BMI_THERMAL_CONDUCTIVITY, 3,
-		UniformDomain(3.208, 3.546, names = ['GR-BMI thermal conductivity 1']),
-		UniformDomain(3.208, 3.546, names = ['GR-BMI thermal conductivity 2']),
-		UniformDomain(3.243, 3.585, names = ['GR-BMI thermal conductivity 3']),
+		UniformDomain(3.208, 3.546, names = ['GR-BMI thermal conductivity 1 (W/m-K)']),
+		UniformDomain(3.208, 3.546, names = ['GR-BMI thermal conductivity 2 (W/m-K)']),
+		UniformDomain(3.243, 3.585, names = ['GR-BMI thermal conductivity 3 (W/m-K)']),
 	#			GR-BMI_THERMAL_EXPANSION_COEF, 3,
-		UniformDomain(1.16e-6, 1.24e-6, names = ['GR-BMI thermal expansion coef. 1']), 
-		UniformDomain(1.16e-6, 1.24e-6, names = ['GR-BMI thermal expansion coef. 2']), 
-		UniformDomain(-0.04e-6, 0.04e-6, names = ['GR-BMI thermal expansion coef. 3']),
+		UniformDomain(1.16e-6, 1.24e-6, names = ['GR-BMI thermal expansion coef. 1 (1/K)']), 
+		UniformDomain(1.16e-6, 1.24e-6, names = ['GR-BMI thermal expansion coef. 2 (1/K)']), 
+		UniformDomain(-0.04e-6, 0.04e-6, names = ['GR-BMI thermal expansion coef. 3 (1/K)']),
 	#			GR-BMI_LOCAL_FAILURE_STRAIN, 5,
 		UniformDomain(0.675e-2, 0.825e-2, names = ['GR-BMI local failure strain 1']),#, center = 0.75e-2),
-		UniformDomain(-0.572e-2, -0.494e-2),#, center = -0.52e-2),
-		UniformDomain(0.675e-2, 0.825e-2),#, center = 0.75e-2),
-		UniformDomain(-0.572e-2, -0.494e-2),#, center = -0.52e-2),
-		UniformDomain(0.153e-2, 0.187e-2),#, center = 0.17e-2),
+		UniformDomain(-0.572e-2, -0.494e-2, names = ['GR-BMI local failure strain 2']),#, center = -0.52e-2),
+		UniformDomain(0.675e-2, 0.825e-2, names = ['GR-BMI local failure strain 3']),#, center = 0.75e-2),
+		UniformDomain(-0.572e-2, -0.494e-2, names = ['GR-BMI local failure strain 4']),#, center = -0.52e-2),
+		UniformDomain(0.153e-2, 0.187e-2, names = ['GR-BMI local failure strain 5']),#, center = 0.17e-2),
 	#			GR-BMI_MAX_SERVICE_TEMPERATURE, 1,
-		UniformDomain(500, 510),
+		UniformDomain(500, 510, names = ['GR-BMI max service temperature (K)']),
 	#
 	#
 	#			TI-HC_DENSITY, 1, 
-		UniformDomain(177.77, 181.37),
+		UniformDomain(177.77, 181.37, names = ['Ti-HC density (kg/m^3)']),
 	#			TI-HC_ELASTIC_MODULUS, 1, 
-		LogNormalDomain(0.6441, 0.0779**2, scaling = 1e9, truncate = truncate, ),
+		LogNormalDomain(0.6441, 0.0779**2, scaling = 1e9, truncate = truncate, names = ['Ti-HC elastic modulus (Pa)']),
 	#			TI-HC_POISSON_RATIO, 1, 
-		UniformDomain(0.160, 0.196),
+		UniformDomain(0.160, 0.196, names = ['Ti-HC Poisson ratio']),
 	#			TI-HC_THERMAL_CONDUCTIVITY, 1, 
-		UniformDomain(0.680, 0.736),
+		UniformDomain(0.680, 0.736, names = ['Ti-HC thermal conductivity (W/m-K)']),
 	#			TI-HC_THERMAL_EXPANSION_COEF, 1, 
-		UniformDomain(2.88e-6, 3.06e-6),
+		UniformDomain(2.88e-6, 3.06e-6, names = ['Ti-HC thermal expansion coef. (1/K)']),
 	#			TI-HC_YIELD_STRESS, 1,
-		LogNormalDomain(2.5500, 0.1205**2, scaling = 1e6, truncate = truncate, ),
+		LogNormalDomain(2.5500, 0.1205**2, scaling = 1e6, truncate = truncate, names = ['Ti-HC yield stress (Pa)'] ),
 	#			TI-HC_MAX_SERVICE_TEMPERATURE, 1, 
-		UniformDomain(745, 765),
+		UniformDomain(745, 765, names = ['Ti-HC max service temperature (K)']),
 	#
 	#
 	#			AIR_THERMAL_CONDUCTIVITY, 1, 
-		UniformDomain(0.0320, 0.0530),
+		UniformDomain(0.0320, 0.0530, names = ['Air thermal conductivity (W/m-K)']),
 	#			PANEL_YIELD_STRESS, 1, 
-		LogNormalDomain(4.3191, 0.1196**2, scaling = 1e6, truncate = truncate, ), 
+		LogNormalDomain(4.3191, 0.1196**2, scaling = 1e6, truncate = truncate, names = ['Panel yield stress (Pa)']), 
 	#			INLET_PSTAG, 1, 
-		LogNormalDomain(11.5010, 0.0579**2, truncate = truncate, ),
+		LogNormalDomain(11.5010, 0.0579**2, truncate = truncate, names = ['Inlet stagnation pressure (Pa)'] ),
 	#			INLET_TSTAG, 1, 
-		LogNormalDomain(6.8615, 0.0119**2, truncate = truncate, ),
+		LogNormalDomain(6.8615, 0.0119**2, truncate = truncate, names = ['Inlet stagnation temperature (K)'] ),
 	#			ATM_PRES, 1, 
-		LogNormalDomain(9.8386, 0.0323**2, truncate = truncate, ),
+		LogNormalDomain(9.8386, 0.0323**2, truncate = truncate, names = ['Atmospheric pressure (Pa)'] ),
 	#			ATM_TEMP, 1, 
-		LogNormalDomain(5.3781, 0.0282**2, truncate = truncate, ),
+		LogNormalDomain(5.3781, 0.0282**2, truncate = truncate, names = ['Atmospheric temperature (K)'] ),
 	#			HEAT_XFER_COEF_TO_ENV, 1
-		LogNormalDomain(2.5090, 0.2285, truncate = truncate, ),
+		LogNormalDomain(2.5090, 0.2285, truncate = truncate, names = ['Heat transfer coef. to environment (W/m^2-K)']),
 	]
 
 	return TensorProductDomain(random_domains)
