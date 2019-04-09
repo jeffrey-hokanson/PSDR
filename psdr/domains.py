@@ -124,8 +124,10 @@ class Domain(object):
 			return
 
 		if isinstance(names, str):
-			assert len(self) == 1, "A list of names must be provided for domains with greater than one dimension" 
-			self._names = [names]
+			if len(self) == 1:
+				self._names = [names]
+			else:
+				self._names = [names + ' %d' % (j+1,) for j in range(len(self)) ]
 		else:
 			assert len(self) == len(names), "Number of names must match dimension"
 			self._names = names
@@ -1172,11 +1174,11 @@ class LinQuadDomain(Domain):
 
 		if len(Ls) > 0:
 			return LinQuadDomain(lb = lb, ub = ub, A = A, b = b, A_eq = A_eq, b_eq = b_eq,
-				 Ls = Ls, ys = ys, rhos = rhos)
+				 Ls = Ls, ys = ys, rhos = rhos, names = self.names)
 		elif len(b) > 0 or len(b_eq) > 0:
-			return LinIneqDomain(lb = lb, ub = ub, A = A, b = b, A_eq = A_eq, b_eq = b_eq)
+			return LinIneqDomain(lb = lb, ub = ub, A = A, b = b, A_eq = A_eq, b_eq = b_eq, names = self.names)
 		else:
-			return BoxDomain(lb = lb, ub = ub)
+			return BoxDomain(lb = lb, ub = ub, names = self.names)
 
 	def __and__(self, other):
 		if isinstance(other, LinQuadDomain) or (isinstance(other, TensorProductDomain) and other._is_linquad()):
@@ -1229,7 +1231,7 @@ class LinIneqDomain(LinQuadDomain):
 
 	"""
 	def __init__(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None, names = None, **kwargs):
-		LinQuadDomain.__init__(self, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, names = None, **kwargs)
+		LinQuadDomain.__init__(self, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq, names = names, **kwargs)
 
 	def _isinside(self, X, tol = TOL):
 		return self._isinside_bounds(X, tol = tol) & self._isinside_ineq(X, tol = tol) & self._isinside_eq(X, tol = tol)
