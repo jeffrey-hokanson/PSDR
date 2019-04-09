@@ -6,7 +6,7 @@ from scipy.spatial import Voronoi
 from scipy.spatial.distance import cdist, pdist, squareform
 from .domains import EmptyDomain
 
-__all__ = ['sample_sphere', 'unique_points']
+__all__ = ['sample_sphere', 'unique_points', 'sample_simplex']
 
 
 def sample_sphere(dim, n, k = 100):
@@ -67,3 +67,19 @@ def unique_points(X):
 		I[i] = ~np.isclose(np.min(D[i,i+1:]), 0)
 	return I
 
+
+def sample_simplex(dim, Nsamp = 1):
+	r""" Samples the unit simplex uniformly
+
+
+
+	References:
+	https://cs.stackexchange.com/questions/3227/uniform-sampling-from-a-simplex
+
+	"""
+	r = np.random.uniform(0, 1, size = (Nsamp, dim+1))
+	r[:,0] = 0
+	r[:,-1] = 1
+	r = np.sort(r, axis = 1)
+	alphas = r[:,1:] - r[:,:-1]
+	return alphas

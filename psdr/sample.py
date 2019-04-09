@@ -4,7 +4,7 @@ import scipy.linalg
 from scipy.spatial.distance import cdist, pdist, squareform
 
 from .vertex import voronoi_vertex 
-from .geometry import sample_sphere, unique_points
+from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain
 
 __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample']
@@ -56,7 +56,10 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 		
 		# Even though these are on a line in the space, 
 		# when vertex_sample with randomize=True, these points will be pushed off the line.
-		X0 = np.vstack([alpha*c1 + (1-alpha)*c2 for alpha in np.random.uniform(0, 1, size = Nsamp)])	
+		#alphas = np.linspace(0,1, Nsamp)
+		#alphas[1:-1] += np.random.uniform(-1./Nsamp, 1/Nsamp, size = (Nsamp - 2))
+		alphas = np.random.uniform(0,1, size = Nsamp)
+		X0 = np.vstack([alpha*c1 + (1-alpha)*c2 for alpha in alphas])	
 		return X0
 
 	else:
@@ -66,21 +69,25 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 		# These are points on the corners of the domain
 		cs = [domain.corner(U.dot(d)) for d in ds]
 		
-		Lcs = [Lhat.dot(c) for c in cs]
+		#Lcs = [Lhat.dot(c) for c in cs]
 
 		# Find the unique points 
 		I = unique_points(cs)
 		cs = np.array(cs)[I]
 
-		# Now sample random convex-combinations of these points
-		dom_alpha = LinIneqDomain(
-			lb = np.zeros(len(cs)), 
-			ub = np.ones(len(cs)),
-			A_eq = np.ones((1,len(cs))),
-			b_eq = np.ones(1,)
-			)
-		alphas = dom_alpha.sample(Nsamp)
-		X0 = np.vstack([ cs.T.dot(alpha) for alpha in alphas])
+		X0 = np.zeros((Nsamp, len(domain)))
+		alpha = sample_simplex(len(cs), 1)
+		X0[0] = cs.T.dot(alpha[0])
+		for i in range(1, Nsamp):
+			# Use a hackish version of Mitchel's best candidate to 
+			# uniformly (ish) sample the domain
+			# TODO: Would a grid of points inside simplex plus 
+			alphas = sample_simplex(len(cs), 1000)
+			Xcan = (cs.T.dot(alphas.T)).T
+			# Find the closest point
+			d = np.min(cdist(X0[0:i], Xcan), axis = 0)
+			k = np.argmax(d)
+			X0[i] = Xcan[k]
 		return X0
 
 def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
