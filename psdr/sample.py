@@ -1,11 +1,87 @@
 from __future__ import print_function
 import numpy as np
-from scipy.spatial.distance import cdist
+import scipy.linalg
+from scipy.spatial.distance import cdist, pdist, squareform
 
 from .vertex import voronoi_vertex 
+from .geometry import sample_sphere, unique_points
+from .domains import LinIneqDomain
+
+__all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample']
 
 
-__all__ = ['seq_maximin_sample', 'fill_distance_estimate' ]
+def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
+	r""" Construct initial points for a low-rank L matrix
+
+	The Voronoi vertex sampling algorithm :meth:`psdr.voronoi_vertex`
+	requires an initial set of points which are then pushed towards Voronoi vertices.
+	In high dimensional spaces with a low-rank distance metric given by L, random sampling
+	is going to concentrate samples in this metric and ignore the boundaries.
+	This will make the Voronoi vertices sampled by this algorithm tend to ignore
+	areas near the boundary and hence, these will provide poor samples for a maximin
+	design of experiments. This algorithm attempts to sample a high-dimensional space
+	with a low-rank pseudo-metric  
+
+	Parameters
+	----------
+	domain: Domain
+		Domain on which to sample
+	L: array-like (?,m)
+		Matrix defining the (semi)-metric for the space
+	Nsamp: int, optional
+		Number of samples to return
+	Nboundary: int, optional
+		Number of samples to take from the boundary
+
+	Returns
+	-------
+	X0: np.ndarray(Nsamp, m)
+		Samples that are well-distributed in L metric
+	"""
+	# Compute the active directions
+	_, s, VT = scipy.linalg.svd(L)
+	I = np.argwhere(~np.isclose(s,0)).flatten()
+	U = VT.T[:,I]
+	Lhat = np.diag(s[I]).dot(U.T)
+	
+	if U.shape[1] == len(domain):
+		# We are full rank and cannot do better than random sampling
+		return domain.sample(Nsamp)
+	
+	elif U.shape[1] == 1:
+		# If we have a one dimensional space, we only need to find the corners
+		# and sample uniformly between them
+		c1 = domain.corner(U.flatten())
+		c2 = domain.corner(-U.flatten())
+		
+		# Even though these are on a line in the space, 
+		# when vertex_sample with randomize=True, these points will be pushed off the line.
+		X0 = np.vstack([alpha*c1 + (1-alpha)*c2 for alpha in np.random.uniform(0, 1, size = Nsamp)])	
+		return X0
+
+	else:
+		# In this case we sample uniformly from the interior 
+		# First we uniformly sample the rank-L dimensional sphere
+		ds = sample_sphere(U.shape[1], Nboundary)
+		# These are points on the corners of the domain
+		cs = [domain.corner(U.dot(d)) for d in ds]
+		
+		Lcs = [Lhat.dot(c) for c in cs]
+
+		# Find the unique points 
+		I = unique_points(cs)
+		cs = np.array(cs)[I]
+
+		# Now sample random convex-combinations of these points
+		dom_alpha = LinIneqDomain(
+			lb = np.zeros(len(cs)), 
+			ub = np.ones(len(cs)),
+			A_eq = np.ones((1,len(cs))),
+			b_eq = np.ones(1,)
+			)
+		alphas = dom_alpha.sample(Nsamp)
+		X0 = np.vstack([ cs.T.dot(alpha) for alpha in alphas])
+		return X0
 
 def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 	r""" Performs one step of sequential maximin sampling. 
@@ -41,8 +117,10 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 		Sample from inside the domain
 	"""
 
-	if X0 is None:
+	if X0 is None and L is None:
 		X0 = domain.sample(Nsamp)
+	elif X0 is None and L is not None:
+		X0 = initial_sample(domain, L, Nsamp = Nsamp)
 
 	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = True)
 
@@ -76,7 +154,7 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None ):
 	r""" Estimate the fill distance of the points Xhat in the domain
 
-	The *fill distance* (Def. 1.4 of [Wen04]_) or *dispersion*
+	The *fill distance* (Def. 1.4 of [Wen04]_) or *dispersion* [LC05]_
 	is the furthest distance between any point :math:`\mathbf{x} \in \mathcal{D}` 
 	and a set of points 
 	:math:`\lbrace \widehat{\mathbf{x}}_j \rbrace_{j=1}^m \subset \mathcal{D}`:
@@ -111,10 +189,15 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None )
 	..  [Wen04] Scattered Data Approximation. Holger Wendland.
 			Cambridge University Press, 2004.
 			https://doi.org/10.1017/CBO9780511617539
+	.. [LC05] Iteratively Locating Voronoi Vertices for Dispersion Estimation
+		Stephen R. Lindemann and Peng Cheng
+		Proceedings of the 2005 Interational Conference on Robotics and Automation
 	"""
 	
-	if X0 is None:
+	if X0 is None and L is None:
 		X0 = domain.sample(Nsamp)
+	elif X0 is None and L is not None:
+		X0 = initial_sample(domain, L, Nsamp = Nsamp)
 
 	# Since we only care about distance in L, we can terminate early if L is rank-deficient
 	# and hence we turn off the randomization

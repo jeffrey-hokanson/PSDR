@@ -6,6 +6,9 @@ from scipy.spatial import Voronoi
 from scipy.spatial.distance import cdist, pdist, squareform
 from .domains import EmptyDomain
 
+__all__ = ['sample_sphere', 'unique_points']
+
+
 def sample_sphere(dim, n, k = 100):
 	""" Sample points on a high-dimensional sphere 
 
@@ -45,4 +48,22 @@ def sample_sphere(dim, n, k = 100):
 
 	return X
 
+def unique_points(X):
+	r""" Compute the unique points from a list
+
+	Parameters
+	----------
+	X: array-like (M, m)
+		Input points
+	
+	Returns
+	-------
+	I: np.ndarray (M, dtype = np.bool)
+		List of points with no points close to each other
+	"""
+	D = squareform(pdist(X))
+	I = np.ones(len(X), dtype = np.bool)
+	for i in range(len(X)-1):
+		I[i] = ~np.isclose(np.min(D[i,i+1:]), 0)
+	return I
 
