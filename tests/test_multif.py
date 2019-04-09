@@ -28,8 +28,9 @@ def test_multif():
 	x = multif.domain.sample()
 	print(x)
 	print(multif.domain.isinside(x))
-	print(multif.domain.names)
-	y = multif(x)
+	for name in multif.domain.names:
+		print(name)
+	y = multif(x, verbose = True)
 	print(y)
 
 if __name__ == '__main__':
