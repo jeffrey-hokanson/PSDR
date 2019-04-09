@@ -26,9 +26,10 @@ def test_initial_sample(m = 20):
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	L1 = np.random.randn(1,m)
 	L2 = np.random.randn(2,m)
+	L3 = np.random.randn(3,m)
 
-	Nsamp = 1000
-	for L in [L1, L2]:
+	Nsamp = 100
+	for L in [L1, L2, L3]:
 		# Standard uniform sampling
 		X1 = dom.sample(Nsamp)
 		LX1 = L.dot(X1.T).T
