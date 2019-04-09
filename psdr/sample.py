@@ -2,10 +2,11 @@ from __future__ import print_function
 import numpy as np
 import scipy.linalg
 from scipy.spatial.distance import cdist, pdist, squareform
+import cvxpy as cp
 
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
-from .domains import LinIneqDomain
+from .domains import LinIneqDomain, ConvexHullDomain
 
 __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample']
 
@@ -43,12 +44,10 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 	I = np.argwhere(~np.isclose(s,0)).flatten()
 	U = VT.T[:,I]
 	Lhat = np.diag(s[I]).dot(U.T)
+
+	Lrank = U.shape[1]
 	
-	if U.shape[1] == len(domain):
-		# We are full rank and cannot do better than random sampling
-		return domain.sample(Nsamp)
-	
-	elif U.shape[1] == 1:
+	if Lrank == 1:
 		# If we have a one dimensional space, we only need to find the corners
 		# and sample uniformly between them
 		c1 = domain.corner(U.flatten())
@@ -62,33 +61,77 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 		X0 = np.vstack([alpha*c1 + (1-alpha)*c2 for alpha in alphas])	
 		return X0
 
-	else:
-		# In this case we sample uniformly from the interior 
+	elif U.shape[1] == 2 or U.shape[1] == 3:
+		# For low-dimensional spaces we can construct the convex hull
+		# of points on the low-dimensional space, sample uniformly there
+		# and then project back to the original space
+
 		# First we uniformly sample the rank-L dimensional sphere
 		ds = sample_sphere(U.shape[1], Nboundary)
 		# These are points on the corners of the domain
 		cs = [domain.corner(U.dot(d)) for d in ds]
+	
+		# Construct a reduced-dimension L times the corners
+		Lcs = [Lhat.dot(c) for c in cs]
+		# and take these points to form the convex hull
+		Ldom = ConvexHullDomain(Lcs, solver = 'CVXOPT')
+	
+		# and sample this convex hull
+		LX0 = Ldom.sample(Nsamp)
+
+		# Convert these points back into the original space
+		# by finding the convex combination of corners in the L space
+		# which we can then push back to the original space
+		alpha = cp.Variable(len(Ldom.vertices))
+		constraints = [0<= alpha, alpha <=1, cp.sum(alpha) == 1]
+		Lx = cp.Parameter(len(LX0[0]))
+		obj = cp.sum_squares(alpha.__rmatmul__(Ldom.vertices.T) - Lx)
+		prob = cp.Problem(cp.Minimize(obj), constraints)
+	
+		# Vertices in the original space
+		V = np.array(cs)[Ldom.hull.vertices]
 		
-		#Lcs = [Lhat.dot(c) for c in cs]
-
-		# Find the unique points 
-		I = unique_points(cs)
-		cs = np.array(cs)[I]
-
 		X0 = np.zeros((Nsamp, len(domain)))
-		alpha = sample_simplex(len(cs), 1)
-		X0[0] = cs.T.dot(alpha[0])
-		for i in range(1, Nsamp):
-			# Use a hackish version of Mitchel's best candidate to 
-			# uniformly (ish) sample the domain
-			# TODO: Would a grid of points inside simplex plus 
-			alphas = sample_simplex(len(cs), 1000)
-			Xcan = (cs.T.dot(alphas.T)).T
-			# Find the closest point
-			d = np.min(cdist(X0[0:i], Xcan), axis = 0)
-			k = np.argmax(d)
-			X0[i] = Xcan[k]
+		for i in range(Nsamp):
+			Lx.value = LX0[i]
+			prob.solve(warm_start = True, solver = 'CVXOPT')
+			X0[i] = V.T.dot(alpha.value)
+			# check the solution
+			if np.linalg.norm(Lhat.dot(X0[i]) - LX0[i]) > 1e-4:
+				print("Inexact solution")
 		return X0
+
+	# This code has proven ineffective at spreading points out
+	# based on the unit test	
+#	else:
+#		# In this case we sample uniformly from the interior 
+#		# First we uniformly sample the rank-L dimensional sphere
+#		ds = sample_sphere(U.shape[1], Nboundary)
+#		# These are points on the corners of the domain
+#		cs = [domain.corner(U.dot(d)) for d in ds]
+#		
+#
+#		# Find the unique points 
+#		I = unique_points(cs)
+#		cs = np.array(cs)[I]
+#
+#		X0 = np.zeros((Nsamp, len(domain)))
+#		alpha = sample_simplex(len(cs), 1)
+#		X0[0] = cs.T.dot(alpha[0])
+#		for i in range(1, Nsamp):
+#			# Use a hackish version of Mitchel's best candidate to 
+#			# uniformly (ish) sample the domain
+#			# TODO: Would a grid of points inside simplex plus 
+#			alphas = sample_simplex(len(cs), 1000)
+#			Xcan = (cs.T.dot(alphas.T)).T
+#			# Find the closest point
+#			d = np.min(cdist(X0[0:i], Xcan), axis = 0)
+#			k = np.argmax(d)
+#			X0[i] = Xcan[k]
+#		return X0
+	else:
+		# We are full rank and cannot do better than random sampling
+		return domain.sample(Nsamp)
 
 def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 	r""" Performs one step of sequential maximin sampling. 
