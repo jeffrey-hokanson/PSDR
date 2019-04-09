@@ -1095,7 +1095,7 @@ class LinQuadDomain(Domain):
 		if self.A.shape[0] > 0:	
 			constraints.append( x_norm.__rmatmul__(self.A_norm) <= self.b_norm)
 		if self.A_eq.shape[0] > 0:
-			constraints.append( x_norm.__rmatmul__(self.A_eq) == self.b_eq)
+			constraints.append( x_norm.__rmatmul__(self.A_eq_norm) == self.b_eq_norm)
 
 		for L, y, rho in zip(self.Ls_norm, self.ys_norm, self.rhos_norm):
 			if len(L) > 1:
