@@ -1,6 +1,7 @@
 from __future__ import print_function
 import numpy as np
 import scipy.linalg
+import scipy.optimize
 from scipy.spatial.distance import cdist, pdist, squareform
 import cvxpy as cp
 
@@ -43,95 +44,92 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 	_, s, VT = scipy.linalg.svd(L)
 	I = np.argwhere(~np.isclose(s,0)).flatten()
 	U = VT.T[:,I]
+
+	# An explicit, low-rank version of L
 	Lhat = np.diag(s[I]).dot(U.T)
 
 	Lrank = U.shape[1]
-	
-	if Lrank == 1:
-		# If we have a one dimensional space, we only need to find the corners
-		# and sample uniformly between them
-		c1 = domain.corner(U.flatten())
-		c2 = domain.corner(-U.flatten())
+
+
+	if Lrank != len(domain):
+		# Attempt to determine the effective dimension
+		if Lrank == 1:
+			# If L is rank 1, there is only one active subspace
+			cs = np.array([domain.corner(U.flatten()), domain.corner(-U.flatten())])
+			Lcs = Lhat.dot(cs.T).T
+			dim = 1
+		else:
+			# Otherwise we first uniformly sample the rank-L dimensional sphere
+			ds = sample_sphere(U.shape[1], Nboundary)
+			# And then find points on the boundary in these directions
+			# with respect to the active directions
+			cs = np.array([domain.corner(U.dot(d)) for d in ds])
+		
+			# Construct a reduced-dimension L times the corners
+			Lcs = Lhat.dot(cs.T).T
+		
+			# Remove duplicates
+			I = unique_points(Lcs)
+			cs = cs[I]
+			Lcs = Lcs[I]
+			
+			# Compute the effective dimension using PCA on these points
+			s2 = scipy.linalg.svdvals( (Lcs.T - np.mean(Lcs, axis = 0).reshape(-1,1) ))
+			dim = np.sum(~np.isclose(s2,0))
+		
+			# Note that by computing the effective dimesion in this way
+			# we remove the possibility that L might be rank-2
+			# but that Lcs might be rank-1 due to equality constraints
+			# in the active direction
+	else:
+		dim = len(domain)
+
+	if dim == 1:
+		assert len(Lcs) == 2
 		
 		# Even though these are on a line in the space, 
 		# when vertex_sample with randomize=True, these points will be pushed off the line.
-		#alphas = np.linspace(0,1, Nsamp)
-		#alphas[1:-1] += np.random.uniform(-1./Nsamp, 1/Nsamp, size = (Nsamp - 2))
 		alphas = np.random.uniform(0,1, size = Nsamp)
-		X0 = np.vstack([alpha*c1 + (1-alpha)*c2 for alpha in alphas])	
+		X0 = np.vstack([alpha*cs[0] + (1-alpha)*cs[1] for alpha in alphas])	
 		return X0
-
-	elif U.shape[1] == 2 or U.shape[1] == 3:
-		# For low-dimensional spaces we can construct the convex hull
-		# of points on the low-dimensional space, sample uniformly there
-		# and then project back to the original space
-
-		# First we uniformly sample the rank-L dimensional sphere
-		ds = sample_sphere(U.shape[1], Nboundary)
-		# These are points on the corners of the domain
-		cs = [domain.corner(U.dot(d)) for d in ds]
-	
-		# Construct a reduced-dimension L times the corners
-		Lcs = [Lhat.dot(c) for c in cs]
-		# and take these points to form the convex hull
-		Ldom = ConvexHullDomain(Lcs, solver = 'CVXOPT')
-	
-		# and sample this convex hull
-		LX0 = Ldom.sample(Nsamp)
-
-		# Convert these points back into the original space
-		# by finding the convex combination of corners in the L space
-		# which we can then push back to the original space
-		alpha = cp.Variable(len(Ldom.vertices))
-		constraints = [0<= alpha, alpha <=1, cp.sum(alpha) == 1]
-		Lx = cp.Parameter(len(LX0[0]))
-		obj = cp.sum_squares(alpha.__rmatmul__(Ldom.vertices.T) - Lx)
-		prob = cp.Problem(cp.Minimize(obj), constraints)
-	
-		# Vertices in the original space
-		V = np.array(cs)[Ldom.hull.vertices]
 		
+	elif dim in [2,3]:
+		# Construct a convex hull of low-dimensional points
+		assert len(Lcs) > dim, "Insufficient points to describe hyperplane in %d dimensions" % dim
+		Ldom = ConvexHullDomain(Lcs, solver = 'CVXOPT')
+		# and sample uniformly here
+		LX0 = Ldom.sample(Nsamp)
+		
+		# output points
 		X0 = np.zeros((Nsamp, len(domain)))
+		
+		# We now find a (non-unique) point in the original domain
+		# by solving a over-determined non-negative least squares problem.
+		# Since it is over-determined we can add one row specifying the
+		# convex-combination constraint and still recover the convex-combination
+		# yielding Lx, and correspondingly push that back to the original domain 
+		
+		# Left hand side plus constraint
+		A = np.vstack([ Lcs.T, np.ones( (1, len(Lcs) ))])
 		for i in range(Nsamp):
-			Lx.value = LX0[i]
-			prob.solve(warm_start = True, solver = 'CVXOPT')
-			X0[i] = V.T.dot(alpha.value)
+			b = np.hstack([LX0[i], 1.])
+			# find the convex combination
+			alpha, ri = scipy.optimize.nnls(A, b)
+
 			# check the solution
-			if np.linalg.norm(Lhat.dot(X0[i]) - LX0[i]) > 1e-4:
+			#if np.linalg.norm(Lhat.dot(X0[i]) - LX0[i]) > 1e-4:
+			if ri > 1e-4:
 				print("Inexact solution")
+
+			# project back onto the original space			
+			X0[i] = cs.T.dot(alpha)
+		
 		return X0
 
-	# This code has proven ineffective at spreading points out
-	# based on the unit test	
-#	else:
-#		# In this case we sample uniformly from the interior 
-#		# First we uniformly sample the rank-L dimensional sphere
-#		ds = sample_sphere(U.shape[1], Nboundary)
-#		# These are points on the corners of the domain
-#		cs = [domain.corner(U.dot(d)) for d in ds]
-#		
-#
-#		# Find the unique points 
-#		I = unique_points(cs)
-#		cs = np.array(cs)[I]
-#
-#		X0 = np.zeros((Nsamp, len(domain)))
-#		alpha = sample_simplex(len(cs), 1)
-#		X0[0] = cs.T.dot(alpha[0])
-#		for i in range(1, Nsamp):
-#			# Use a hackish version of Mitchel's best candidate to 
-#			# uniformly (ish) sample the domain
-#			# TODO: Would a grid of points inside simplex plus 
-#			alphas = sample_simplex(len(cs), 1000)
-#			Xcan = (cs.T.dot(alphas.T)).T
-#			# Find the closest point
-#			d = np.min(cdist(X0[0:i], Xcan), axis = 0)
-#			k = np.argmax(d)
-#			X0[i] = Xcan[k]
-#		return X0
-	else:
+	else:	
 		# We are full rank and cannot do better than random sampling
 		return domain.sample(Nsamp)
+			
 
 def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 	r""" Performs one step of sequential maximin sampling. 
