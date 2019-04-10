@@ -3,14 +3,15 @@ matrix:
  include:
   - os: linux
     dist: xenial
+    python: "2.7"
+  - os: linux
+    dist: xenial
+    python: "3.7"
   - os: osx
     osx_image: xcode10.2
+    python: "3.7"
 
 language: python
-
-python: 
- - "2.7"
- - "3.7"
 
 services:
  - docker
