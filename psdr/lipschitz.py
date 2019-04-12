@@ -12,7 +12,9 @@ from tqdm import tqdm
 
 from .domains import Domain	
 from .subspace import SubspaceBasedDimensionReduction
+from .sample import initial_sample
 from .vertex import voronoi_vertex
+from .geometry import unique_points
 from .minimax import minimax
 from .function import BaseFunction
 from .pgf import PGF
@@ -364,34 +366,39 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		"""
 		lower_bound = LowerBound(self.L, X, fX)
 		upper_bound = UpperBound(self.L, X, fX)
-	
-		X0 = domain.sample(Nsamp)
-		# Force these to be far apart
-		X0 = voronoi_vertex(domain, X, X0, L = self.L, randomize = False)
+		
 		fX = fX.flatten()
+	
+		# Force these to be far apart
+		X0 = initial_sample(domain, self.L, Nsamp = Nsamp) 
+		X0 = voronoi_vertex(domain, X, X0, L = self.L, randomize = False)
+
+		# Remove duplicates
+		I = unique_points(X0)
+		X0 = X0[I]
+
 
 		# Iterate through all candidates
 		lbs = []
 		ubs = []
-		iterator = X0
 		if progress:
 			iterator = tqdm(X0, desc = 'bounds_domain', total = len(X0), dynamic_ncols = True, **tqdm_kwargs)
+		else:
+			iterator = X0
 
 		for x0 in iterator:
+			if not domain.isinside(x0):
+				# Due to numerical issues not all points returned from voronoi_vertex will be inside
+				# the domain
+				x0 = domain.closest_point(x0)
 			# Lower bound
-			try:
-				x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
-				lbs.append(np.max(lower_bound(x)))
-			except AssertionError:
-				pass
+			x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
+			lbs.append(np.max(lower_bound(x)))
 		
 			# Upper bound
-			try:
-				x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
-				ubs.append(np.min(-upper_bound(x)))
-			except AssertionError:
-				pass
-
+			x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
+			ubs.append(np.min(-upper_bound(x)))
+			#print(lbs[-1], ubs[-1])
 		return float(np.min(lbs)), float(np.max(ubs))
 
 	def shadow_envelope_estimate(self, domain, X, fX, ax = None, ngrid = 50, dim = 1, U = None, pgfname = None,
