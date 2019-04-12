@@ -164,10 +164,17 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 	x: np.ndarray(m)
 		Sample from inside the domain
 	"""
+	Xhat = np.array(Xhat)
 
-	if X0 is None and L is None:
-		X0 = domain.sample(Nsamp)
-	elif X0 is None and L is not None:
+	if len(Xhat) < 1:
+		# If we don't have any samples, pick one of the corners
+		if L is None:
+			return domain.corner(np.random.randn(len(domain)))
+		else:
+			_, s, VT = scipy.linalg.svd(L)
+			return domain.corner(VT.T[:,0])
+
+	if X0 is None:
 		X0 = initial_sample(domain, L, Nsamp = Nsamp)
 
 	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = True)
@@ -261,7 +268,11 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None )
 	return float(np.max(d))
 
 	
+class Sampler:
+	pass
 
+class SequentialLipschitzSampler(Sampler):
+	pass
 
 
 #class Sampler(object):
