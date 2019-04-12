@@ -110,7 +110,7 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 	if domain is None:
 		domain = UnboundedDomain(len(x0))
 	
-	assert isinstance(domain, Domain), "Must provide a domain for the space"
+	#assert isinstance(domain, Domain), "Must provide a domain for the space"
 	assert domain.isinside(x0), "Starting point must be inside the domain"
 
 	if search_constraints is None:
