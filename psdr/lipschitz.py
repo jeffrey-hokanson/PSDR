@@ -8,7 +8,9 @@ import cvxpy as cp
 import cvxopt
 from itertools import combinations
 
+from dask.distributed import Client
 from tqdm import tqdm
+import time
 
 from .domains import Domain	
 from .subspace import SubspaceBasedDimensionReduction
@@ -337,7 +339,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		
 		return lb, ub
 	
-	def bounds_domain(self, X, fX, domain, Nsamp = int(1e3), verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
+	def bounds_domain(self, X, fX, domain, Nsamp = int(1e3), verbose = False, progress = False,
+		client = None, tqdm_kwargs = {}, **kwargs):
 		r""" Compute the uncertainty for any point inside a domain
 
 		Parameters
@@ -354,6 +357,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			If True, print the iteration history for the optimization program for each initalization
 		progress: bool (default: False)
 			If True, show a progress bar for trying different initializations
+		client: False or Dask Client
+			If not false, run the job in parallel
 		tqdm_kwargs: dict, optional
 			Additional arguments to pass to tqdm for progress plotting
 
@@ -379,23 +384,47 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 
 		# Iterate through all candidates
-		lbs = []
-		ubs = []
-		if progress:
-			iterator = tqdm(X0, desc = 'bounds_domain', total = len(X0), dynamic_ncols = True, **tqdm_kwargs)
-		else:
-			iterator = X0
+		if client is False:
+			if progress:
+				iterator = tqdm(X0, desc = 'bounds_domain', total = len(X0), dynamic_ncols = True, **tqdm_kwargs)
+			else:
+				iterator = X0
 
-		# TODO: Use some trival parallelism library to speed implement this loop
-		for x0 in iterator:
-			# Lower bound
-			x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
-			lbs.append(np.max(lower_bound(x)))
+			lbs = []
+			ubs = []
+			for x0 in iterator:
+				# Lower bound
+				x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
+				lbs.append(np.max(lower_bound(x)))
+			
+				# Upper bound
+				x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
+				ubs.append(np.min(-upper_bound(x)))
+				#print(lbs[-1], ubs[-1])
+		else:
+			if client is None:
+				client = Client(processes = False)
+			lb_res = []
+			ub_res = []
+			for x0 in X0:
+				res = client.submit(minimax, lower_bound, x0, domain = domain, trust_region = False)
+				lb_res.append(res)
+				res = client.submit(minimax, upper_bound, x0, domain = domain, trust_region = False)
+				ub_res.append(res)
 		
-			# Upper bound
-			x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
-			ubs.append(np.min(-upper_bound(x)))
-			#print(lbs[-1], ubs[-1])
+			if progress:
+				with tqdm(range(len(X0)), desc = 'bounds_domain', total = 2*len(X0),
+					 dynamic_ncols = True, **tqdm_kwargs) as it:
+					while True:
+						it.n = np.sum([res.done() for res in lb_res + ub_res])
+						it.refresh()
+						if it.n == 2*len(X0):
+							break
+						time.sleep(0.1)
+
+			lbs = np.array([np.max(lower_bound(res.result())) for res in lb_res])	
+			ubs = np.array([np.min(-upper_bound(res.result())) for res in ub_res])	
+
 		return float(np.min(lbs)), float(np.max(ubs))
 
 	def shadow_envelope_estimate(self, domain, X, fX, ax = None, ngrid = 50, dim = 1, U = None, pgfname = None,
