@@ -386,11 +386,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		else:
 			iterator = X0
 
+		# TODO: Use some trival parallelism library to speed implement this loop
 		for x0 in iterator:
-			if not domain.isinside(x0):
-				# Due to numerical issues not all points returned from voronoi_vertex will be inside
-				# the domain
-				x0 = domain.closest_point(x0)
 			# Lower bound
 			x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
 			lbs.append(np.max(lower_bound(x)))

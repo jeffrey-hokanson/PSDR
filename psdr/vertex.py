@@ -190,4 +190,10 @@ def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 		# Now finally take the step
 		X0 += alpha.reshape(-1,1)*h
 
+	# Push points back into the domain if they fall outside due to numerical issues
+	# TODO: Is this really necessary?
+	I = np.argwhere(~domain.isinside(X0))
+	for i in I:
+		X0[i] = domain.closest_point(X0[i])
+
 	return X0
