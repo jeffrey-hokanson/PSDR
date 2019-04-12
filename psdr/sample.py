@@ -165,7 +165,6 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 		Sample from inside the domain
 	"""
 	Xhat = np.array(Xhat)
-	Xhat = np.atleast_2d(Xhat)
 	
 	if len(Xhat) < 1:
 		# If we don't have any samples, pick one of the corners
@@ -174,6 +173,8 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 		else:
 			_, s, VT = scipy.linalg.svd(L)
 			return domain.corner(VT.T[:,0])
+	
+	Xhat = np.atleast_2d(Xhat)
 
 	# Generate candidate points from the Voronoi vertices
 	if X0 is None:
