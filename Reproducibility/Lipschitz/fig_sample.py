@@ -1,14 +1,14 @@
 from __future__ import print_function
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import psdr
 import psdr.demos
 from psdr.pgf import PGF
 
 np.random.seed(0)
-fig, axes = plt.subplots(3,1, figsize = (10,5))
+#fig, axes = plt.subplots(3,1, figsize = (10,5))
 
 fun = psdr.demos.OTLCircuit()
 
