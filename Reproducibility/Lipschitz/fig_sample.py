@@ -36,8 +36,8 @@ fX1 = fun(X)
 name1 = 'corner'
 
 # Scheme 2: maximin with Lipschitz matrix
-X2 = [fun.domain.corner(Lmat.U[:,0]), fun.domain.corner(-Lmat.U[:,0])]
 print("Lipschitz matrix sample")
+X2 = []
 while len(X2) < len(X1):
 	X2.append(psdr.seq_maximin_sample(fun.domain, X2, L = Lmat.L, Nsamp = 1000))
 	print(' '.join(['%8.3f' % x for x in X2[-1]]))
@@ -45,7 +45,7 @@ fX2 = fun(X2)
 name2 = 'Lmat'
 
 # Scheme 3: maximin with Lipschitz constant
-X3 = [fun.domain.corner(Lmat.U[:,0]), fun.domain.corner(-Lmat.U[:,0])]
+X3 = []
 print("Lipschitz const sample")
 while len(X3) < len(X1):
 	X3.append(psdr.seq_maximin_sample(fun.domain, X3, L = Lcon.L, Nsamp = 1000))
