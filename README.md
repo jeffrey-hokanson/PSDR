@@ -2,13 +2,15 @@
 [![Documentation Status](https://readthedocs.org/projects/psdr/badge/?version=latest)](https://psdr.readthedocs.io/en/latest/?badge=latest)
 [![Build Status](https://travis-ci.org/jeffrey-hokanson/PSDR.svg?branch=master)](https://travis-ci.org/jeffrey-hokanson/PSDR)
 [![Coverage Status](https://coveralls.io/repos/github/jeffrey-hokanson/PSDR/badge.svg?branch=master)](https://coveralls.io/github/jeffrey-hokanson/PSDR?branch=master)
+
 Author: Jeffrey M. Hokanson (jeffrey@hokanson.us)
 
 
 ## Introduction
 Given a function mapping some subset of an m-dimensional space to a scalar value
-
-![f: D subset R^m to R](eqn1.png) 
+<p align="center">
+<img src="eqn1.png" alt="f: D subset R^m to R" height="30" style="display: block; margin: 0 auto" />
+</p>
 
 *parameter space dimension reduction* seeks to identify a low-dimensional manifold
 of the input along which this function varies the most.
