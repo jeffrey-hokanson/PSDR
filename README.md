@@ -9,7 +9,7 @@
 ## Introduction
 Given a function mapping some subset of an m-dimensional space to a scalar value
 <p align="center">
-<img src="eqn1.png" alt="f: D subset R^m to R" height="30" style="display: block; margin: 0 auto" />
+<img src="eqn1.png" alt="f: D subset R^m to R" height="27" style="display: block; margin: 0 auto" />
 </p>
 
 *parameter space dimension reduction* seeks to identify a low-dimensional manifold
@@ -53,7 +53,7 @@ plt.show()                     # draw the results
 ```
 
 <p align="center">
-<img src="shadow.png" alt="A shadow plot for the borehole function" height="100" style="display: block; margin: 0 auto" />
+<img src="shadow.png" alt="A shadow plot for the borehole function" height="400" style="display: block; margin: 0 auto" />
 </p>
 
 We say this function is has low-dimensional structure since the output of the function
