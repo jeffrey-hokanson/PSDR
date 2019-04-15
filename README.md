@@ -26,12 +26,13 @@ yielding a smaller set of differential equations.
 
 ```python
 import psdr, psdr.demos
-fun = psdr.demos.Borehole() 	# load a test problem
-X = fun.domain.sample(1000)		# sample points from the domain with uniform probabilty
-grads = fun.grad(X)				# evaluate the gradient at the points in X
-act = psdr.ActiveSubspace()		# initialize a class to find the Active Subspace
-act.fit(grads)					# estimate the active subspace using these Monte-Carlo samples
-print(act.U[:,0])				# print the most important linear combination of variables
+fun = psdr.demos.Borehole()    # load a test problem
+X = fun.domain.sample(1000)    # sample points from the domain with uniform probabilty
+grads = fun.grad(X)            # evaluate the gradient at the points in X
+act = psdr.ActiveSubspace()    # initialize a class to find the Active Subspace
+act.fit(grads)                 # estimate the active subspace using these Monte-Carlo samples
+print(act.U[:,0])              # print the most important linear combination of variables
+
 >>> array([ 9.19118904e-01, -2.26566967e-03,  2.90116247e-06,  2.17665629e-01,
         2.78485430e-03, -2.17665629e-01, -2.21695479e-01,  1.06310937e-01])
 ```
