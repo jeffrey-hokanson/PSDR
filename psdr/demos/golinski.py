@@ -33,6 +33,12 @@ class GolinskiGearbox(Function):
 	by removing redundancy. We also shift these constraints such that they are satisfied if the values
 	returned are negative and the constraints are violated if their value is positive.
 
+	Parameters
+	----------
+	dask_client: dask.distributed.Client or None
+		If specified, allows distributed computation with this function.
+
+
 	References
 	----------
 	.. [MDO] Langley Research Center: Multidisciplinary Optimization Test Suite,
@@ -40,9 +46,11 @@ class GolinskiGearbox(Function):
 
 	.. [Gol70] "Optimal Synthesis Problems Solved by Means of Nonlinear Programming and Random Methods",
 		Jan Golinski, J. Mech. 5, 1970, pp.287--309.
+		https://doi.org/10.1016/0022-2569(70)90064-9
 
 	.. [Ray03] "Golinski's Speed Reducer Problem Revisited", Tapabrata Ray, AIAA Journal,
 			41(3), 2003, pp 556--558
+			https://doi.org/10.2514/2.1984
 
 	"""
 	def __init__(self, dask_client = None):

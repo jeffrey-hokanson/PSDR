@@ -3,12 +3,12 @@ import numpy as np
 from psdr import BoxDomain, NormalDomain, Function, LogNormalDomain, UniformDomain, TensorProductDomain
 
 
-__all__ = ['build_borehole_domain', 'build_borehole_uncertain_domain', 'borehole', 'Borehole']
+__all__ = ['build_borehole_domain', 'build_borehole_uncertain_domain', 'borehole', 'borehole_grad', 'Borehole']
 
 class Borehole(Function):
 	r""" The borehole test function
 
-	A function implementing the borehole test function [VLSE]_.
+	A function implementing the borehole test function [VLSE_borehole]_.
 	This function has the form
 
 	.. math::
@@ -51,7 +51,7 @@ class Borehole(Function):
 
 	References
 	----------
-	.. [VLSE] Virtual Library of Simulation Experiments, Borehole Function
+	.. [VLSE_borehole] Virtual Library of Simulation Experiments, Borehole Function
 		 https://www.sfu.ca/~ssurjano/borehole.html 
 
 	"""
@@ -69,6 +69,13 @@ class Borehole(Function):
 		Function.__init__(self, funs, domain, grads = grads, vectorized = True, dask_client = dask_client)
 
 def build_borehole_domain():
+	r""" Constructs a deterministic domain associated with the borehole function
+
+	Returns
+	-------
+	dom: BoxDomain
+		Domain associated with the borehole function
+	"""
 	# Parameters
 	# r_w, r, T_u, H_u, T_l, H_l, L, K_w
 	lb = np.array([0.05, 100, 63070, 990, 63.1, 700, 1120, 9855])
@@ -77,6 +84,13 @@ def build_borehole_domain():
 	return BoxDomain(lb, ub, names = ['r_w', 'r', 'T_u', 'H_u', 'T_l', 'H_l', 'L', 'K_w'])
 
 def build_borehole_uncertain_domain():
+	r""" Constructs an uncertain domain associated with the borehole function
+
+	Returns
+	-------
+	dom: TensorProductDomain
+		Uncertain domain associated with the borehole function
+	"""
 	return TensorProductDomain([
 		NormalDomain(0.10, 0.0161812**2, names = 'r_w'),
 		LogNormalDomain(7.71, 1.0056**2, names = 'r'),
@@ -90,9 +104,19 @@ def build_borehole_uncertain_domain():
 
 
 def borehole(X):
-	""" Borehole test function
+	""" The borehole test function
 
-	See: https://www.sfu.ca/~ssurjano/borehole.html
+	See description in :meth:`psdr.demos.Borehole`
+	
+	Parameters
+	----------
+	X: array-like (?, 8)
+		Input in application units
+	
+	Return
+	------
+	y: np.ndarray (?,)
+		Output of borehole function
 	"""
 	import numpy as np
 	X = X.reshape(-1, 8)
@@ -111,7 +135,22 @@ def borehole(X):
 	return val
 
 def borehole_grad(X):
-	X = X.reshape(-1, 8)
+	""" The borehole test function gradient
+
+	See description in :meth:`psdr.demos.Borehole`
+	
+	Parameters
+	----------
+	X: array-like (?, 8)
+		Input in application units
+	
+	Return
+	------
+	y: np.ndarray (?,8)
+		Gradient of borehole test function
+	"""
+	import numpy as np
+	X = np.atleast_2d(np.array(X))
 
 	# Split the variables
 	r_w = X[:,0]
