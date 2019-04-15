@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/jeffrey-hokanson/PSDR.svg?branch=master)](https://travis-ci.org/jeffrey-hokanson/PSDR)
 [![Coverage Status](https://coveralls.io/repos/github/jeffrey-hokanson/PSDR/badge.svg?branch=master)](https://coveralls.io/github/jeffrey-hokanson/PSDR?branch=master)
 
-Author: Jeffrey M. Hokanson (jeffrey@hokanson.us)
+**Author**: Jeffrey M. Hokanson, Postdoctoral Fellow at the University of Colorado Boulder (jeffrey@hokanson.us)
 
 
 ## Introduction
@@ -26,6 +26,9 @@ yielding a smaller set of differential equations.
 
 ## Simple example
 
+One basic use of the library is to identify an active subspace using
+the outer product of gradients:
+
 ```python
 import psdr, psdr.demos
 fun = psdr.demos.Borehole()    # load a test problem
@@ -39,6 +42,23 @@ print(act.U[:,0])              # print the most important linear combination of 
         2.78485430e-03, -2.17665629e-01, -2.21695479e-01,  1.06310937e-01])
 ```
 
+We can then create a *shadow plot* showing the projection of the input to this function
+onto a one-dimensional subspace spanned by the important linear combination identified above
+
+```python
+import matplotlib.pyplot as plt
+fX = fun(X)                    # evaluate the function at the points X
+act.shadow_plot(X, fX)         # generate the shadow plot
+plt.show()                     # draw the results
+```
+
+<p align="center">
+<img src="shadow.png" alt="A shadow plot for the borehole function" height="100" style="display: block; margin: 0 auto" />
+</p>
+
+We say this function is has low-dimensional structure since the output of the function
+is well described by the value of this one linear combination of its input parameters.
+
 
 ## Documentation
 For further documentation, please see our page on Read the Docs:
@@ -46,7 +66,10 @@ For further documentation, please see our page on Read the Docs:
 
 
 ## Contributing
-
-
-
+I welcome contributions to this library,
+particularly of test functions similar to those in `psdr.demos`.
+Please submit a pull request along with unit tests for the proposed code.
+If you are submitting a complex test function that requires calling code outside of Python,
+please submit a Docker image along with a docker file generating that image
+(see the OpenAeroStruct demo function for an example of how to do this).
 
