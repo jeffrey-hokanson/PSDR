@@ -8,11 +8,15 @@ import cvxpy as cp
 import cvxopt
 from itertools import combinations
 
+
 from tqdm import tqdm
+import time
 
 from .domains import Domain	
 from .subspace import SubspaceBasedDimensionReduction
+from .sample import initial_sample
 from .vertex import voronoi_vertex
+from .geometry import unique_points
 from .minimax import minimax
 from .function import BaseFunction
 from .pgf import PGF
@@ -364,35 +368,80 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		"""
 		lower_bound = LowerBound(self.L, X, fX)
 		upper_bound = UpperBound(self.L, X, fX)
-	
-		X0 = domain.sample(Nsamp)
-		# Force these to be far apart
-		X0 = voronoi_vertex(domain, X, X0, L = self.L, randomize = False)
+		
 		fX = fX.flatten()
+	
+		# Force these to be far apart
+		X0 = initial_sample(domain, self.L, Nsamp = Nsamp) 
+		X0 = voronoi_vertex(domain, X, X0, L = self.L, randomize = False)
+
+		# Remove duplicates
+		I = unique_points(X0)
+		X0 = X0[I]
+
 
 		# Iterate through all candidates
-		lbs = []
-		ubs = []
-		iterator = X0
 		if progress:
 			iterator = tqdm(X0, desc = 'bounds_domain', total = len(X0), dynamic_ncols = True, **tqdm_kwargs)
+		else:
+			iterator = X0
 
+		lbs = []
+		ubs = []
 		for x0 in iterator:
 			# Lower bound
-			try:
-				x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
-				lbs.append(np.max(lower_bound(x)))
-			except AssertionError:
-				pass
+			x = minimax(lower_bound, x0, domain = domain, verbose = verbose, trust_region = False)
+			lbs.append(np.max(lower_bound(x)))
 		
 			# Upper bound
-			try:
-				x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
-				ubs.append(np.min(-upper_bound(x)))
-			except AssertionError:
-				pass
-
+			x = minimax(upper_bound, x0, domain = domain, verbose = verbose, trust_region = False)
+			ubs.append(np.min(-upper_bound(x)))
+			#print(lbs[-1], ubs[-1])
 		return float(np.min(lbs)), float(np.max(ubs))
+
+#		# Attempts at making a parallel interface
+#		else:
+#			lbs = []
+#			ubs = []
+#			for x0 in X0:
+#				x = dask.delayed(minimax)(lower_bound, x0, domain = domain, trust_region = False)
+#				lb = dask.delayed(lower_bound)(x)
+#				lbs.append(lb)
+#
+#				x = dask.delayed(minimax)(upper_bound, x0, domain = domain, trust_region = False)
+#				ub = dask.delayed(upper_bound)(x)
+#				ubs.append(ub)
+#				
+#			lb = dask.delayed(np.max)(lbs)
+#			ub = dask.delayed(np.max)(ubs)
+#
+#			with ProgressBar():
+#				lb = lb.compute()
+#				ub = -1.*ub.compute()
+#			return lb, ub
+#			if client is None:
+#				client = Client(processes = False)
+#			lb_res = []
+#			ub_res = []
+#			for x0 in X0:
+#				res = client.submit(minimax, lower_bound, x0, domain = domain, trust_region = False)
+#				lb_res.append(res)
+#				res = client.submit(minimax, upper_bound, x0, domain = domain, trust_region = False)
+#				ub_res.append(res)
+#		
+#			if progress:
+#				with tqdm(range(len(X0)), desc = 'bounds_domain', total = 2*len(X0),
+#					 dynamic_ncols = True, **tqdm_kwargs) as it:
+#					while True:
+#						it.n = np.sum([res.done() for res in lb_res + ub_res])
+#						it.refresh()
+#						if it.n == 2*len(X0):
+#							break
+#						time.sleep(0.1)
+#
+#			lbs = np.array([np.max(lower_bound(res.result())) for res in lb_res])	
+#			ubs = np.array([np.min(-upper_bound(res.result())) for res in ub_res])	
+#
 
 	def shadow_envelope_estimate(self, domain, X, fX, ax = None, ngrid = 50, dim = 1, U = None, pgfname = None,
 			plot_kwargs = {}, progress = False, **kwargs):

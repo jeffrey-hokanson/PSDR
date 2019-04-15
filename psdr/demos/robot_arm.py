@@ -5,7 +5,41 @@ from psdr import BoxDomain, Function
 
 __all__ = ['build_robot_arm_domain', 'robot_arm', 'RobotArm']
 
+#TODO: Generalize to an arbitrary number of components
+#TODO: compute derivative with complex finite-difference trick to avoid singularity 
+
+
 class RobotArm(Function):
+	r""" Robot Arm test function
+
+	A test function that measures the distance of a four segment arm from the origin
+	[VLSE_robot]_.
+
+	.. math::
+
+		f(\theta_1, \theta_2, \theta_3, \theta_4, L_1, L_2, L_3, L_4) &:=
+			\sqrt{u^2 + v^2}, \text{ where }\\
+			u &:= \sum_{i=1}^4 L_i \cos \left( \sum_{j=1}^i \theta_j\right) \\
+			v &:= \sum_{i=1}^4 L_i \sin \left( \sum_{j=1}^i \theta_j\right)
+	
+	====================================    =============================
+	Variable                                Interpretation
+	====================================    =============================
+	:math:`\theta_i \in [0, 2\pi]`          angle of the ith arm segment 
+	:math:`L_i \in [0,1]`					length of the ith arm segment
+	====================================    =============================
+
+	Parameters
+	----------
+	dask_client: dask.distributed.Client or None
+		If specified, allows distributed computation with this function.
+	
+	References
+	----------
+	.. [VLSE_robot] Virtual Library of Simulation Experiments, Robot Arm Function
+		https://www.sfu.ca/~ssurjano/robot.html
+
+	"""
 	def __init__(self, dask_client = None):
 		domain = build_robot_arm_domain()
 		funs = [robot_arm]
@@ -21,7 +55,7 @@ def build_robot_arm_domain():
 	ub = np.array([2*np.pi, 2*np.pi, 2*np.pi, 2*np.pi, 1,1,1,1])
 	return BoxDomain(lb, ub, names = ['theta_1', 'theta_2', 'theta_3', 'theta_4', 'L_1', 'L_2', 'L_3', 'L_4'])
 
-def robot_arm(X, return_grad = False):
+def robot_arm(X):
 	"""Robot arm test function
 	
 	See: https://www.sfu.ca/~ssurjano/robot.html

@@ -8,11 +8,40 @@ __all__ = ['build_piston_domain', 'piston', 'Piston']
 
 class Piston(Function):
 	r""" Piston test function
+
+	The Piston function "models the circular motion of a piston within a cylinder" [VLSE_piston]_.
 	
+	.. math::
+
+		f(M, S, V_0, k, P_0, T_a, T_0) :=&
+			2\pi \sqrt{\frac{M}{k+ S^2 \frac{P_0V_0}{T_0} \frac{T_a}{V^2}}}, \text{ where } \\
+		V &= \frac{S}{2k}\left(  
+				\sqrt{A^2 + 4k \frac{P_0V_0}{T_0}T_a} - A
+			\right) \\
+		A &= P_0 S + 19.62M - \frac{k V_0}{S}
+	
+
+	================================================ 	========================
+	Variable                               			 	Interpretation
+	================================================ 	========================
+	:math:`M \in [30, 60]`		            			piston weight (kg)
+	:math:`S \in [0.005, 0.020]`	        			piston surface area (m^2)
+	:math:`V_0 \in [0.002, 0.010]`	        			initial gas volume (m^3)
+	:math:`k \in [1000, 5000]`							spring coefficient (N/m)
+	:math:`P_0 \in [90\times 10^3, 110 \times 10^3]` 	atmospheric pressure (N/m^2)
+	:math:`T_a \in [290, 296]`							ambient temperature (K)
+	:math:`T_0 \in [340, 360]`							filling gas temperature (K)
+	================================================	========================
+	
+
+	Parameters
+	----------
+	dask_client: dask.distributed.Client or None
+		If specified, allows distributed computation with this function.
 	
 	References
 	----------
-	.. [VLSE] Virtual Library of Simulation Experiments, Piston Function
+	.. [VLSE_piston] Virtual Library of Simulation Experiments, Piston Function
 		https://www.sfu.ca/~ssurjano/piston.html
 
 	"""

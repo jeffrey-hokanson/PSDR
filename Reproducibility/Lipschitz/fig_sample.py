@@ -1,14 +1,14 @@
 from __future__ import print_function
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 import psdr
 import psdr.demos
 from psdr.pgf import PGF
 
 np.random.seed(0)
-fig, axes = plt.subplots(3,1, figsize = (10,5))
+#fig, axes = plt.subplots(3,1, figsize = (10,5))
 
 fun = psdr.demos.OTLCircuit()
 
@@ -24,7 +24,6 @@ Lmat.fit(grads = gradX)
 Lcon.fit(grads = gradX)
 
 
-
 # Function evaluations for emprical shadow plot
 Xt = fun.domain.sample_grid(5)
 fXt = fun(Xt) 
@@ -37,24 +36,35 @@ fX1 = fun(X)
 name1 = 'corner'
 
 # Scheme 2: maximin with Lipschitz matrix
+print("Lipschitz matrix sample")
+X2 = []
+while len(X2) < len(X1):
+	X2.append(psdr.seq_maximin_sample(fun.domain, X2, L = Lmat.L, Nsamp = 1000))
+	print(' '.join(['%8.3f' % x for x in X2[-1]]))
+fX2 = fun(X2)
+name2 = 'Lmat'
 
+# Scheme 3: maximin with Lipschitz constant
+X3 = []
+print("Lipschitz const sample")
+while len(X3) < len(X1):
+	X3.append(psdr.seq_maximin_sample(fun.domain, X3, L = Lcon.L, Nsamp = 1000))
+	print(' '.join(['%8.3f' % x for x in X3[-1]]))
+fX3 = fun(X3)
+name3 = 'Lcon'
 
-# Scheme 3: optimal on ridge
+# Scheme 4: optimal on ridge
 u = Lmat.U[:,0]
 c1 = fun.domain.corner(u)
 c2 = fun.domain.corner(-u)
-X3 = np.array([ t*c1 + (1-t)*c2 for t in np.linspace(0,1,64)])
-#R = psdr.sample_sphere(len(fun.domain), len(X3) - 2)
-#for i in range(1,len(X3)-1):
-#	dom_line = fun.domain.add_constraints(u, u.dot(X3[i]))
-#	print(R[i-1])
-#	X3[i] = dom_line.corner(R[i-1], verbose = True )
+X4 = np.array([ t*c1 + (1-t)*c2 for t in np.linspace(0,1,64)])
 
-fX3 = fun(X3)
-name3 = 'line'
+fX4 = fun(X4)
+name4 = 'line'
 
 
-for X, fX, name in zip([X1, X3], [fX1, fX3], [name1, name3]):
+for X, fX, name in zip([X1, X2, X3, X4], [fX1, fX2, fX3, fX4], [name1, name2, name3, name4]):
+	print(" === %10s === " % name)
 	lb, ub = Lmat.bounds(X, fX, Xt)
 	print("average uncertainty", np.mean(ub - lb)) 
 	print("max uncertainty", np.max(ub - lb))

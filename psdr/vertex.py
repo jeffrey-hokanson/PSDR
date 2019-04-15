@@ -72,7 +72,7 @@ def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 	"""
 
 	# Startup checks
-	assert isinstance(domain, Domain), "domain must be an instance of the Domain class"
+	#assert isinstance(domain, Domain), "domain must be an instance of the Domain class"
 	assert len(domain.Ls) == 0, "Currently this does not support domains with quadratic constraints"
 	Xhat = np.atleast_2d(np.array(Xhat))
 	X0 = np.atleast_2d(np.array(X0))
@@ -123,8 +123,8 @@ def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 			for j in range(A.shape[0]):
 				if active[i,j] : nullspace += [A[j].reshape(-1,1)]
 
-			# constraints from search directions
-			for j in range(1, k+1):
+			# constraints from other points in the domain
+			for j in range(1, min(k+1, len(Xhat))):
 				if np.isclose(D[i,I[i,0]], D[i,I[i,j]]):	
 					nullspace += [LTL.dot(Xhat[I[i,0]] - Xhat[I[i,j]]).reshape(-1,1)]
 					#h[i] += (X0[i] - Xhat[I[i,j]])
@@ -183,7 +183,17 @@ def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 		alpha_c = np.min(alpha_c, axis = 1)
 		alpha = np.minimum(alpha, alpha_c)
 
+		# There are some cases above where both alpha and alpha_c will yield an infinite step
+		# in this case we zero these just to be safe
+		alpha[~np.isfinite(alpha)] = 0.
+
 		# Now finally take the step
 		X0 += alpha.reshape(-1,1)*h
+
+	# Push points back into the domain if they fall outside due to numerical issues
+	# TODO: Is this really necessary?
+	I = np.argwhere(~domain.isinside(X0))
+	for i in I:
+		X0[i] = domain.closest_point(X0[i])
 
 	return X0
