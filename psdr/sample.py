@@ -9,7 +9,7 @@ from .vertex import voronoi_vertex
 from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain, ConvexHullDomain
 
-__all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample']
+__all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler']
 
 
 def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
@@ -131,7 +131,7 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 		return domain.sample(Nsamp)
 			
 
-def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
+def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 	r""" Performs one step of sequential maximin sampling. 
 
 	Given an existing set of samples :math:`\lbrace \widehat{\mathbf{x}}_j\rbrace_{j=1}^M\subset \mathcal{D}`
@@ -276,10 +276,129 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None )
 
 	
 class Sampler:
-	pass
+	r""" Generic sampler interface
 
-class SequentialLipschitzSampler(Sampler):
-	pass
+	Parameters
+	----------
+	fun: Function
+		Function for which to preform a design of experiments
+	X: array-like (?,m)
+		Existing samples from the domain
+	fX: array-like (?,nfun)
+		Existing evaluations of the function at the points in X
+	"""
+	def __init__(self, fun, X = None, fX = None):
+		self._fun = fun
+		
+		if X is None:
+			X = np.zeros((0, len(fun.domain)))
+		else:
+			X = np.copy(np.array(X))
+			assert X.shape[1] == len(fun.domain), "Input dimensions do not match function"
+		
+		self._X = X
+		
+		if fX is not None:
+			fX = np.copy(np.array(fX))
+			assert fX.shape[0] == X.shape[0], "Number of function values does not match number of samples"
+
+		self._fX = fX
+
+	def sample(self, draw = 1):
+		r""" Sample the function
+
+
+		Parameters
+		----------
+		draw: int, default 1
+			Number of samples to take
+		"""
+		return self._sample(draw = draw)
+	
+	def sample_async(self, draw = 1):
+		r""" Sample the function asynchronously updating the search parameters
+
+
+		Parameters
+		----------
+		draw: int, default 1
+			Number of samples to take
+		"""
+		return self._sample_async(draw = draw)
+
+	def _sample(self, draw = 1):
+		raise NotImplementedError
+	
+	def _sample_async(self, draw = 1):
+		raise NotImplementedError
+
+	@property
+	def X(self):
+		r""" Samples from the function's domain"""
+		return self._X.copy()
+
+	@property
+	def fX(self):
+		r""" Outputs from the function corresponding to samples X"""
+		if self._fX is not None:
+			return self._fX.copy()
+		else:
+			return None
+	
+class SequentialMaximinSampler(Sampler):
+	r""" Sequential maximin sampling
+
+	Given a distance metric provided by :math:`\mathbf{L}`,
+	construct a sequence of samples :math:`\widehat{\mathbf{x}}_i`
+	that are local solutions to
+
+
+	.. math::
+		
+		\widehat{\mathbf{x}}_j = \arg\max_{\mathbf{x} \in \mathcal{D}} \min_{i=1,\ldots,j}
+			 \|\mathbf{L}(\mathbf{x} - \widehat{\mathbf{x}}_i)\|_2.
+
+	
+	Parameters
+	----------
+	fun: Function
+		Function for which to preform a design of experiments
+	L: array-like (?, m)
+		Matrix defining the metric
+	X: array-like (?,m)
+		Existing samples from the domain
+	fX: array-like (?,nfun)
+		Existing evaluations of the function at the points in X
+
+	"""
+	def __init__(self, fun, L = None, X = None, fX = None):
+		Sampler.__init__(self, fun, X = X, fX = fX)
+		if L is None:
+			L = np.eye(len(fun.domain))
+		else:
+			L = np.atleast_2d(np.array(L))
+			assert L.shape[1] == len(fun.domain), "Dimension of L does not match domain"
+		self._L = L
+
+	def _sample(self, draw = 1):
+		Xnew = []
+		# As L is fixed, we can draw these samples at once
+		for i in range(draw):
+			xnew = seq_maximin_sample(self._fun.domain, self._X, L = self._L)
+			Xnew.append(xnew)
+			self._X = np.vstack([self._X, xnew])
+
+		# Now we evaluate the function at these new points
+		# (this takes advantage of potential vectorization of fun
+		fXnew = self._fun.eval(Xnew)
+		if self._fX is None:
+			self._fX = fXnew
+		else:
+			if len(fXnew.shape) > 1:
+				self._fX = np.vstack([self._fX, fXnew])
+			else:
+				self._fX = np.hstack([self._fX, fXnew])
+
 
 
 #class Sampler(object):

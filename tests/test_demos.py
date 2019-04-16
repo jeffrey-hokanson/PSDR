@@ -16,4 +16,10 @@ def test_grad():
 		grad = lambda x: fun.grad(x).T
 		print(fun(x))
 		print(grad(x))
-		assert check_derivative(x, fun, grad) < 1e-7	
+		assert check_derivative(x, fun, grad) < 1e-7
+
+def test_golinski():
+	fun = GolinskiGearbox()
+	X = fun.domain.sample(2)
+	fX = fun(X)
+	assert fX.shape[0] == 2
