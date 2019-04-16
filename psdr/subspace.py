@@ -215,6 +215,11 @@ class SubspaceBasedDimensionReduction(object):
 	def _fix_subspace_signs_grads(self, U, grads):
 		self._U = U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
 
+	
+	def approximate_lipschitz(self, X = None, fX = None, grads = None,  dim = None):
+		r""" Approximate the Lipschitz matrix on the low-dimensional subspace
+		"""
+		pass
 
 
 class ActiveSubspace(SubspaceBasedDimensionReduction):

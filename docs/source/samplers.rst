@@ -3,6 +3,14 @@ Samplers
 ========
 
 
+High Level Interface
+====================
+
+.. autoclass:: psdr.Sampler
+	:members:
+
+.. autoclass:: psdr.SequentialMaximinSampler
+
 
 Low Level Functions
 ===================

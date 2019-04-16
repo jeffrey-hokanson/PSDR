@@ -213,6 +213,12 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 	return Xcan[i]
 
 
+def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3), X0 = None):
+	r""" A multi-objective sequential maximin sampling 
+	"""
+	pass
+
+
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None ):
 	r""" Estimate the fill distance of the points Xhat in the domain
 
@@ -346,7 +352,7 @@ class Sampler:
 			return None
 	
 class SequentialMaximinSampler(Sampler):
-	r""" Sequential maximin sampling
+	r""" Sequential maximin sampling with a fixed metric
 
 	Given a distance metric provided by :math:`\mathbf{L}`,
 	construct a sequence of samples :math:`\widehat{\mathbf{x}}_i`
