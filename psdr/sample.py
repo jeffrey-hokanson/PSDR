@@ -5,11 +5,13 @@ import scipy.optimize
 from scipy.spatial.distance import cdist, pdist, squareform
 import cvxpy as cp
 
+
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
-from .domains import LinIneqDomain, ConvexHullDomain
+from .domains import LinIneqDomain, ConvexHullDomain, SolverError
 
-__all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler']
+__all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
+	'multiobj_seq_maximin_sample']
 
 
 def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
@@ -33,7 +35,8 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 	Nsamp: int, optional
 		Number of samples to return
 	Nboundary: int, optional
-		Number of samples to take from the boundary
+		Number of samples to take from the boundary for constructing the boundary
+		of the domain projected onto a low-rank L
 
 	Returns
 	-------
@@ -213,10 +216,67 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 	return Xcan[i]
 
 
-def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3), X0 = None):
+def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3)):
 	r""" A multi-objective sequential maximin sampling 
+
+
+	A typical use case will have Ls that are of size (1,m)
+	
 	"""
-	pass
+
+	vertices = []
+	it = 0
+	queue = []
+	for k, L in enumerate(Ls):
+		# Find initial samples well separated
+		X0 = initial_sample(domain, L, Nsamp = Nsamp//len(Ls))
+		
+		# find the Voronoi vertices; we don't randomize as we are only interested
+		# in the component that satisfies the constraint
+		vertices = voronoi_vertex(domain, Xhat, X0, L = L, randomize = False) 
+		
+		# Remove duplicates in the L norm
+		I = unique_points(L.dot(X0.T).T)
+		vertices = vertices[I]
+
+		# Compute the distances between points in this metric
+		D = cdist(L.dot(vertices.T).T, L.dot(Xhat.T).T)
+		D = np.min(D, axis = 1)
+ 
+		for d, vertex in zip(D, vertices):
+			# Place this point onto the priority queue
+			# Note we include an iterator so that ties are always broken cleanly
+			queue.append( (-d, it, k, vertex) )
+			it += 1
+
+
+	# Now greedily add constraints
+	domain_samp = domain
+	used = []
+
+	queue.sort()
+	for d, it, k, vertex in queue:
+		if domain_samp.intrinsic_dimension == 0 or len(used) == len(Ls):
+			break
+		#print(domain_samp.is_point())	
+		
+		if k not in used:
+			L = Ls[k]
+			print(-d, k, vertex)
+	
+			# Try adding this equality constraint
+			domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vertex))
+			#domain_test.kwargs['verbose'] = True
+			if not domain_test.empty:
+				domain_samp = domain_test
+				used.append(k)
+				print("appended %d" % k)
+
+	# Now sample the resulting domain 
+	Lall = np.vstack(Ls)
+	#domain_samp.kwargs['verbose'] = True
+	print("maximin sample")
+	return seq_maximin_sample(domain_samp, Xhat, L = Lall, Nsamp = Nsamp)
 
 
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None ):
