@@ -56,7 +56,15 @@ def test_poly_fit(dimension = 2, degree = 5):
 				pa = PolynomialApproximation(degree, basis = basis, norm = norm, bound = bound)
 				pa.fit(X, fXnoise)
 				if bound == 'lower':
-					assert np.all(pa(X) <= fXnoise +1e-7)
+					for y, fx in zip(pa(X), fXnoise):
+						print('lower', y, fx)
+						if y >= fx + 1e-7:
+							assert False
+					#assert np.all(pa(X) <= fXnoise +1e-7)
 				if bound == 'upper':
-					assert np.all(pa(X) >= fXnoise -1e-7)
+					for y, fx in zip(pa(X), fXnoise):
+						print('upper', y, fx)
+						if y <= fx - 1e-7:
+							assert False
+					#assert np.all(pa(X) >= fXnoise -1e-7)
 		
