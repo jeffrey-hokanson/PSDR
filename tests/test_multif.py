@@ -27,4 +27,5 @@ def test_multif():
 	print(y)
 
 if __name__ == '__main__':
-	test_multif()
+	#test_multif()
+	test_multif_domain()
