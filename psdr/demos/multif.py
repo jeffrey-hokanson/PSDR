@@ -79,7 +79,7 @@ class MULTIF(Function):
 	""" 
 	def __init__(self, truncate = 1e-7, level = 0, su2_maxiter = 5000, workdir = None,
 		keep_data = False, verbose = False, dask_client = None):
-		self.design_domain_app = buildDesignDomain(output = 'none', solver = 'CVXOPT', verbose = False)
+		self.design_domain_app = buildDesignDomain(output = 'none', solver = 'CVXOPT')
 		self.design_domain_norm = self.design_domain_app.normalized_domain()
 		self.design_domain = self.design_domain_norm		
 
@@ -91,16 +91,16 @@ class MULTIF(Function):
 		Function.__init__(self, multif, domain, vectorized = False, dask_client = dask_client)
 
 
-def build_multif_domain(truncate = 1e-7):
-	design_domain = buildDesignDomain(output = 'none')
-	random_domain = buildRandomDomain(truncate = truncate)
+def build_multif_domain(truncate = 1e-7, **kwargs):
+	design_domain = buildDesignDomain(output = 'none', **kwargs)
+	random_domain = buildRandomDomain(truncate = truncate, **kwargs)
 	return design_domain * random_domain
 
-def build_multif_design_domain(output = 'none'):
-	return buildDesignDomain(output = output)
+def build_multif_design_domain(output = 'none', **kwargs):
+	return buildDesignDomain(output = output, **kwargs)
 
 def build_multif_random_domain(truncate = 1e-7):
-	return buildRandomDomain(truncate = truncate)
+	return buildRandomDomain(truncate = truncate, **kwargs)
 
 
 def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None, 
