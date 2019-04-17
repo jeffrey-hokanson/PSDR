@@ -24,7 +24,7 @@ def test_poly_hess(dimension = 3, degree = 5):
 	print(pf.eval(x))
 	print(pf.hessian(x))
 
-	assert check_hessian(x, pf.eval, lambda x: pf.hessian(x).reshape(dimension, dimension) ) < 1e-5
+	assert check_hessian(x, pf.eval, lambda x: pf.hessian(x).reshape(dimension, dimension) ) < 5e-5
 
 
 def test_poly_basis(dimension = 2, degree = 5):
@@ -44,7 +44,7 @@ def test_poly_basis(dimension = 2, degree = 5):
 		assert np.linalg.norm(pa(Xtest) - fXtest, np.inf) < 1e-7
 
 
-def test_poly_fit(dimension = 2, degree = 5):
+def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
 	dom = BoxDomain(-np.ones(dimension), np.ones(dimension))
 	X = dom.sample(100)
 
@@ -56,15 +56,16 @@ def test_poly_fit(dimension = 2, degree = 5):
 				pa = PolynomialApproximation(degree, basis = basis, norm = norm, bound = bound)
 				pa.fit(X, fXnoise)
 				if bound == 'lower':
-					for y, fx in zip(pa(X), fXnoise):
-						print('lower', y, fx)
-						if y >= fx + 1e-7:
-							assert False
-					#assert np.all(pa(X) <= fXnoise +1e-7)
+					I = pa(X) <= fXnoise + tol
+					if np.sum(I) > 0:
+						print('%s lower:' % basis)
+						print(pa(X[I]), fXnoise[I])
+						assert False
 				if bound == 'upper':
-					for y, fx in zip(pa(X), fXnoise):
-						print('upper', y, fx)
-						if y <= fx - 1e-7:
-							assert False
+					I = pa(X) >= fXnoise - tol
+					if np.sum(I) > 0:
+						print('%s upper:' % basis)
+						print(pa(X[I]), fXnoise[I])
+						assert False
 					#assert np.all(pa(X) >= fXnoise -1e-7)
 		
