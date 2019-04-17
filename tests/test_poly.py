@@ -56,14 +56,14 @@ def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
 				pa = PolynomialApproximation(degree, basis = basis, norm = norm, bound = bound)
 				pa.fit(X, fXnoise)
 				if bound == 'lower':
-					I = (pa(X) <= fXnoise + tol)
-					if np.sum(~I) > 0:
+					I = ~(pa(X) - tol <= fXnoise)
+					if np.sum(I) > 0:
 						print('%s lower:' % basis)
 						print(pa(X[I]), fXnoise[I])
 						assert False
 				if bound == 'upper':
-					I = pa(X) >= fXnoise - tol
-					if np.sum(~I) > 0:
+					I = ~(pa(X) + tol >= fXnoise)
+					if np.sum(I) > 0:
 						print('%s upper:' % basis)
 						print(pa(X[I]), fXnoise[I])
 						assert False
