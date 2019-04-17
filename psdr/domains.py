@@ -100,7 +100,12 @@ def corner(dom, p, **kwargs):
 			obj = x_norm*float(D.dot(p))
 		constraints = dom._build_constraints_norm(x_norm)
 		problem = cp.Problem(cp.Maximize(obj), constraints)
-		problem.solve(**kwargs)
+		try:
+			local_kwargs = merge(dom.kwargs, kwargs)
+		except AttributeError:
+			local_kwargs = kwargs
+		problem.solve(**local_kwargs)
+
 	if problem.status not in ['optimal', 'optimal_inaccurate']:
 		raise SolverError
 	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
@@ -802,6 +807,7 @@ class Domain(object):
 		if tol is None: tol = self.tol
 		lb_check = np.array([np.all(x >= self.lb-tol) for x in X], dtype = np.bool)
 		ub_check = np.array([np.all(x <= self.ub+tol) for x in X], dtype = np.bool)
+		#print("bounds check", lb_check & ub_check, self.names)
 		return lb_check & ub_check
 
 	def _isinside_ineq(self, X, tol = None):
@@ -1645,7 +1651,7 @@ class TensorProductDomain(Domain):
 	domains: list of domains
 		Domains to combine into a single domain
 	"""
-	def __init__(self, domains = None):
+	def __init__(self, domains = None, **kwargs):
 		self._domains = []
 		if domains == None:
 			domains = []
@@ -1658,6 +1664,7 @@ class TensorProductDomain(Domain):
 				self._domains.extend(domain.domains)
 			else:
 				self._domains.append(domain)
+		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 
 	@property
 	def names(self):
@@ -1866,7 +1873,7 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 	"""
 	def __init__(self, mean, cov = None, truncate = None, names = None, **kwargs):
 		self.tol = 1e-6	
-		self.kwargs = kwargs
+		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 		######################################################################################	
 		# Process the mean
 		######################################################################################	
