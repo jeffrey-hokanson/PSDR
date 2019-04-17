@@ -13,7 +13,7 @@ from scipy.optimize import nnls, minimize
 from scipy.linalg import orth, solve_triangular
 from scipy.spatial import ConvexHull
 from scipy.stats import ortho_group
-
+from scipy.spatial.distance import pdist
 import cvxpy as cp
 import warnings
 
@@ -34,6 +34,7 @@ __all__ = ['Domain',
 		'LogNormalDomain',
 		'TensorProductDomain',
 		'SolverError',
+		'DEFAULT_CVXPY_KWARGS'
 	] 
 
 def merge(x, y):
@@ -41,6 +42,7 @@ def merge(x, y):
 	z.update(y)
 	return z
 
+DEFAULT_CVXPY_KWARGS = {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False, 'kktsolver': 'robust'}
 
 class EmptyDomain(Exception):
 	pass 
@@ -160,9 +162,11 @@ class Domain(object):
 			return self._empty
 		
 	def is_point(self):
-		#try:
-		#	return self._point
-		#except AttributeError:
+		try:
+			return self._point
+		except AttributeError:
+			pass
+
 		try:
 			U = ortho_group.rvs(len(self))
 
@@ -505,16 +509,40 @@ class Domain(object):
 			if x0 is None: raise AttributeError
 		except AttributeError:
 			# If this hasn't been initialized find a feasible starting point
-			N = 10
+			N = 5
 			# In earlier versions, we find the starting point by finding the Chebeychev center;
 			# here we use a simpler approach that simply picks N points on the boundary 
 			# by calling corner and then take the mean (since the domain is convex).
 			# This removes the need to treat equality constraints carefully and also
 			# generalizes to LinQuadDomains. 
-			x0 = sum([self.corner(np.random.randn(len(self))) for i in range(N)])/N
+			
+			# Generate random orthogonal directions to sample
+			U = ortho_group.rvs(len(self))
+			X = [self.corner(u) for u in U[0:N]] + [self.corner(-u) for u in U[0:N]]
+			#print(np.vstack(X))
+			#print(np.all(np.isclose(X[0], X[1:])))
+			#print("internal distance", np.max(pdist(X)), "recurse", _recurse)	
+			# If these points aren't sufficiently distinct, add the rest
+			if np.isclose( np.max(pdist(X)), 0):
+				for u in U[N:]:
+					X.append(self.corner(u))
+					X.append(self.corner(-u))
+				
+			# If we still only have effectively one point, we are a point domain	
+			if np.isclose(np.max(pdist(X)),0):
+				self._point = True
+			else:
+				self._point = False
+
+			# Take the mean
+			x0 = sum(X)/len(X)
 			x0 = self.closest_point(x0)
+			
 			self._hit_and_run_state = x0
 			
+		# If we are point domain, there is no need go any further
+		if self._point:
+			return self._hit_and_run_state.copy()
 	
 		# Sometimes we may have a point that is slightly outside due to numerical issues
 		# so we push it back in
@@ -955,11 +983,8 @@ class LinQuadDomain(Domain):
 		
 		self._init_names(names)	
 
-		#if len(kwargs) == 0:
-		#	#kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False}
-		#	kwargs ={} 
 		
-		self.kwargs = kwargs
+		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 	
 	
 	################################################################################		
@@ -1143,7 +1168,7 @@ class LinQuadDomain(Domain):
 		I = np.isfinite(self.ub_norm)
 		if np.sum(I) > 0:
 			constraints.append( x_norm[I] <= self.ub_norm[I])
-		
+	
 		if self.A.shape[0] > 0:	
 			constraints.append( x_norm.__rmatmul__(self.A_norm) <= self.b_norm)
 		if self.A_eq.shape[0] > 0:
