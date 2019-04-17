@@ -11,7 +11,7 @@ from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain, ConvexHullDomain, SolverError
 
 __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
-	'multiobj_seq_maximin_sample']
+	'multiobj_seq_maximin_sample', 'StretchedSampler']
 
 
 def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
@@ -169,7 +169,7 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 	"""
 	Xhat = np.array(Xhat)
 	Xhat = np.atleast_2d(Xhat)
-	
+
 	if len(Xhat) < 1:
 		# If we don't have any samples, pick one of the corners
 		if L is None:
@@ -258,24 +258,23 @@ def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3)):
 	for d, it, k, vertex in queue:
 		if domain_samp.intrinsic_dimension == 0 or len(used) == len(Ls):
 			break
-		#print(domain_samp.is_point())	
-		
+	
+		# We ignore constraints from L's we have already considered
+		# since these must necessarily yield empty domains	
 		if k not in used:
 			L = Ls[k]
-			print(-d, k, vertex)
 	
 			# Try adding this equality constraint
 			domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vertex))
-			#domain_test.kwargs['verbose'] = True
 			if not domain_test.empty:
 				domain_samp = domain_test
 				used.append(k)
-				print("appended %d" % k)
+#				print("appended %d" % k)
+#				print(vertex)
+#				print(L, "x =", L.dot(vertex))
 
 	# Now sample the resulting domain 
 	Lall = np.vstack(Ls)
-	#domain_samp.kwargs['verbose'] = True
-	print("maximin sample")
 	return seq_maximin_sample(domain_samp, Xhat, L = Lall, Nsamp = Nsamp)
 
 
@@ -465,6 +464,26 @@ class SequentialMaximinSampler(Sampler):
 			else:
 				self._fX = np.hstack([self._fX, fXnew])
 
+
+class StretchedSampler(Sampler):
+	r"""
+
+	"""
+	def __init__(self, fun, X = None, fX = None, pras = None, funmap = None):
+		Sampler.__init__(self, fun, X = X, fX = fX)
+		self._pras = pras 
+
+		if funmap is None:
+			funmap = lambda x: x
+		self._funmap = funmap
+
+
+	def _sample(self, draw = 1):
+		for it in range(draw):
+			return self._sample_one()
+
+	def _sample_one(self):
+		 pass
 
 
 #class Sampler(object):
