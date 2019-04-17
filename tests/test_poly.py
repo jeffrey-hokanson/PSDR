@@ -72,6 +72,3 @@ def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
 						print(pa(X[I]), fXnoise[I])
 						assert False
 					#assert np.all(pa(X) >= fXnoise -1e-7)
-	assert False
-if __name__ == '__main__':	
-	test_poly_fit()
