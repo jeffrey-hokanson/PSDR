@@ -12,6 +12,7 @@ import scipy.stats
 from scipy.optimize import nnls, minimize
 from scipy.linalg import orth, solve_triangular
 from scipy.spatial import ConvexHull
+from scipy.stats import ortho_group
 
 import cvxpy as cp
 import warnings
@@ -32,6 +33,7 @@ __all__ = ['Domain',
 		'NormalDomain',
 		'LogNormalDomain',
 		'TensorProductDomain',
+		'SolverError',
 	] 
 
 def merge(x, y):
@@ -43,7 +45,7 @@ def merge(x, y):
 class EmptyDomain(Exception):
 	pass 
 
-class SolverError(Exception):
+class SolverError(ValueError):
 	pass
 
 def closest_point(dom, x0, L, **kwargs):
@@ -134,6 +136,50 @@ class Domain(object):
 	
 	def __len__(self):
 		raise NotImplementedError
+
+	@property
+	def intrinsic_dimension(self):
+		r""" The intrinsic dimension (ambient space minus equality constraints)"""
+		return len(self) - self.A_eq.shape[0]
+
+
+	@property
+	def empty(self):
+		r""" Returns True if there are no points in the domain
+		"""
+		try:
+			return self._empty
+		except AttributeError:
+			try:
+				# Try to find at least one point inside the domain
+				self.corner(np.ones(len(self)))
+				self._empty = False
+			except SolverError:
+				self._empty = True
+			
+			return self._empty
+		
+	def is_point(self):
+		#try:
+		#	return self._point
+		#except AttributeError:
+		try:
+			U = ortho_group.rvs(len(self))
+
+			for u in U:
+				x1 = self.corner(u)
+				x2 = self.corner(-u)
+				if not np.all(np.isclose(x1, x2)):
+					self._point = False
+					return self._point
+
+			self._point = True				
+			return self._point
+
+		except SolverError:
+			self._empty = True
+			self._point = False
+			return self._point
 
 	# To define the documentation once for all domains, these functions call internal functions
 	# to each subclass
@@ -373,6 +419,11 @@ class Domain(object):
 		-------
 		array-like (draw, len(self))
 			Array of samples from the domain
+
+		Raises
+		------
+		SolverError
+			If we are unable to find a point in the domain satisfying the constraints
 		"""
 		x_sample = self._sample(draw = int(draw))
 		if draw == 1: 
@@ -441,6 +492,7 @@ class Domain(object):
 		return X, w
 
 
+	# TODO: This will error out if the constraints specify a single point in the domain
 	def _hit_and_run(self, _recurse = 2):
 		r"""Hit-and-run sampling for the domain
 		"""
