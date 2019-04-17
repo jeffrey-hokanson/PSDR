@@ -5,6 +5,7 @@ from psdr import PolynomialApproximation, PolynomialFunction, LegendreTensorBasi
 from .checkder import *
 
 def test_poly_der(dimension = 3, degree = 5):
+	np.random.seed(0)
 	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
 	pf = PolynomialFunction(dimension, degree, coef)
 
@@ -16,6 +17,7 @@ def test_poly_der(dimension = 3, degree = 5):
 	assert check_derivative(x, pf.eval, lambda x: pf.grad(x).flatten() ) < 1e-7
 
 def test_poly_hess(dimension = 3, degree = 5):
+	np.random.seed(0)
 	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
 	pf = PolynomialFunction(dimension, degree, coef)
 	
@@ -29,6 +31,7 @@ def test_poly_hess(dimension = 3, degree = 5):
 
 def test_poly_basis(dimension = 2, degree = 5):
 	""" test different bases"""	
+	np.random.seed(0)
 	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
 	pf = PolynomialFunction(dimension, degree, coef)
 
@@ -45,6 +48,7 @@ def test_poly_basis(dimension = 2, degree = 5):
 
 
 def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
+	np.random.seed(0)
 	dom = BoxDomain(-np.ones(dimension), np.ones(dimension))
 	X = dom.sample(100)
 
@@ -68,4 +72,6 @@ def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
 						print(pa(X[I]), fXnoise[I])
 						assert False
 					#assert np.all(pa(X) >= fXnoise -1e-7)
-		
+	assert False
+if __name__ == '__main__':	
+	test_poly_fit()
