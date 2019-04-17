@@ -21,7 +21,7 @@ def test_multif_domain():
 		#for xi, lbi, ubi, name in zip(x, dom.lb, dom.ub, dom.names):
 		#	print("%10.7f %10.7f %10.7f" % (xi, lbi, ubi), name)
 		# TODO: This fails to due to some tolerances that are not respected, perhaps due to a scaling issue
-		assert dom.isinside(x, 1e-5), "Corner should be inside the domain"
+		assert dom.isinside(x), "Corner should be inside the domain"
 		assert dom.extent(x, -p) > 0, "extent must be positive"
 
 def test_multif():
