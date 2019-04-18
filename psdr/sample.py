@@ -53,7 +53,6 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 
 	Lrank = U.shape[1]
 
-
 	if Lrank != len(domain):
 		# Attempt to determine the effective dimension
 		if Lrank == 1:
@@ -86,6 +85,7 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 			# in the active direction
 	else:
 		dim = len(domain)
+		Lcs = []
 
 	if dim == 1:
 		assert len(Lcs) == 2
@@ -96,9 +96,11 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 		X0 = np.vstack([alpha*cs[0] + (1-alpha)*cs[1] for alpha in alphas])	
 		return X0
 		
-	elif dim in [2,3]:
+	elif dim in [2,3] and len(Lcs) > dim:
 		# Construct a convex hull of low-dimensional points
-		assert len(Lcs) > dim, "Insufficient points to describe hyperplane in %d dimensions" % dim
+		#if len(Lcs) > dim:
+		#	# Insufficient points to describe hyperplane in m dimensions, instead return corners
+		#	return cs
 		Ldom = ConvexHullDomain(Lcs, solver = 'CVXOPT')
 		# and sample uniformly here
 		LX0 = Ldom.sample(Nsamp)
@@ -168,15 +170,15 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 		Sample from inside the domain
 	"""
 	Xhat = np.array(Xhat)
-	Xhat = np.atleast_2d(Xhat)
-
-	if len(Xhat) < 1:
+	if len(Xhat) == 0:
 		# If we don't have any samples, pick one of the corners
 		if L is None:
 			return domain.corner(np.random.randn(len(domain)))
 		else:
 			_, s, VT = scipy.linalg.svd(L)
 			return domain.corner(VT.T[:,0])
+	
+	Xhat = np.atleast_2d(Xhat)
 
 	# Generate candidate points from the Voronoi vertices
 	if X0 is None:
@@ -186,7 +188,6 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 			X0 = initial_sample(domain, L, Nsamp = Nsamp)
 
 	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = True)
-
 
 	# Compute the Euclidean distance between candidates Xcan and current samples Xhat
 	De = cdist(Xcan, Xhat)
@@ -219,10 +220,18 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3)):
 	r""" A multi-objective sequential maximin sampling 
 
+	The goal of this algorithm is to return a new sample that maximizes
+	the distance between samples in *several* different metrics.
+
 
 	A typical use case will have Ls that are of size (1,m)
 	
 	"""
+
+	Xhat = np.array(Xhat)
+	if len(Xhat) == 0:
+		Lall = np.vstack(Ls)
+		return seq_maximin_sample(domain, Xhat, L = Lall, Nsamp = Nsamp) 
 
 	vertices = []
 	it = 0
@@ -278,7 +287,7 @@ def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3)):
 	return seq_maximin_sample(domain_samp, Xhat, L = Lall, Nsamp = Nsamp)
 
 
-def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None ):
+def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):
 	r""" Estimate the fill distance of the points Xhat in the domain
 
 	The *fill distance* (Def. 1.4 of [Wen04]_) or *dispersion* [LC05]_
