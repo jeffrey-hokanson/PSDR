@@ -321,7 +321,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		ub: array-like (N,)
 			Upper bounds
 		"""
-		Xtest = np.array(Xtest).reshape(-1, X.shape[1])
+		X = np.atleast_2d(np.array(X))
+		Xtest = np.atleast_2d(np.array(Xtest))
 
 		lb = -np.inf*np.ones(Xtest.shape[0])
 		ub = np.inf*np.ones(Xtest.shape[0])
@@ -447,6 +448,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			plot_kwargs = {}, progress = False, **kwargs):
 		r""" Draw an estimate of the 1-d envelope
 		"""
+		X = np.atleast_2d(np.array(X))
+		fX = np.array(fX)
+
+
 		assert dim == 1, "Higher dimensions not yet implemented"
 
 		if U is None:
