@@ -74,7 +74,7 @@ class SubspaceBasedDimensionReduction(object):
 			if len(U.shape) == 1:
 				U = U.reshape(X.shape[1],1)
 			else:
-				assert U.shape[1] == len(X.shape[1])
+				assert U.shape[1] == X.shape[1], "Dimensions do not match"
 				U = U
 
 		
@@ -121,6 +121,17 @@ class SubspaceBasedDimensionReduction(object):
 		"""
 		if U is None:
 			U = self.U[:,0]		
+		else:
+			if len(U.shape) > 1:
+				U = U[:,0]
+				
+
+		X = np.array(X)
+		fX = np.array(fX)
+		assert len(X) == len(fX), "Number of inputs did not match number of outputs"
+		if len(fX.shape) > 1:
+			fX = fX.flatten()
+			assert len(fX) == len(X), "Expected fX to be a vector"
 
 		y = X.dot(U)
 		if ngrid is None:
@@ -142,6 +153,7 @@ class SubspaceBasedDimensionReduction(object):
 			yy = np.linspace(np.min(y), np.max(y), ngrid)
 			h = yy[1] - yy[0]
 
+		h = float(h)
 
 		# Build the piecewise linear interpolation matrix
 		j = np.floor( (y - yy[0])/h ).astype(np.int)
@@ -159,7 +171,7 @@ class SubspaceBasedDimensionReduction(object):
 		row += np.argwhere(I).flatten().tolist()
 		col += (j[I]+1).tolist()
 		val += ( (y[I] - (yy[0] + j[I]*h)  )/h).tolist()
-		
+
 		A = scipy.sparse.coo_matrix((val, (row, col)), shape = (len(y), len(yy)))
 		A = cp.Constant(A)
 		ub = cp.Variable(len(yy))
