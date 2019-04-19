@@ -62,9 +62,21 @@ for fun, name in zip([otl],['otl']):
 			pgf.add('p%d' % t, [p[i]])
 		pgf.write('data/tab_sample_%s_%s_uncertainty.dat' % (name, lip_name) ) 	
 
-		#if name == 'otl':	
-		if name == 'otl' and lip_name == 'con':		
-			lip.shadow_envelope_estimate(fun.domain, samp.X, samp.fX, 
-				pgfname = 'data/tab_sample_%s_%s_envelope_estimate.dat' % (name, lip_name), 
-				progress = 2, ngrid = 100, U = U[:,0])
- 
+		if name == 'otl':	
+			Nsamp = 64	
+			lip.shadow_plot(samp.X[:Nsamp], samp.fX[:Nsamp], ax = None, 
+				U = U, dim = 1, pgfname = 'data/tab_sample_%s_%s_shadow.dat' % (name, lip_name) ) 
+
+			if False:	
+				print("computing envelope estimate")
+				lip.shadow_envelope_estimate(fun.domain, samp.X[:Nsamp], samp.fX[:Nsamp], 
+					pgfname = 'data/tab_sample_%s_%s_envelope_estimate.dat' % (name, lip_name), 
+					progress = 2, ngrid = 100, U = U[:,0])
+
+			if lip_name == 'con':
+				# The actual envelope is indepent of the Lipschitz matrix/constant 
+				Xg2 = fun.domain.sample_grid(8)
+				fXg2 = fun(Xg2)
+				print("computing envelope")
+				lip.shadow_envelope(Xg2, fXg2, ax = None, 
+					pgfname = 'data/tab_sample_%s_envelope.dat' % (name, ), U = U[:,0])
