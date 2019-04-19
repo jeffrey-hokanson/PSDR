@@ -19,16 +19,14 @@ gg = psdr.demos.GolinskiGearbox()
 gg._funs = [gg._funs[0]]
 gg._grads = [gg._grads[0]]
 
-# OTL
+# other functions
 otl = psdr.demos.OTLCircuit()
-
 piston = psdr.demos.Piston()
-
 borehole = psdr.demos.Borehole()
-
 wing = psdr.demos.WingWeight()
 
-for fun, name in zip([gg, otl, piston, borehole, wing],['golinski', 'otl', 'piston', 'borehole', 'wing']):
+#for fun, name in zip([gg, otl, piston, borehole, wing],['golinski', 'otl', 'piston', 'borehole', 'wing']):
+for fun, name in zip([otl],['otl']):
 	# Construct a grid for testing purposes
 	ngrid = int(np.ceil(Ngrid**(1./len(fun.domain))))
 	Xg = fun.domain.sample_grid(ngrid)
@@ -61,5 +59,7 @@ for fun, name in zip([gg, otl, piston, borehole, wing],['golinski', 'otl', 'pist
 			pgf.add('p%d' % t, [p[i]])
 		pgf.write('data/tab_sample_%s_%s_uncertainty.dat' % (name, lip_name) ) 	
 	
-	
+		if name == 'otl':		
+			lip.shadow_envelope_estimate(fun.domain, samp.X, samp.fX, 
+				pgfname = 'data/tab_sample_%s_%s_envelope_estimate.dat' % (name, lip_name), progress = 2, ngrid = 100)
  

@@ -57,7 +57,7 @@ name3 = 'Lcon'
 u = Lmat.U[:,0]
 c1 = fun.domain.corner(u)
 c2 = fun.domain.corner(-u)
-X4 = np.array([ t*c1 + (1-t)*c2 for t in np.linspace(0,1,64)])
+X4 = np.array([ t*c1 + (1-t)*c2 for t in np.linspace(0,1,len(X1))])
 
 fX4 = fun(X4)
 name4 = 'line'
@@ -68,13 +68,30 @@ for X, fX, name in zip([X1, X2, X3, X4], [fX1, fX2, fX3, fX4], [name1, name2, na
 	lb, ub = Lmat.bounds(X, fX, Xt)
 	print("average uncertainty", np.mean(ub - lb)) 
 	print("max uncertainty", np.max(ub - lb))
-	
-	if True:
-		Lmat.shadow_envelope_estimate(fun.domain, X, fX, 
-			pgfname = 'data/fig_sample_Lmat_%s_envelope_estimate.dat' % name, progress = 2, ngrid = 100)
 
+	p = np.percentile(ub - lb, [0,25,50, 75,100])
+	pgf = PGF()
+	for i, t in enumerate([0,25, 50, 75, 100]):
+		pgf.add('p%d' % t, [p[i]])
+	pgf.write('data/fig_sample_Lmat_uncertainty_%s.dat' % name) 	
+	
+	# Lipschitz constant	
+	lb, ub = Lcon.bounds(X, fX, Xt)
+	print("average uncertainty", np.mean(ub - lb)) 
+	print("max uncertainty", np.max(ub - lb))
+
+	p = np.percentile(ub - lb, [0,25,50, 75,100])
+	pgf = PGF()
+	for i, t in enumerate([0,25, 50, 75, 100]):
+		pgf.add('p%d' % t, [p[i]])
+	pgf.write('data/fig_sample_Lcon_uncertainty_%s.dat' % name) 	
+	
+	if False:
 		Lmat.shadow_envelope_estimate(fun.domain, X, fX, 
-			pgfname = 'data/fig_sample_Lcon_%s_envelope_estimate.dat' % name, progress = 2, ngrid = 100)
+			pgfname = 'data/fig_sample_Lmat_%s_envelope_estimate.dat' % name, progress = 2, ngrid = 10)
+
+		#Lmat.shadow_envelope_estimate(fun.domain, X, fX, 
+		#	pgfname = 'data/fig_sample_Lcon_%s_envelope_estimate.dat' % name, progress = 2, ngrid = 100)
 		  
 		Lmat.shadow_envelope(Xt, fXt, pgfname = 'data/fig_sample_%s_envelope.dat' % name, ngrid = 100)
 
