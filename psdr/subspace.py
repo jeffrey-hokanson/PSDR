@@ -95,11 +95,22 @@ class SubspaceBasedDimensionReduction(object):
 
 		return ax
 
-	def shadow_envelope(self, X, fX, ax = None, ngrid = None, pgfname = None, verbose = True, **kwargs):
+	def shadow_envelope(self, X, fX, ax = None, ngrid = None, pgfname = None, verbose = True, U = None, **kwargs):
 		r""" Draw a 1-d shadow plot of a large number of function samples
-		"""
 
-		y = X.dot(self.U[:,0])
+		Returns
+		-------
+		y: np.ndarray
+			Projected coordinates
+		lb: np.ndarray
+			piecewise linear lower bound values
+		ub: np.ndarray
+			piecewise linear upper bound values
+		"""
+		if U is None:
+			U = self.U[:,0]		
+
+		y = X.dot(U)
 		if ngrid is None:
 			# Determine the minimum number of bins
 			ngrid = 25
@@ -163,7 +174,7 @@ class SubspaceBasedDimensionReduction(object):
 			pgf.add('ub', ub)	
 			pgf.write(pgfname)
 		
-
+		return y, lb, ub
 
 
 	def _init_dim(self, X = None, grads = None):
