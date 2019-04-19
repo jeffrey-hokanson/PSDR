@@ -40,6 +40,9 @@ for fun, name in zip([otl],['otl']):
 	
 	for lip, lip_name in zip([lip_mat, lip_con], ['mat', 'con']):
 		lip.fit(grads = gradX)
+
+		if lip_name == 'mat':
+			U = lip.U.copy()
 	
 		# Now perform sequential sampling 
 		samp = psdr.SequentialMaximinSampler(fun, lip.L)
@@ -58,8 +61,10 @@ for fun, name in zip([otl],['otl']):
 		for i, t in enumerate([0,25, 50, 75, 100]):
 			pgf.add('p%d' % t, [p[i]])
 		pgf.write('data/tab_sample_%s_%s_uncertainty.dat' % (name, lip_name) ) 	
-	
-		if name == 'otl':		
+
+		#if name == 'otl':	
+		if name == 'otl' and lip_name == 'con':		
 			lip.shadow_envelope_estimate(fun.domain, samp.X, samp.fX, 
-				pgfname = 'data/tab_sample_%s_%s_envelope_estimate.dat' % (name, lip_name), progress = 2, ngrid = 100)
+				pgfname = 'data/tab_sample_%s_%s_envelope_estimate.dat' % (name, lip_name), 
+				progress = 2, ngrid = 100, U = U[:,0])
  

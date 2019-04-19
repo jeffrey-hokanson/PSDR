@@ -22,9 +22,14 @@ for lip, name in zip([lip_mat, lip_con], ['mat', 'con']):
 	lip.fit(grads = gradX)
 	if name == 'mat':
 		U = lip.U[:,0].copy()
-	print("computing envelope")
-	lip.shadow_envelope(Xg, fXg, ax = None, pgfname = 'data/fig_shadow_%s_envelope.dat' % (name, ), U = U)
+
+	lip.shadow_plot(X, fX, ax = None, U = U, dim = 1, pgfname = 'data/fig_shadow_%s.dat' % (name,) ) 
 	
-	print("computing envelope estimate")
-	lip.shadow_envelope_estimate(fun.domain, X, fX, U = U,
-		pgfname = 'data/fig_shadow_%s_envelope_estimate.dat' % (name,), progress = 2, ngrid = 100)
+	if False:
+		print("computing envelope")
+		lip.shadow_envelope(Xg, fXg, ax = None, pgfname = 'data/fig_shadow_%s_envelope.dat' % (name, ), U = U)
+
+	if False:	
+		print("computing envelope estimate")
+		lip.shadow_envelope_estimate(fun.domain, X, fX, U = U,
+			pgfname = 'data/fig_shadow_%s_envelope_estimate.dat' % (name,), progress = 2, ngrid = 100)
