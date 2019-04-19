@@ -75,7 +75,7 @@ def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 	#assert isinstance(domain, Domain), "domain must be an instance of the Domain class"
 	assert len(domain.Ls) == 0, "Currently this does not support domains with quadratic constraints"
 	Xhat = np.atleast_2d(np.array(Xhat))
-	X0 = np.atleast_2d(np.array(X0))
+	X0 = np.atleast_2d(np.array(X0)).copy()
 
 	m = len(domain)
 	

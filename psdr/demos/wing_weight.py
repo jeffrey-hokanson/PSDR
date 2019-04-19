@@ -7,6 +7,42 @@ __all__ = ['build_wing_weight_domain' ,'wing_weight', 'wing_weight_grad', 'WingW
 
 
 class WingWeight(Function):
+	r""" The wing weight test function
+
+	This function models the weight of a wing based on several design parameters [VLSE_wing]_:
+
+	.. math::
+		
+		&f(S_w, W_{fw}, A, \Lambda, q, \lambda, t_c, N_z, W_{dg}, W_p) := \\
+			&\quad 0.036 S_w^{0.758} W_{fw}^{0.0035}
+			\left( \frac{A}{\cos^2 \Lambda}  \right)^{0.6} 
+			q^{0.006} \lambda^{0.04}
+			\left( \frac{100 t_c}{\cos \Lambda} \right)^{-0.3}
+			(N_z W_{dg})^{0.49} 
+			+ S_w W_p
+	
+	====================================    ========================
+	Variable                                Interpretation
+	====================================    ========================
+	:math:`S_w \in [150, 200]`				wing area (ft^2)
+	:math:`W_{fw} \in [220, 300]`			weight of fuel in the wing (lb)
+	:math:`A \in [6,10]`					aspect ratio
+	:math:`\Lambda \in [-10,10]`			quarter-chord sweep (degrees)
+	:math:`q \in [16,45]`					dynamic pressure at cruise (lb/ft^2)
+	:math:`\lambda \in [0.5,1]`				taper ratio
+	:math:`t_c\in [0.08,0.18]`				aerfoil thickness to chord ratio
+	:math:`N_z \in [2.5, 6]`				ultimate load factor
+	:math:`W_{dg} \in [1700, 2500]`			flight design gross weight (lb)
+	:math:`W_p \in [0.025, 0.08]`			paint weight (lb/ft^2)
+	====================================    ========================
+
+	References
+	----------
+	.. [VLSE_wing] Virtual Library of Simulation Experiments, Wing Weight Function
+		 https://www.sfu.ca/~ssurjano/wingweight.html
+
+
+	"""
 	def __init__(self):
 		domain = build_wing_weight_domain()
 		funs = [wing_weight]

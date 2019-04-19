@@ -6,14 +6,48 @@ from psdr import BoxDomain, Function
 __all__ = ['build_otl_circuit_domain', 'otl_circuit', 'otl_circuit_grad', 'OTLCircuit']
 
 class OTLCircuit(Function):
-	r"""
+	r""" The OTL circuit test function
+
+	The OTL Circuit function "models an output transformerless push pull circuit" [VLSE]_
+
+	.. math::
+	
+		f(R_{b1}, R_{b2}, R_f, R_{c1}, R_{c2}, \beta) :=&
+			\frac{ \beta (V_{b1} + 0.74)(R_{c2} + 9)}{\beta(R_{c2} + 9) + R_f}
+			+ \frac{11.35 R_f}{\beta(R_{c2} + 9) + R_f} \\
+			&+\frac{0.74 R_f \beta (R_{c2} + 9)}{R_{c1}(\beta(R_{c2} + 9) + R_f)}, \\
+		\text{where } V_{b1} :=& \frac{12 R_{b2}}{R_{b1} + R_{b2}}
+	
+	====================================    ========================
+	Variable                                Interpretation
+	====================================    ========================
+	:math:`R_{b1} \in [50, 150]`			resistance b1 (K-Ohms)
+	:math:`R_{b2} \in [25, 75]`				resistance b2 (K-Ohms)
+	:math:`R_{f} \in [0.5, 3]`				resistance f (K-Ohms)
+	:math:`R_{c1} \in [1.2, 2.5]`			resistance c1 (K-Ohms)
+	:math:`R_{c1} \in [0.25, 1.2]`			resistance c2 (K-Ohms)
+	:math:`\beta \in [50, 300]`				current gain (Amperes)
+	====================================    ========================
+
+	Parameters
+	----------
+	dask_client: dask.distributed.Client or None
+		If specified, allows distributed computation with this function.
+
+
+
+	References
+	----------
+	.. [VLSE] Virtual Library of Simulation Experiments, OTL Circuit
+		https://www.sfu.ca/~ssurjano/otlcircuit.html
+
 	"""
-	def __init__(self):
+	def __init__(self, dask_client = None):
 		domain = build_otl_circuit_domain()
 		funs = [otl_circuit]
 		grads = [otl_circuit_grad] 
 
-		Function.__init__(self, funs, domain, grads = grads, vectorized = True)
+		Function.__init__(self, funs, domain, grads = grads, vectorized = True, dask_client = dask_client)
 
 
 def build_otl_circuit_domain():

@@ -1,8 +1,9 @@
 from __future__ import print_function
 import numpy as np
 from scipy.spatial.distance import cdist, pdist
-from psdr import BoxDomain, seq_maximin_sample, fill_distance_estimate, initial_sample 
-
+from psdr import BoxDomain, seq_maximin_sample, fill_distance_estimate, initial_sample
+from psdr import SequentialMaximinSampler 
+from psdr.demos import Borehole, GolinskiGearbox
 
 def test_seq_maximin_sample(m = 5):
 	dom = BoxDomain(-np.ones(m), np.ones(m))
@@ -44,6 +45,22 @@ def test_initial_sample(m = 20):
 		print("initial sampling mean distance", np.mean(d2), 'min', np.min(d2))
 		assert np.mean(d2) > np.mean(d1), "Initial sampling ineffective"	
 
+def test_seqmaximin():
+	# As the underlying function is already tested above
+	# here we are just making sure that the code doesn't error
+	fun1 = Borehole()
+	fun2 = GolinskiGearbox()
+	for fun in [fun1, fun2]:
+		L1 = np.ones( (1,len(fun.domain)) )
+		for L in [None, L1]:
+			samp = SequentialMaximinSampler(fun, L = L)
+			samp.sample(4)
+			samp.sample()
+			samp.sample(2)
+			assert samp.X.shape == (7,len(fun.domain))
+			print(samp.fX)
+			assert len(samp.fX) == 7	
+
 
 if __name__ == '__main__':
-	test_initial_sample()
+	test_seqmaximin()

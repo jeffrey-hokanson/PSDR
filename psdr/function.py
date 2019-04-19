@@ -146,6 +146,12 @@ class Function(BaseFunction):
 				fX = [fun(X, **kwargs) for fun in self._funs]
 				for fXi in fX:
 					assert len(fXi) == X.shape[0], "Must provide an array with %d entires; got %d" % (X.shape[0], len(fXi) )
+				
+				# Reshape if necessary so concatention works
+				for i, fXi in enumerate(fX):
+					fXi = np.array(fXi)
+					if len(fXi.shape) == 1:
+						fX[i] = fXi.reshape(len(X),1)
 				return np.hstack(fX)
 			else:
 				return np.vstack([ np.hstack([fun(x, **kwargs) for fun in self._funs]) for x in X])

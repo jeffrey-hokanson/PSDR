@@ -5,11 +5,13 @@ import scipy.optimize
 from scipy.spatial.distance import cdist, pdist, squareform
 import cvxpy as cp
 
+
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
-from .domains import LinIneqDomain, ConvexHullDomain
+from .domains import LinIneqDomain, ConvexHullDomain, SolverError
 
-__all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample']
+__all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
+	'multiobj_seq_maximin_sample', 'StretchedSampler']
 
 
 def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
@@ -33,7 +35,8 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 	Nsamp: int, optional
 		Number of samples to return
 	Nboundary: int, optional
-		Number of samples to take from the boundary
+		Number of samples to take from the boundary for constructing the boundary
+		of the domain projected onto a low-rank L
 
 	Returns
 	-------
@@ -49,7 +52,6 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 	Lhat = np.diag(s[I]).dot(U.T)
 
 	Lrank = U.shape[1]
-
 
 	if Lrank != len(domain):
 		# Attempt to determine the effective dimension
@@ -83,6 +85,7 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 			# in the active direction
 	else:
 		dim = len(domain)
+		Lcs = []
 
 	if dim == 1:
 		assert len(Lcs) == 2
@@ -93,9 +96,11 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 		X0 = np.vstack([alpha*cs[0] + (1-alpha)*cs[1] for alpha in alphas])	
 		return X0
 		
-	elif dim in [2,3]:
+	elif dim in [2,3] and len(Lcs) > dim:
 		# Construct a convex hull of low-dimensional points
-		assert len(Lcs) > dim, "Insufficient points to describe hyperplane in %d dimensions" % dim
+		#if len(Lcs) > dim:
+		#	# Insufficient points to describe hyperplane in m dimensions, instead return corners
+		#	return cs
 		Ldom = ConvexHullDomain(Lcs, solver = 'CVXOPT')
 		# and sample uniformly here
 		LX0 = Ldom.sample(Nsamp)
@@ -131,7 +136,7 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 		return domain.sample(Nsamp)
 			
 
-def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
+def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 	r""" Performs one step of sequential maximin sampling. 
 
 	Given an existing set of samples :math:`\lbrace \widehat{\mathbf{x}}_j\rbrace_{j=1}^M\subset \mathcal{D}`
@@ -166,7 +171,7 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 	"""
 	Xhat = np.array(Xhat)
 	
-	if len(Xhat) < 1:
+	if len(Xhat) == 0:
 		# If we don't have any samples, pick one of the corners
 		if L is None:
 			return domain.corner(np.random.randn(len(domain)))
@@ -184,7 +189,6 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 			X0 = initial_sample(domain, L, Nsamp = Nsamp)
 
 	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = True)
-
 
 	# Compute the Euclidean distance between candidates Xcan and current samples Xhat
 	De = cdist(Xcan, Xhat)
@@ -214,7 +218,77 @@ def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None):
 	return Xcan[i]
 
 
-def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None ):
+def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3)):
+	r""" A multi-objective sequential maximin sampling 
+
+	The goal of this algorithm is to return a new sample that maximizes
+	the distance between samples in *several* different metrics.
+
+
+	A typical use case will have Ls that are of size (1,m)
+	
+	"""
+
+	Xhat = np.array(Xhat)
+	if len(Xhat) == 0:
+		Lall = np.vstack(Ls)
+		return seq_maximin_sample(domain, Xhat, L = Lall, Nsamp = Nsamp) 
+
+	vertices = []
+	it = 0
+	queue = []
+	for k, L in enumerate(Ls):
+		# Find initial samples well separated
+		X0 = initial_sample(domain, L, Nsamp = Nsamp//len(Ls))
+		
+		# find the Voronoi vertices; we don't randomize as we are only interested
+		# in the component that satisfies the constraint
+		vertices = voronoi_vertex(domain, Xhat, X0, L = L, randomize = False) 
+		
+		# Remove duplicates in the L norm
+		I = unique_points(L.dot(X0.T).T)
+		vertices = vertices[I]
+
+		# Compute the distances between points in this metric
+		D = cdist(L.dot(vertices.T).T, L.dot(Xhat.T).T)
+		D = np.min(D, axis = 1)
+ 
+		for d, vertex in zip(D, vertices):
+			# Place this point onto the priority queue
+			# Note we include an iterator so that ties are always broken cleanly
+			queue.append( (-d, it, k, vertex) )
+			it += 1
+
+
+	# Now greedily add constraints
+	domain_samp = domain
+	used = []
+
+	queue.sort()
+	for d, it, k, vertex in queue:
+		if domain_samp.intrinsic_dimension == 0 or len(used) == len(Ls):
+			break
+	
+		# We ignore constraints from L's we have already considered
+		# since these must necessarily yield empty domains	
+		if k not in used:
+			L = Ls[k]
+	
+			# Try adding this equality constraint
+			domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vertex))
+			if not domain_test.empty:
+				domain_samp = domain_test
+				used.append(k)
+#				print("appended %d" % k)
+#				print(vertex)
+#				print(L, "x =", L.dot(vertex))
+
+	# Now sample the resulting domain 
+	Lall = np.vstack(Ls)
+	return seq_maximin_sample(domain_samp, Xhat, L = Lall, Nsamp = Nsamp)
+
+
+def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):
 	r""" Estimate the fill distance of the points Xhat in the domain
 
 	The *fill distance* (Def. 1.4 of [Wen04]_) or *dispersion* [LC05]_
@@ -277,10 +351,151 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e4), X0 = None )
 
 	
 class Sampler:
-	pass
+	r""" Generic sampler interface
 
-class SequentialLipschitzSampler(Sampler):
-	pass
+	Parameters
+	----------
+	fun: Function
+		Function for which to preform a design of experiments
+	X: array-like (?,m)
+		Existing samples from the domain
+	fX: array-like (?,nfun)
+		Existing evaluations of the function at the points in X
+	"""
+	def __init__(self, fun, X = None, fX = None):
+		self._fun = fun
+		
+		if X is None:
+			X = np.zeros((0, len(fun.domain)))
+		else:
+			X = np.copy(np.array(X))
+			assert X.shape[1] == len(fun.domain), "Input dimensions do not match function"
+		
+		self._X = X
+		
+		if fX is not None:
+			fX = np.copy(np.array(fX))
+			assert fX.shape[0] == X.shape[0], "Number of function values does not match number of samples"
+
+		self._fX = fX
+
+	def sample(self, draw = 1, verbose = False):
+		r""" Sample the function
+
+
+		Parameters
+		----------
+		draw: int, default 1
+			Number of samples to take
+		"""
+		return self._sample(draw = draw, verbose = verbose)
+	
+	def sample_async(self, draw = 1):
+		r""" Sample the function asynchronously updating the search parameters
+
+
+		Parameters
+		----------
+		draw: int, default 1
+			Number of samples to take
+		"""
+		return self._sample_async(draw = draw)
+
+	def _sample(self, draw = 1, verbose = False):
+		raise NotImplementedError
+	
+	def _sample_async(self, draw = 1):
+		raise NotImplementedError
+
+	@property
+	def X(self):
+		r""" Samples from the function's domain"""
+		return self._X.copy()
+
+	@property
+	def fX(self):
+		r""" Outputs from the function corresponding to samples X"""
+		if self._fX is not None:
+			return self._fX.copy()
+		else:
+			return None
+	
+class SequentialMaximinSampler(Sampler):
+	r""" Sequential maximin sampling with a fixed metric
+
+	Given a distance metric provided by :math:`\mathbf{L}`,
+	construct a sequence of samples :math:`\widehat{\mathbf{x}}_i`
+	that are local solutions to
+
+
+	.. math::
+		
+		\widehat{\mathbf{x}}_j = \arg\max_{\mathbf{x} \in \mathcal{D}} \min_{i=1,\ldots,j}
+			 \|\mathbf{L}(\mathbf{x} - \widehat{\mathbf{x}}_i)\|_2.
+
+	
+	Parameters
+	----------
+	fun: Function
+		Function for which to preform a design of experiments
+	L: array-like (?, m)
+		Matrix defining the metric
+	X: array-like (?,m)
+		Existing samples from the domain
+	fX: array-like (?,nfun)
+		Existing evaluations of the function at the points in X
+
+	"""
+	def __init__(self, fun, L = None, X = None, fX = None):
+		Sampler.__init__(self, fun, X = X, fX = fX)
+		if L is None:
+			L = np.eye(len(fun.domain))
+		else:
+			L = np.atleast_2d(np.array(L))
+			assert L.shape[1] == len(fun.domain), "Dimension of L does not match domain"
+		self._L = L
+
+	def _sample(self, draw = 1, verbose = False):
+		Xnew = []
+		# As L is fixed, we can draw these samples at once
+		for i in range(draw):
+			xnew = seq_maximin_sample(self._fun.domain, self._X, L = self._L)
+			Xnew.append(xnew)
+			if verbose:
+				print('%3d: ' % (i,),  ' '.join(['%8.3f' % x for x in xnew]))
+			self._X = np.vstack([self._X, xnew])
+
+		# Now we evaluate the function at these new points
+		# (this takes advantage of potential vectorization of fun
+		fXnew = self._fun.eval(Xnew)
+		if self._fX is None:
+			self._fX = fXnew
+		else:
+			if len(fXnew.shape) > 1:
+				self._fX = np.vstack([self._fX, fXnew])
+			else:
+				self._fX = np.hstack([self._fX, fXnew])
+
+
+class StretchedSampler(Sampler):
+	r"""
+
+	"""
+	def __init__(self, fun, X = None, fX = None, pras = None, funmap = None):
+		Sampler.__init__(self, fun, X = X, fX = fX)
+		self._pras = pras 
+
+		if funmap is None:
+			funmap = lambda x: x
+		self._funmap = funmap
+
+
+	def _sample(self, draw = 1):
+		for it in range(draw):
+			return self._sample_one()
+
+	def _sample_one(self):
+		 pass
 
 
 #class Sampler(object):

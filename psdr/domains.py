@@ -12,7 +12,8 @@ import scipy.stats
 from scipy.optimize import nnls, minimize
 from scipy.linalg import orth, solve_triangular
 from scipy.spatial import ConvexHull
-
+from scipy.stats import ortho_group
+from scipy.spatial.distance import pdist
 import cvxpy as cp
 import warnings
 
@@ -32,6 +33,8 @@ __all__ = ['Domain',
 		'NormalDomain',
 		'LogNormalDomain',
 		'TensorProductDomain',
+		'SolverError',
+		'DEFAULT_CVXPY_KWARGS'
 	] 
 
 def merge(x, y):
@@ -39,11 +42,12 @@ def merge(x, y):
 	z.update(y)
 	return z
 
+DEFAULT_CVXPY_KWARGS = {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False, 'kktsolver': 'robust'}
 
 class EmptyDomain(Exception):
 	pass 
 
-class SolverError(Exception):
+class SolverError(ValueError):
 	pass
 
 def closest_point(dom, x0, L, **kwargs):
@@ -96,7 +100,12 @@ def corner(dom, p, **kwargs):
 			obj = x_norm*float(D.dot(p))
 		constraints = dom._build_constraints_norm(x_norm)
 		problem = cp.Problem(cp.Maximize(obj), constraints)
-		problem.solve(**kwargs)
+		try:
+			local_kwargs = merge(dom.kwargs, kwargs)
+		except AttributeError:
+			local_kwargs = kwargs
+		problem.solve(**local_kwargs)
+
 	if problem.status not in ['optimal', 'optimal_inaccurate']:
 		raise SolverError
 	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
@@ -134,6 +143,52 @@ class Domain(object):
 	
 	def __len__(self):
 		raise NotImplementedError
+
+	@property
+	def intrinsic_dimension(self):
+		r""" The intrinsic dimension (ambient space minus equality constraints)"""
+		return len(self) - self.A_eq.shape[0]
+
+
+	@property
+	def empty(self):
+		r""" Returns True if there are no points in the domain
+		"""
+		try:
+			return self._empty
+		except AttributeError:
+			try:
+				# Try to find at least one point inside the domain
+				self.corner(np.ones(len(self)))
+				self._empty = False
+			except SolverError:
+				self._empty = True
+			
+			return self._empty
+		
+	def is_point(self):
+		try:
+			return self._point
+		except AttributeError:
+			pass
+
+		try:
+			U = ortho_group.rvs(len(self))
+
+			for u in U:
+				x1 = self.corner(u)
+				x2 = self.corner(-u)
+				if not np.all(np.isclose(x1, x2)):
+					self._point = False
+					return self._point
+
+			self._point = True				
+			return self._point
+
+		except SolverError:
+			self._empty = True
+			self._point = False
+			return self._point
 
 	# To define the documentation once for all domains, these functions call internal functions
 	# to each subclass
@@ -373,6 +428,11 @@ class Domain(object):
 		-------
 		array-like (draw, len(self))
 			Array of samples from the domain
+
+		Raises
+		------
+		SolverError
+			If we are unable to find a point in the domain satisfying the constraints
 		"""
 		x_sample = self._sample(draw = int(draw))
 		if draw == 1: 
@@ -441,6 +501,7 @@ class Domain(object):
 		return X, w
 
 
+	# TODO: This will error out if the constraints specify a single point in the domain
 	def _hit_and_run(self, _recurse = 2):
 		r"""Hit-and-run sampling for the domain
 		"""
@@ -453,16 +514,40 @@ class Domain(object):
 			if x0 is None: raise AttributeError
 		except AttributeError:
 			# If this hasn't been initialized find a feasible starting point
-			N = 10
+			N = 5
 			# In earlier versions, we find the starting point by finding the Chebeychev center;
 			# here we use a simpler approach that simply picks N points on the boundary 
 			# by calling corner and then take the mean (since the domain is convex).
 			# This removes the need to treat equality constraints carefully and also
 			# generalizes to LinQuadDomains. 
-			x0 = sum([self.corner(np.random.randn(len(self))) for i in range(N)])/N
+			
+			# Generate random orthogonal directions to sample
+			U = ortho_group.rvs(len(self))
+			X = [self.corner(u) for u in U[0:N]] + [self.corner(-u) for u in U[0:N]]
+			#print(np.vstack(X))
+			#print(np.all(np.isclose(X[0], X[1:])))
+			#print("internal distance", np.max(pdist(X)), "recurse", _recurse)	
+			# If these points aren't sufficiently distinct, add the rest
+			if np.isclose( np.max(pdist(X)), 0):
+				for u in U[N:]:
+					X.append(self.corner(u))
+					X.append(self.corner(-u))
+				
+			# If we still only have effectively one point, we are a point domain	
+			if np.isclose(np.max(pdist(X)),0):
+				self._point = True
+			else:
+				self._point = False
+
+			# Take the mean
+			x0 = sum(X)/len(X)
 			x0 = self.closest_point(x0)
+			
 			self._hit_and_run_state = x0
 			
+		# If we are point domain, there is no need go any further
+		if self._point:
+			return self._hit_and_run_state.copy()
 	
 		# Sometimes we may have a point that is slightly outside due to numerical issues
 		# so we push it back in
@@ -722,6 +807,7 @@ class Domain(object):
 		if tol is None: tol = self.tol
 		lb_check = np.array([np.all(x >= self.lb-tol) for x in X], dtype = np.bool)
 		ub_check = np.array([np.all(x <= self.ub+tol) for x in X], dtype = np.bool)
+		#print("bounds check", lb_check & ub_check, self.names)
 		return lb_check & ub_check
 
 	def _isinside_ineq(self, X, tol = None):
@@ -903,11 +989,8 @@ class LinQuadDomain(Domain):
 		
 		self._init_names(names)	
 
-		#if len(kwargs) == 0:
-		#	#kwargs= {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False}
-		#	kwargs ={} 
 		
-		self.kwargs = kwargs
+		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 	
 	
 	################################################################################		
@@ -1091,7 +1174,7 @@ class LinQuadDomain(Domain):
 		I = np.isfinite(self.ub_norm)
 		if np.sum(I) > 0:
 			constraints.append( x_norm[I] <= self.ub_norm[I])
-		
+	
 		if self.A.shape[0] > 0:	
 			constraints.append( x_norm.__rmatmul__(self.A_norm) <= self.b_norm)
 		if self.A_eq.shape[0] > 0:
@@ -1568,7 +1651,7 @@ class TensorProductDomain(Domain):
 	domains: list of domains
 		Domains to combine into a single domain
 	"""
-	def __init__(self, domains = None):
+	def __init__(self, domains = None, **kwargs):
 		self._domains = []
 		if domains == None:
 			domains = []
@@ -1581,6 +1664,7 @@ class TensorProductDomain(Domain):
 				self._domains.extend(domain.domains)
 			else:
 				self._domains.append(domain)
+		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 
 	@property
 	def names(self):
@@ -1789,7 +1873,7 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 	"""
 	def __init__(self, mean, cov = None, truncate = None, names = None, **kwargs):
 		self.tol = 1e-6	
-		self.kwargs = kwargs
+		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 		######################################################################################	
 		# Process the mean
 		######################################################################################	

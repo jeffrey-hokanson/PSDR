@@ -11,6 +11,7 @@ from copy import copy
 from .basis import *
 from .function import BaseFunction
 
+
 __all__ = ['PolynomialFunction', 'PolynomialApproximation']
 
 
@@ -38,7 +39,7 @@ def linear_fit(A, b, norm = 2, bound = None):
 		
 		# Now actually solve the problem
 		problem = cp.Problem(cp.Minimize(obj), constraint)
-		problem.solve(feastol = 1e-10, solver = cp.ECOS)
+		problem.solve(feastol = 1e-10, reltol = 1e-8, abstol = 1e-8, solver = cp.ECOS)
 		return x.value
 
 

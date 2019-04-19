@@ -46,15 +46,16 @@ def test_mult_output(M= 10,m = 5):
 	b = np.random.randn(m)
 
 	def fun_a(X):
-		return X.T.dot(a)
+		return a.dot(X.T)
 	
 	def fun_b(X):
-		return X.T.dot(b)
+		return b.dot(X.T)
 	
 	def fun(X):
 		return np.vstack([X.dot(a), X.dot(b)]).T
 
 
+	print("Single function with multiple outputs")
 	for vectorized in [True, False]:
 		myfun = Function(fun, dom, vectorized = vectorized)
 		print(fun(X))
@@ -63,6 +64,25 @@ def test_mult_output(M= 10,m = 5):
 		assert myfun(X).shape == (M, 2) 
 		print(myfun(X[0]).shape)
 		assert myfun(X[0]).shape == (2,)
+
+		fX = fun(X)
+		for i, x in enumerate(X):
+			assert np.all(np.isclose(fX[i], fun(x)))
+	
+	print("Two functions with a single output each")
+	for vectorized in [True, False]:
+		myfun = Function([fun_a, fun_b], dom, vectorized = vectorized)
+		print(fun(X))
+		print("vectorized", vectorized)
+		print(myfun(X).shape)
+		assert myfun(X).shape == (M, 2) 
+		print(myfun(X[0]).shape)
+		assert myfun(X[0]).shape == (2,)
+		
+		fX = fun(X)
+		for i, x in enumerate(X):
+			assert np.all(np.isclose(fX[i], fun(x)))
+
 
 		
 if __name__ == '__main__':

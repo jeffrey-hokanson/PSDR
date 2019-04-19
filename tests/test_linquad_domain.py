@@ -120,13 +120,15 @@ def test_bad_scaling():
 	lb = [-1, 1e7]
 	ub = [1, 2e7]
 	dom1 = BoxDomain(lb = lb, ub = ub)
-	dom2 = LinQuadDomain(lb = lb, ub = ub)
+	dom2 = LinQuadDomain(lb = lb, ub = ub, verbose = True)
 
 	
 	# Check quality of solution
 	p = np.ones(len(dom1))
+	# this calls an algebraic formula 
 	x1 = dom1.corner(p)
-	x2 = dom2.corner(p, verbose = True, solver = 'ECOS', abstol = 4e-10, reltol = 1e-14, feastol = 1e-14, max_iters = 500)
+	# whereas this calls a linear program
+	x2 = dom2.corner(p)
 	for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
 		print("x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_))
 	assert np.all(np.isclose(x1,x2))	
