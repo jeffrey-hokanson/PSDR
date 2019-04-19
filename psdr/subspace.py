@@ -36,7 +36,7 @@ class SubspaceBasedDimensionReduction(object):
 		raise NotImplementedError
 
 
-	def shadow_plot(self, X = None, fX = None, dim = 1, ax = 'auto', pgfname = None):
+	def shadow_plot(self, X = None, fX = None, dim = 1, U = None, ax = 'auto', pgfname = None):
 		r""" Draw a shadow plot
 
 
@@ -48,6 +48,8 @@ class SubspaceBasedDimensionReduction(object):
 			Values of function at sample points
 		dim: int, [1,2]
 			Dimension of shadow plot
+		U: array-like (?,m); optional
+			Subspace onto which to project the data; defaults to the subspace identifed by this class
 		ax: 'auto', matplotlib.pyplot.axis, or None
 			Axis on which to draw the shadow plot
 
@@ -65,21 +67,31 @@ class SubspaceBasedDimensionReduction(object):
 	
 		if X is None:
 			X = self.X
+
+		if U is None:
+			U = self.U
+		else:
+			if len(U.shape) == 1:
+				U = U.reshape(X.shape[1],1)
+			else:
+				assert U.shape[1] == len(X.shape[1])
+				U = U
+
 		
 		if dim == 1:
 			if ax is not None:
-				ax.plot(X.dot(self.U[:,0]), fX, 'k.')
+				ax.plot(X.dot(U[:,0]), fX, 'k.')
 				ax.set_xlabel(r'active coordinate $\mathbf{u}^\top \mathbf{x}$')
 				ax.set_ylabel(r'$f(\mathbf{x})$')
 
 			if pgfname is not None:
 				pgf = PGF()
-				pgf.add('y', X.dot(self.U[:,0]))
+				pgf.add('y', X.dot(U[:,0]))
 				pgf.add('fX', fX)
 				pgf.write(pgfname)
 
 		elif dim == 2:
-			Y = self.U[:,0:2].T.dot(X.T).T
+			Y = U[:,0:2].T.dot(X.T).T
 			if ax is not None:
 				sc = ax.scatter(Y[:,0], Y[:,1], c = fX.flatten(), s = 3)
 				ax.set_xlabel(r'active coordinate 1 $\mathbf{u}_1^\top \mathbf{x}$')
@@ -221,10 +233,11 @@ class SubspaceBasedDimensionReduction(object):
 					sgn[k] += (fX[i] - fX[j])/(U[:,k].dot(X[i] - X[j]))
 
 		self._U = U.dot(np.diag(np.sign(sgn)))	
-		
+		return self._U	
 
 	def _fix_subspace_signs_grads(self, U, grads):
 		self._U = U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
+		return self._U	
 
 	
 	def approximate_lipschitz(self, X = None, fX = None, grads = None,  dim = None):
