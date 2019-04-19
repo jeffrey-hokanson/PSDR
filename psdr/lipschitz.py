@@ -545,6 +545,10 @@ class LipschitzConstant(LipschitzMatrix):
 	def L(self):
 		return self._L*np.eye(len(self))
 
+	@property
+	def U(self):
+		return np.eye(len(self))
+
 # Helper functions for determining bounds
 
 class LowerBound(BaseFunction):
