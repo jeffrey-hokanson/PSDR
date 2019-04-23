@@ -14,6 +14,7 @@ import time
 
 from .domains import Domain	
 from .subspace import SubspaceBasedDimensionReduction
+from .coord import CoordinateBasedDimensionReduction
 from .sample import initial_sample
 from .vertex import voronoi_vertex
 from .geometry import unique_points
@@ -21,7 +22,7 @@ from .minimax import minimax
 from .function import BaseFunction
 from .pgf import PGF
 
-__all__ = ['LipschitzMatrix', 'LipschitzConstant']
+__all__ = ['LipschitzMatrix', 'LipschitzConstant', 'DiagonalLipschitzMatrix']
 
 class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	r"""Constructs the subspace-based dimension reduction from the Lipschitz Matrix.
@@ -46,6 +47,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 	Parameters
 	----------
+	epsilon: float or None
+		Tolerance to be used if find the :math:`\epsilon`-Lipschitz matrix
 	**kwargs: dict (optional)
 		Additional parameters to pass to cvxpy
 	"""
@@ -128,6 +131,11 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			epsilon = self.epsilon/scale
 		else:
 			epsilon = 0.
+
+		self._fit(X, fX, grads, epsilon, scale)
+
+
+	def _fit(self, X, fX, grads, epsilon, scale):
 		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale, epsilon)
 
 		# Compute the important directions
@@ -145,6 +153,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		# Compute the Lipschitz matrix 
 		#self._L = scipy.linalg.cholesky(self.H[::-1][:,::-1], lower = False)[::-1][:,::-1]
 		self._L = scale * U.dot(np.diag(np.sqrt(np.maximum(ew, 0))).dot(U.T))
+		
+
 
 	@property
 	def X(self): return self._X
@@ -239,18 +249,26 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
 		return H
 
-	def _build_lipschitz_matrix_cvxopt(self, X, fX, grads, epsilon):
+	def _build_lipschitz_matrix_cvxopt(self, X, fX, grads, epsilon, structure = 'full'):
 		r""" Directly accessing cvxopt rather than going through CVXPY results in noticable speed improvements
 		"""	
 		# Build the basis
 		Es = []
 		I = np.eye(len(self))
-		for i in range(len(self)):
-			ei = I[:,i]
-			Es.append(np.outer(ei,ei))
-			for j in range(i+1,len(self)):
-				ej = I[:,j]
-				Es.append(0.5*np.outer(ei+ej,ei+ej))
+	
+		if structure == 'full':
+			for i in range(len(self)):
+				ei = I[:,i]
+				Es.append(np.outer(ei,ei))
+				for j in range(i+1,len(self)):
+					ej = I[:,j]
+					Es.append(0.5*np.outer(ei+ej,ei+ej))
+		elif structure == 'diag':
+			for i in range(len(self)):
+				ei = I[:,i]
+				Es.append(np.outer(ei,ei))
+		else:
+			raise NotImplementedError	
 
 		Eten = np.array(Es)
 
@@ -502,6 +520,17 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			pgf.add('ub', ubs)
 			pgf.write(pgfname)
 
+class DiagonalLipschitzMatrix(LipschitzMatrix, CoordinateBasedDimensionReduction):
+	r""" Constructs a diagonal Lipschitz matrix
+	"""
+
+	def _fit(self, X, fX, grads, epsilon, scale):
+		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale, epsilon, structure = 'diag')
+		# Unlike the matrix case, we do not rotate coordinates
+		self._H = scale**2 * H
+		self._L = scale * np.diag(np.sqrt(np.diag(H)))
+		
+		self._score = np.diag(self._L).copy()		
 
 class LipschitzConstant(LipschitzMatrix):
 	r""" Computes the scalar Lipschitz constant
