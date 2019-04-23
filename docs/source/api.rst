@@ -8,6 +8,7 @@ API Documentation
    geometry
    samplers
    subspace
+   coord
    surrogate
    opt
    demos

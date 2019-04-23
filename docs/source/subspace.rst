@@ -19,5 +19,5 @@ Lipschitz Matrix
 ================
 
 .. autoclass:: psdr.LipschitzMatrix
-   :members: M, L 
+   :members: H, L 
 

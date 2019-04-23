@@ -2,6 +2,7 @@ from .domains import *
 from .basis import *
 from .function import *
 from .subspace import *
+from .coord import *
 from .lipschitz import *
 from .gp import * 
 from .sample import *
