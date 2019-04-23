@@ -2,10 +2,12 @@ from __future__ import division, print_function
 import numpy as np
 import matplotlib.pyplot as plt
 
+from .subspace import SubspaceBasedDimensionReduction
+
 __all__ = ['CoordinateBasedDimensionReduction']
 
-class CoordinateBasedDimensionReduction(object):
-	r""" Parent class for dimension reduction strategies that select variables
+class CoordinateBasedDimensionReduction(SubspaceBasedDimensionReduction):
+	r""" Abstract base class for dimension reduction strategies that select variables
 	"""
 
 	@property
@@ -26,3 +28,14 @@ class CoordinateBasedDimensionReduction(object):
 				ax.set_xticklabels(domain.names, rotation = 90)
 			ax.set_xlabel('parameter')
 			ax.set_ylabel('score')
+
+	@property
+	def	U(self):
+		try:
+			if self._U is None:
+				raise AttributeError
+		except AttributeError:
+			self._U = np.eye(len(self.score))[:,np.argsort(-self.score)] 
+		
+		return self._U
+
