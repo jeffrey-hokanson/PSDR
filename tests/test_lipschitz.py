@@ -1,7 +1,7 @@
 from __future__ import print_function
 import numpy as np
 import scipy.linalg
-from psdr import LipschitzMatrix
+from psdr import LipschitzMatrix, LipschitzConstant, DiagonalLipschitzMatrix
 from psdr.demos import OTLCircuit
 
 np.random.seed(0)
@@ -12,34 +12,45 @@ def test_lipschitz_grad(N = 10):
 	X = func.domain.sample(N)
 	grads = func.grad(X)
 	
-	lip = LipschitzMatrix(ftol = 1e-10, gtol = 1e-10, verbose = True)
-	lip.fit(grads = grads)
-	
-	H = np.copy(lip.H)
 
-	for g in grads:
-		gap = np.min(scipy.linalg.eigvalsh(H - np.outer(g,g)))
-		print(gap)
-		assert gap >= -1e-6
+	lip_mat = LipschitzMatrix(ftol = 1e-10, gtol = 1e-10)
+	lip_diag = DiagonalLipschitzMatrix(ftol = 1e-10, gtol = 1e-10)
+	lip_const = LipschitzConstant()
+	
+	
+	for lip in [lip_mat, lip_diag, lip_const]: 
+		lip.fit(grads = grads)
+		H = np.copy(lip.H)
+
+		for g in grads:
+			gap = np.min(scipy.linalg.eigvalsh(H - np.outer(g,g)))
+			print(gap)
+			assert gap >= -1e-6
 		
 def test_lipschitz_func(M = 20):
 
 	func = OTLCircuit()
 	X = func.domain.sample(M)
 	fX = func(X)
-	
-	lip = LipschitzMatrix(ftol = 1e-10, gtol = 1e-10, verbose = True)
-	lip.fit(X, fX)
-	
-	H = np.copy(lip.H)
 
 
-	for i in range(M):
-		for j in range(i+1,M):
-			y = X[i] - X[j]
-			gap = y.dot(H.dot(y)) - (fX[i] - fX[j])**2
-			print(gap)
-			assert gap >= -1e-6
+	lip_mat = LipschitzMatrix(ftol = 1e-10, gtol = 1e-10)
+	lip_diag = DiagonalLipschitzMatrix(ftol = 1e-10, gtol = 1e-10)
+	lip_const = LipschitzConstant()
+
+	for lip in [lip_mat, lip_diag, lip_const]: 
+	
+		lip.fit(X, fX)
+		
+		H = np.copy(lip.H)
+
+		for i in range(M):
+			for j in range(i+1,M):
+				y = X[i] - X[j]
+				gap = y.dot(H.dot(y)) - (fX[i] - fX[j])**2
+				print(gap)
+				assert gap >= -1e-6
+
 
 
 def test_solver(N = 50, M = 0):
