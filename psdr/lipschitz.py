@@ -522,6 +522,9 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 class DiagonalLipschitzMatrix(LipschitzMatrix, CoordinateBasedDimensionReduction):
 	r""" Constructs a diagonal Lipschitz matrix
+
+	Much like the standard Lipschitz matrix class :meth:`psdr.LipschitzMatrix`,
+	this class computes a Lipschitz matrix except with the constraint the matrix is diagonal.
 	"""
 
 	def _fit(self, X, fX, grads, epsilon, scale):
@@ -531,48 +534,33 @@ class DiagonalLipschitzMatrix(LipschitzMatrix, CoordinateBasedDimensionReduction
 		self._L = scale * np.diag(np.sqrt(np.diag(H)))
 		
 		self._score = np.diag(self._L).copy()		
+		self._U = np.eye(len(self._score))[:,np.argsort(-self._score)] 
 
 class LipschitzConstant(LipschitzMatrix):
 	r""" Computes the scalar Lipschitz constant
 	"""
 
-	def fit(self, X = None, fX = None, grads = None):
-		r""" Compute the scalar Lipschitz constant
 
-
-		Parameters
-		----------
-		X : array-like (N, m), optional
-			Input coordinates for function samples 
-		fX: array-like (N,), optional
-			Values of the function at X[i]
-		grads: array-like (N,m), optional
-			Gradients of the function evaluated anywhere	
-		"""
-		self._init_dim(X = X, grads = grads)
-		if self.epsilon is not None: 
-			assert grads is None, "Cannot compute epsilon-Lipschitz constant using gradient information"
-
-		L = 0. 
-		if self.epsilon is None:
-			epsilon = 0
-		else:
-			epsilon = self.epsilon
-
-		if X is not None:
+	def _fit(self, X, fX, grads, epsilon, scale):
+		L = 0
+		if len(X) > 0:
 			L_samp = np.max([ (abs(fX[i] - fX[j]) - epsilon )/ np.linalg.norm(X[i] - X[j]) 
-				for i,j in combinations(range(M), 2)])
+				for i,j in combinations(range(len(X)), 2)])
 			L = max(L, L_samp)
 
-		if grads is not None:	
+		if len(grads) > 0:
 			L_grad = np.max([np.linalg.norm(grad) for grad in grads])
 			L = max(L, L_grad)
 
 		self._L = L
 
 	@property
+	def H(self):
+		return self._L**2 * np.eye(len(self))
+
+	@property
 	def L(self):
-		return self._L*np.eye(len(self))
+		return self._L * np.eye(len(self))
 
 	@property
 	def U(self):
