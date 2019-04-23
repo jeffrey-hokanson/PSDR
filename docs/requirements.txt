@@ -16,3 +16,4 @@ dask
 distributed
 tornado
 cvxopt
+tqdm
