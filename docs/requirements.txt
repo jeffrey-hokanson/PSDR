@@ -12,5 +12,6 @@ scs
 recommonmark
 fastcache
 cvxpy
-redis
-dill
+dask
+distributed
+tornado
