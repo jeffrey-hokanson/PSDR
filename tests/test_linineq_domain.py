@@ -23,6 +23,9 @@ def test_cheb(m=5):
 		p /= np.linalg.norm(p)
 		assert dom2.extent(center, p) >= radius, "violated radius assumption"
 
+	# Check the property versions
+	assert dom2.radius == radius
+	assert dom2.center == center
 
 def test_convex_combo(m=10):
 	lb = np.zeros(m)
@@ -34,6 +37,7 @@ def test_convex_combo(m=10):
 	c = dom.corner(np.random.randn(m))
 	X = dom.sample(10)
 	assert np.all(np.isclose(np.sum(X, axis = 1), 1))
+
 
 if __name__ == '__main__':
 	test_convex_combo()
