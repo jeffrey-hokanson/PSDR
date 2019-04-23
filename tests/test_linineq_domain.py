@@ -24,8 +24,8 @@ def test_cheb(m=5):
 		assert dom2.extent(center, p) >= radius, "violated radius assumption"
 
 	# Check the property versions
-	assert dom2.radius == radius
-	assert dom2.center == center
+	assert np.all(dom2.radius == radius)
+	assert np.all(dom2.center == center)
 
 def test_convex_combo(m=10):
 	lb = np.zeros(m)
