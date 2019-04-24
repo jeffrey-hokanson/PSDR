@@ -1628,6 +1628,9 @@ class ConvexHullDomain(LinIneqDomain):
 	"""
 	def __init__(self, X, names = None, **kwargs):
 		self.X = np.copy(X)
+		if len(self.X.shape) == 1:
+			self.X = X.reshape(-1,1)
+
 		if self.X.shape[1] > 1:
 			self.hull = ConvexHull(self.X) 
 			A = self.hull.equations[:,:-1]
@@ -2058,7 +2061,3 @@ class LogNormalDomain(BoxDomain, RandomDomain):
 		p = np.exp(-(np.log(X_norm) - self.mean)**2/(2*self.cov))/(X_norm*self.cov*np.sqrt(2*np.pi))
 		return p
 
-
-if __name__ == '__main__':
-	dom = BoxDomain([-1,-1], [1,1])
-	dom.quadrature_rule(100)

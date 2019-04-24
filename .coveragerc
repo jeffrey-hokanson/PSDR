@@ -1,0 +1,5 @@
+[run]
+omit =
+	psdr/duu.py
+	psdr/pgf.py
+	

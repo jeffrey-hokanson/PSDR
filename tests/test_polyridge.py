@@ -169,13 +169,19 @@ def test_fit_inf():
 	X, fX = exact_data()
 
 	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = np.inf)
-	pra.fit(X, fX)
+	pra.fit(X, fX, verbose = True)
 	assert np.all(np.isclose(pra(X), fX))
 
 def test_fit_one():
 	X, fX = exact_data()
 
 	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 1)
-	pra.fit(X, fX)
+	pra.fit(X, fX, verbose = True)
 	assert np.all(np.isclose(pra(X), fX))
 	
+def test_fit_two():
+	X, fX = exact_data()
+
+	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2)
+	pra.fit(X, fX, verbose = True)
+	assert np.all(np.isclose(pra(X), fX))
