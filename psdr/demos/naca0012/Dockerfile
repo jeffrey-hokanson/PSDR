@@ -12,6 +12,7 @@ RUN apt-get  -y update && \
 		build-essential \ 
 		gfortran \
 		git \
+		python3.6 \
 		python-dev \
 		python-numpy \
 		python-pip \
@@ -22,7 +23,7 @@ RUN apt-get  -y update && \
 		perl \
 		autoconf \
 		automake && \
-	pip install tqdm 
+	pip install tqdm
 
 RUN	mkdir -p ~/Source && \
 	cd ~/Source && \
@@ -32,6 +33,19 @@ RUN	mkdir -p ~/Source && \
 	./configure && \
 	make -j 32 && \ 
 	make install
+
+RUN apt-get -y install python3
+RUN apt-get -y install python3-pip
+RUN python3 -m pip install numpy
+RUN python3 -m pip install tqdm
+
+COPY su2_driver.py /root/Source/su2_driver.py
+COPY mesh_out.su2 /root/Source/mesh_out.su2
+COPY def_NACA0012.cfg /root/Source/def_NACA0012.cfg
+COPY inv_NACA0012_def.cfg /root/Source/inv_NACA0012_def.cfg
+
+WORKDIR /root/tmp
+ENTRYPOINT ["/usr/bin/python3","-u","/root/Source/su2_driver.py"]
 
 
  
