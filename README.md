@@ -73,3 +73,7 @@ If you are submitting a complex test function that requires calling code outside
 please submit a Docker image along with a docker file generating that image
 (see the OpenAeroStruct demo function for an example of how to do this).
 
+## Contributors
+
+* Zach Grey 
+* Lakshya Sharma 
