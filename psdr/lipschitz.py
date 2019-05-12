@@ -584,7 +584,8 @@ class LowerBound(BaseFunction):
 		norms = cdist(y.reshape(1,-1), self.Y, 'euclidean').flatten()
 		G = np.zeros([self.Y.shape[0], x.shape[0]] )
 		I = (norms > 0)
-		G[I,:] = -((y - self.Y[I]).T/norms[I]).T
+		G[I,:] = -(  (y - self.Y[I]).T /norms[I]).T
+		G = self.L.T.dot(G.T).T
 		return G
 
 class UpperBound(BaseFunction):
@@ -604,6 +605,7 @@ class UpperBound(BaseFunction):
 		G = np.zeros([self.Y.shape[0], x.shape[0]] )
 		I = (norms > 0)
 		G[I,:] = -((y - self.Y[I]).T/norms[I]).T
+		G = self.L.T.dot(G.T).T
 		return G
 
 
