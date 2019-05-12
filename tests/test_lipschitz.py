@@ -1,9 +1,10 @@
 from __future__ import print_function
 import numpy as np
 import scipy.linalg
-from checkder import *
 from psdr import LipschitzMatrix, LipschitzConstant, DiagonalLipschitzMatrix, BoxDomain
 from psdr.demos import OTLCircuit
+
+from .checkder import *
 
 np.random.seed(0)
 
