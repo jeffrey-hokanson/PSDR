@@ -462,9 +462,13 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 #			ubs = np.array([np.min(-upper_bound(res.result())) for res in ub_res])	
 #
 
-	def shadow_envelope_estimate(self, domain, X, fX, ax = None, ngrid = 50, dim = 1, U = None, pgfname = None,
+	# TODO: Remove this old function
+	#def shadow_envelope_estimate(self, *args, **kwargs):
+	#	return shadow_uncertainty(*args, **kwargs)
+
+	def shadow_uncertainty(self, domain, X, fX, ax = None, ngrid = 50, dim = 1, U = None, pgfname = None,
 			plot_kwargs = {}, progress = False, **kwargs):
-		r""" Draw an estimate of the 1-d envelope
+		r""" Plot the uncertainty intervals given data
 		"""
 		X = np.atleast_2d(np.array(X))
 		fX = np.array(fX)
@@ -502,7 +506,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 		tqdm_kwargs = {}
 		if progress:
-			iterator = tqdm(iterator, "shadow envelope estimate", position = 0, dynamic_ncols = True)
+			iterator = tqdm(iterator, "shadow uncertainty", position = 0, dynamic_ncols = True)
 			if progress > 1:
 				tqdm_kwargs = {'position':1}
 

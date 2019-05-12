@@ -26,6 +26,7 @@ xx = Xtest.flatten()
 kernel = RBF(1, (1e-2, 1e2))
 gpr = GaussianProcessRegressor(kernel = kernel, n_restarts_optimizer = 10)
 gpr.fit(X, fX)
+print gpr.kernel_.get_params()
 
 yy_gpr, yy_std = gpr.predict(Xtest, return_std = True)
 

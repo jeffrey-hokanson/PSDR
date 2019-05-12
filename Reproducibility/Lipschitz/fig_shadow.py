@@ -35,6 +35,6 @@ for lip, name in zip([lip_mat, lip_con], ['mat', 'con']):
 		lip.shadow_envelope(Xg, fXg, ax = None, pgfname = 'data/fig_shadow_%s_envelope.dat' % (name, ), U = U)
 
 	if True:	
-		print("computing envelope estimate")
-		lip.shadow_envelope_estimate(fun.domain, X, fX, U = U,
-			pgfname = 'data/fig_shadow_%s_envelope_estimate.dat' % (name,), progress = 2, ngrid = 100)
+		print("computing shadow uncertainty")
+		lip.shadow_uncertainty(fun.domain, X, fX, U = U,
+			pgfname = 'data/fig_shadow_%s_shadow_uncertainty.dat' % (name,), progress = 2, ngrid = 100)
