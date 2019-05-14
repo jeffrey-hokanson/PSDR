@@ -25,9 +25,11 @@ Lmat.fit(grads = grads)
 
 
 epsilons = np.logspace(np.log10(1e-4), np.log10(1), 100)[::-1]
+epsilons = np.logspace(np.log10(1e-3), np.log10(5), 100)[::-1]
 #epsilons = np.logspace(np.log10(1e-4), np.log10(1), 100)
 #epsilons = np.array([1,1e-1,1e-2,1e-3,1e-4])
 Nsamp = int(1e4)
+
 m = len(fun.domain)
 
 def prod(z):
