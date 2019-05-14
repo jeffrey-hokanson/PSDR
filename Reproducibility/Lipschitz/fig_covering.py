@@ -1,12 +1,14 @@
 from __future__ import division, print_function
 import numpy as np
-from random import randint
 import psdr
 import psdr.demos
 from psdr.pgf import PGF
 import cvxpy as cp
 from tqdm import tqdm
 from itertools import product
+
+np.random.seed(0)
+
 
 fun = psdr.demos.OTLCircuit()
 
@@ -20,11 +22,10 @@ Lcon.fit(grads = grads)
 Lmat = psdr.LipschitzMatrix()
 Lmat.fit(grads = grads)
 
-print(Lmat.L)
 
 epsilons = np.logspace(np.log10(1e-4), np.log10(1), 100)[::-1]
 #epsilons = np.array([1,1e-1,1e-2,1e-3,1e-4])
-Nsamp = int(1e3)
+Nsamp = int(1e4)
 m = len(fun.domain)
 
 def prod(z):
@@ -38,7 +39,7 @@ def prod(z):
 U, s, VT = np.linalg.svd(Lmat.L)
 Lmat = np.diag(s).dot(VT)
 Lcon = Lcon.L
-for L, name in zip([Lcon, Lmat], ['con', 'mat']):
+for L, name in zip([Lmat, Lcon], ['mat', 'con']):
 #for L, name in zip([Lmat], [ 'mat']):
 	# Corners of the transformed domain
 	Y = L.dot(X.T).T
@@ -63,7 +64,7 @@ for L, name in zip([Lcon, Lmat], ['con', 'mat']):
 	
 		# Number of potential grid points
 		ngrid = prod([len(grid_axis) for grid_axis in grid])
-		print(ngrid)	
+		
 		if ngrid <= Nsamp:
 			# Sample at all the grid points if there are not too many
 			random = False
@@ -75,16 +76,14 @@ for L, name in zip([Lcon, Lmat], ['con', 'mat']):
 			
 			# Generate random indices from the total number of points without replacement
 			indices = []
-			for k in range(Nsamp):
-				# Find an index we have not yet used
-				while True:
-					newindex = randint(0, ngrid-1)
-					if newindex not in indices:
-						indices.append(newindex)
-						break
+			while len(indices) < Nsamp:
+				indices.extend(np.random.randint(0, ngrid, size = (Nsamp - len(indices))).tolist())
+				indices = list(set(indices))
+	
 
+			for k, idx in enumerate(indices):
 				# Decode index into grid point
-				ii = int(newindex)
+				ii = int(idx)
 				for j, grid_axis in enumerate(grid):
 					# Product of the number of points per dimension below this
 					nk = prod([ len(grid_axis_) for grid_axis_ in grid[j+1:]])
@@ -96,6 +95,7 @@ for L, name in zip([Lcon, Lmat], ['con', 'mat']):
 
 		# Now determine what fraction of these epsilon balls are inside the domain 
 		Ninside = 0
+		Nsucceed = 0
 		z = cp.Variable(m)				# Point inside the domain
 		y = cp.Parameter(m)				# grid point we are checking
 		alpha = cp.Variable(len(Y))		# convex combination parameters
@@ -106,15 +106,19 @@ for L, name in zip([Lcon, Lmat], ['con', 'mat']):
 		prob = cp.Problem(obj, constraints)
 		for yi in tqdm(Ysamp):
 			y.value = yi
-			res = prob.solve(warm_start = True)
-			
-			dist = np.linalg.norm(z.value - yi)
-			#print(dist)
-			if dist < eps:
-				Ninside += 1
+			try:
+				res = prob.solve(warm_start = True)
+				if prob.status == cp.OPTIMAL:
+					Nsucceed += 1
+					dist = np.linalg.norm(z.value - yi)
+					if dist < eps:
+						Ninside += 1
+
+			except cp.SolverError:
+				pass
 
 		if random:
-			mean = float(Ninside/Nsamp)
+			mean = float(Ninside/Nsucceed)
 			Ns[i] = int( mean*ngrid)
 			Nstd[i] = np.sqrt(mean - mean**2)*float(ngrid) 
 		else:
@@ -130,4 +134,5 @@ for L, name in zip([Lcon, Lmat], ['con', 'mat']):
 		pgf.write('data/fig_covering_%s.dat' % name)
 
 
-		# Now compute rates
+	# Now compute rates
+	
