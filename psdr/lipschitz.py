@@ -613,22 +613,3 @@ class UpperBound(BaseFunction):
 		return G
 
 
-
-if __name__ == '__main__':
-	from domains import BoxDomain
-	X = np.random.randn(10,6)
-	a = np.random.randn(6,)
-	b = np.ones(6,)
-	fX = np.dot(X, a).flatten()
-	grads = np.tile(a, (X.shape[0], 1))
-	lip = LipschitzMatrix()
-	lip.fit(grads = grads)
-
-	dom = BoxDomain(-np.ones(6), np.ones(6))
-	dom2 = dom.add_constraints(b.reshape(1,-1), [0])
-	#print(dom2)
-	lb, ub = lip.bounds_domain(X, fX, dom2, verbose = True)
-	#print(lb, ub)
-
-	#lip.shadow_envelope_estimate(dom, X, fX, pgfname = 'test.dat', progress = True, ngrid = 5)
-
