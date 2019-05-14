@@ -25,8 +25,8 @@ piston = psdr.demos.Piston()
 borehole = psdr.demos.Borehole()
 wing = psdr.demos.WingWeight()
 
-#for fun, name in zip([gg, otl, piston, borehole, wing],['golinski', 'otl', 'piston', 'borehole', 'wing']):
-for fun, name in zip([otl],['otl']):
+for fun, name in zip([gg, otl, piston, borehole, wing],['golinski', 'otl', 'piston', 'borehole', 'wing']):
+#for fun, name in zip([otl],['otl']):
 	# Construct a grid for testing purposes
 	ngrid = int(np.ceil(Ngrid**(1./len(fun.domain))))
 	Xg = fun.domain.sample_grid(ngrid)
@@ -53,13 +53,16 @@ for fun, name in zip([otl],['otl']):
 
 		# scale by function variation
 		fXg = fun(Xg)
-		uncertain = (ub - lb)/(np.max(fXg) - np.min(fXg))
-	
+		#uncertain = (ub - lb)/(np.max(fXg) - np.min(fXg))
+		uncertain = ub - lb	
+		rnge = np.max(fXg) - np.min(fXg) 
+
 		p = np.percentile(uncertain, [0,25,50, 75,100])
 		print(p)
 		pgf = PGF()
 		for i, t in enumerate([0,25, 50, 75, 100]):
 			pgf.add('p%d' % t, [p[i]])
+		pgf.add('range', [rnge])
 		pgf.write('data/tab_sample_%s_%s_uncertainty.dat' % (name, lip_name) ) 	
 
 		if name == 'otl':	
@@ -67,13 +70,13 @@ for fun, name in zip([otl],['otl']):
 			lip.shadow_plot(samp.X[:Nsamp], samp.fX[:Nsamp], ax = None, 
 				U = U, dim = 1, pgfname = 'data/tab_sample_%s_%s_shadow.dat' % (name, lip_name) ) 
 
-			if True:	
-				print("computing envelope estimate")
+			if False:	
+				print("computing shadow uncertainty")
 				lip.shadow_uncertainty(fun.domain, samp.X[:Nsamp], samp.fX[:Nsamp], 
 					pgfname = 'data/tab_sample_%s_%s_shadow_uncertainty.dat' % (name, lip_name), 
 					progress = 2, ngrid = 100, U = U[:,0])
 
-			if lip_name == 'con':
+			if False and lip_name == 'con':
 				# The actual envelope is indepent of the Lipschitz matrix/constant 
 				Xg2 = fun.domain.sample_grid(8)
 				fXg2 = fun(Xg2)
