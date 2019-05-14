@@ -1,8 +1,10 @@
 from __future__ import print_function
 import numpy as np
 import scipy.linalg
-from psdr import LipschitzMatrix, LipschitzConstant, DiagonalLipschitzMatrix
+from psdr import LipschitzMatrix, LipschitzConstant, DiagonalLipschitzMatrix, BoxDomain
 from psdr.demos import OTLCircuit
+
+from .checkder import *
 
 np.random.seed(0)
 
@@ -93,3 +95,20 @@ def test_solver(N = 50, M = 0):
 	print(np.linalg.norm(H1- H2, 'fro'))
 	assert np.isclose(np.linalg.norm(H1 - H2, 'fro'),0)
 
+def test_set_bounds():
+	from psdr.lipschitz import LowerBound, UpperBound
+	L = np.eye(2)
+	L[1,1] = 0.1
+	dom = BoxDomain([-1,-1],[1,1])
+	X = dom.sample(10)
+	fX = np.random.randn(X.shape[0])
+	
+	lower = LowerBound(L, X, fX)
+	x = dom.sample()
+	err = check_gradient(x, lower.eval, lower.grad) 		
+	assert err < 1e-7, "Gradient error too large"	
+	
+	upper = UpperBound(L, X, fX)
+	x = dom.sample()
+	err = check_gradient(x, lower.eval, lower.grad) 		
+	assert err < 1e-7, "Gradient error too large"	

@@ -86,9 +86,9 @@ for X, fX, name in zip([X1, X2, X3, X4], [fX1, fX2, fX3, fX4], [name1, name2, na
 		pgf.add('p%d' % t, [p[i]])
 	pgf.write('data/fig_sample_Lcon_uncertainty_%s.dat' % name) 	
 	
-	if False:
-		Lmat.shadow_envelope_estimate(fun.domain, X, fX, 
-			pgfname = 'data/fig_sample_Lmat_%s_envelope_estimate.dat' % name, progress = 2, ngrid = 10)
+	if True:
+		Lmat.shadow_uncertainty(fun.domain, X, fX, 
+			pgfname = 'data/fig_sample_Lmat_%s_shadow_uncertainty.dat' % name, progress = 2, ngrid = 10)
 
 		#Lmat.shadow_envelope_estimate(fun.domain, X, fX, 
 		#	pgfname = 'data/fig_sample_Lcon_%s_envelope_estimate.dat' % name, progress = 2, ngrid = 100)

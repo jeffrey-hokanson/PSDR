@@ -67,10 +67,10 @@ for fun, name in zip([otl],['otl']):
 			lip.shadow_plot(samp.X[:Nsamp], samp.fX[:Nsamp], ax = None, 
 				U = U, dim = 1, pgfname = 'data/tab_sample_%s_%s_shadow.dat' % (name, lip_name) ) 
 
-			if False:	
+			if True:	
 				print("computing envelope estimate")
-				lip.shadow_envelope_estimate(fun.domain, samp.X[:Nsamp], samp.fX[:Nsamp], 
-					pgfname = 'data/tab_sample_%s_%s_envelope_estimate.dat' % (name, lip_name), 
+				lip.shadow_uncertainty(fun.domain, samp.X[:Nsamp], samp.fX[:Nsamp], 
+					pgfname = 'data/tab_sample_%s_%s_shadow_uncertainty.dat' % (name, lip_name), 
 					progress = 2, ngrid = 100, U = U[:,0])
 
 			if lip_name == 'con':

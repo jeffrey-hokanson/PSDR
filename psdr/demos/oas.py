@@ -98,9 +98,3 @@ def oas_func(x, version = 'v1', workdir = None, verbose = False, keep_data = Fal
 	
 
 
-
-if __name__ == '__main__':
-	oas = OpenAeroStruct()
-	X = oas.sample(10)
-	Y = oas(X)	
-	print(Y)

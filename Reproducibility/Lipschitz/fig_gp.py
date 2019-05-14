@@ -6,9 +6,16 @@ import psdr
 from psdr.pgf import PGF
 
 np.random.seed(4)
+# Places to sample
+X = np.random.uniform(-1,1, size = (10,1))
+X = X[np.argsort(X.flatten())]
+X[5] = (1-0.1)/3.
+X[6] = (1+0.3)/3.
+X[8] = 0.75
+X[9] = -0.65
+print X
 
 f = lambda x: np.sin(3*np.pi*x).flatten()
-X = np.random.uniform(-1,1, size = (10,1))
 fX = f(X)
 
 # Places to sample
@@ -19,6 +26,7 @@ xx = Xtest.flatten()
 kernel = RBF(1, (1e-2, 1e2))
 gpr = GaussianProcessRegressor(kernel = kernel, n_restarts_optimizer = 10)
 gpr.fit(X, fX)
+print gpr.kernel_.get_params()
 
 yy_gpr, yy_std = gpr.predict(Xtest, return_std = True)
 
