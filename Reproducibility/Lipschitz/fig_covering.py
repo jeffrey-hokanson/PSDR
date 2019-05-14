@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 import numpy as np
+import random
 import psdr
 import psdr.demos
 from psdr.pgf import PGF
@@ -7,8 +8,8 @@ import cvxpy as cp
 from tqdm import tqdm
 from itertools import product
 
-np.random.seed(0)
-
+#np.random.seed(0)
+random.seed(0)
 
 fun = psdr.demos.OTLCircuit()
 
@@ -24,6 +25,7 @@ Lmat.fit(grads = grads)
 
 
 epsilons = np.logspace(np.log10(1e-4), np.log10(1), 100)[::-1]
+#epsilons = np.logspace(np.log10(1e-4), np.log10(1), 100)
 #epsilons = np.array([1,1e-1,1e-2,1e-3,1e-4])
 Nsamp = int(1e4)
 m = len(fun.domain)
@@ -67,17 +69,18 @@ for L, name in zip([Lmat, Lcon], ['mat', 'con']):
 		
 		if ngrid <= Nsamp:
 			# Sample at all the grid points if there are not too many
-			random = False
+			randomize = False
 			Ysamp = np.array([y for y in product(*grid)])
 
 		else:	
-			random = True
+			randomize = True
 			Ysamp = np.zeros((Nsamp, m))
 			
 			# Generate random indices from the total number of points without replacement
 			indices = []
 			while len(indices) < Nsamp:
-				indices.extend(np.random.randint(0, ngrid, size = (Nsamp - len(indices))).tolist())
+				indices.extend([random.randint(0, ngrid-1) for ii in range(Nsamp - len(indices)) ])
+				#indices.extend(np.random.randint(0, ngrid, size = (Nsamp - len(indices))).tolist())
 				indices = list(set(indices))
 	
 
@@ -117,7 +120,7 @@ for L, name in zip([Lmat, Lcon], ['mat', 'con']):
 			except cp.SolverError:
 				pass
 
-		if random:
+		if randomize:
 			mean = float(Ninside/Nsucceed)
 			Ns[i] = int( mean*ngrid)
 			Nstd[i] = np.sqrt(mean - mean**2)*float(ngrid) 
