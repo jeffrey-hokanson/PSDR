@@ -110,5 +110,5 @@ def test_set_bounds():
 	
 	upper = UpperBound(L, X, fX)
 	x = dom.sample()
-	err = check_gradient(x, lower.eval, lower.grad) 		
+	err = check_gradient(x, upper.eval, upper.grad) 		
 	assert err < 1e-7, "Gradient error too large"	
