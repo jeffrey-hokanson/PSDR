@@ -44,5 +44,5 @@ def test_sphere(m = 3):
 		c2 = dom.closest_point(p, L = L)
 		print('c1', c1)
 		print('c2', c2)
-		assert np.all(np.isclose(c1, c2))	
+		assert np.linalg.norm(c1 - c2) < 1e-5	
 	 	
