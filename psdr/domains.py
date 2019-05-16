@@ -412,6 +412,9 @@ class Domain(object):
 			raise ValueError("dimension of b in least squares problem doesn't match A")
 
 		return self._constrained_least_squares(A, b, **kwargs)	
+	
+	def _constrained_least_squares(A, b, **kwargs):
+		raise NotImplementedError
 
 	def sample(self, draw = 1):
 		""" Sample points with uniform probability from the measure associated with the domain.
@@ -1607,7 +1610,7 @@ class PointDomain(BoxDomain):
 		return np.copy(self._point)
 
 
-class ConvexHullDomain(LinIneqDomain):
+class ConvexHullDomain(Domain):
 	r"""Define a domain that is the interior of a convex hull of points.
 
 	Given a set of points :math:`\lbrace x_i \rbrace_{i=1}^M\subset \mathbb{R}^m`,
@@ -1617,33 +1620,111 @@ class ConvexHullDomain(LinIneqDomain):
 	
 		\mathcal{D} := \left\lbrace \sum_{i=1}^M \alpha_i x_i : \sum_{i=1}^M \alpha_i = 1, \ \alpha_i \ge 0 \right\rbrace \subset \mathbb{R}^m.
 
-	In the current implementation, this domain is built by constructing the convex hull of these points
-	and then converting it into a linear inequality constrained domain.
-	This is expensive for moderate dimensions (>5) and so care should be applied when using this function.
 
 	Parameters
 	----------
 	X: array-like (M, m)
 		Points from which to build the convex hull of points.
 	"""
-	def __init__(self, X, names = None, **kwargs):
-		self.X = np.copy(X)
-		if len(self.X.shape) == 1:
-			self.X = X.reshape(-1,1)
 
-		if self.X.shape[1] > 1:
-			self.hull = ConvexHull(self.X) 
-			A = self.hull.equations[:,:-1]
-			b = -self.hull.equations[:,-1]
-			LinIneqDomain.__init__(self, A, b, names = names, **kwargs)
-			self.vertices = np.copy(self.X[self.hull.vertices])
+	def __init__(self, X, names = None, **kwargs):
+		self._X = np.copy(X)
+		if len(self._X.shape) == 1:
+			self._X = self._X.reshape(-1,1)
+	
+		self._init_names(names)
+
+		# Setup the lower and upper bounds to improve conditioning
+		# when solving LPs associated with domain features
+		
+		# TODO: should we consider reducing dimension via rotation
+		# if the points are 
+		self._norm_lb = np.min(self._X, axis = 0)
+		self._norm_ub = np.max(self._X, axis = 0)
+		self._X_norm = self.normalize(X)
+		
+		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
+
+	def to_linineq(self, **kwargs):
+		r""" Convert the domain into a LinIneqDomain
+
+		"""
+		if self._X.shape[1] > 1:
+			hull = ConvexHull(self._X) 
+			A = hull.equations[:,:-1]
+			b = -hull.equations[:,-1]
+			dom = LinIneqDomain(A = A, b = b, names = self.names, **kwargs)
+			dom.vertices = np.copy(self._X[hull.vertices])
 		else:
-			lb = np.atleast_1d(np.min(X))
-			ub = np.atleast_1d(np.max(X))
-			A = np.zeros((0, 1))
-			b = np.zeros((0,))
-			LinIneqDomain.__init__(self, A, b, lb = lb, ub = ub, names = names, **kwargs)
-			self.vertices = np.array([lb, ub]).reshape(-1,1)
+			dom = BoxDomain(self._lb, self._ub, names = names, **kwargs)
+
+		return dom
+
+	def __len__(self):
+		return self._X.shape[1]
+	
+	def _closest_point(self, x0, L = None, **kwargs):
+		if L is None:
+			L = np.eye(len(self))
+			
+		D = self._unnormalize_der() 	
+		LD = L.dot(D)
+		
+		m = len(self)
+		x0_norm = self.normalize(x0)
+		x_norm = cp.Variable(m)					# Point inside the domain
+		alpha = cp.Variable(len(self._X))		# convex combination parameters
+		
+		obj = cp.Minimize(cp.norm(LD*x_norm - LD.dot(x0_norm) ))
+		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+		prob = cp.Problem(obj, constraints)
+		prob.solve(**merge(self.kwargs, kwargs))
+
+		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+	
+	def _corner(self, p, **kwargs):
+		D = self._unnormalize_der()
+		x_norm = cp.Variable(len(self))			# Point inside the domain
+		alpha = cp.Variable(len(self._X))		# convex combination parameters
+		obj = cp.Maximize(x_norm.__rmatmul__( D.dot(p)))
+		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+		prob = cp.Problem(obj, constraints)
+		prob.solve(**merge(self.kwargs, kwargs))
+		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+	
+	def _extent(self, x, p, **kwargs):
+		alpha = cp.Variable(len(self._X))	# convex combination parameters
+		beta = cp.Variable(1)				# Step length
+		y_norm = cp.Variable(len(self))		# Point inside the domain
+		obj = cp.Maximize(beta)
+		constraints = [y_norm == alpha.__rmatmul__(self._X_norm.T), 
+					alpha >=0, 
+					cp.sum(alpha) == 1,
+					y_norm == beta * (self.normalize(x+p) - self.normalize(x)) + self.normalize(x),
+					]
+		prob = cp.Problem(obj, constraints)
+		prob.solve(**merge(self.kwargs, kwargs))
+		return float(beta.value)
+	
+	def _isinside(self, X, tol = TOL):
+		m = len(self)
+		z = cp.Variable(m)						# Point inside the domain
+		x = cp.Parameter(m)						# grid point we are checking
+		alpha = cp.Variable(len(self._X))		# convex combination parameters
+		
+		obj = cp.Minimize(cp.norm(z - x))
+		constraints = [z == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+		prob = cp.Problem(obj, constraints)
+		
+		inside = np.zeros(X.shape[0], dtype = np.bool)
+		for i, xi in enumerate(X):
+			x.value = self.normalize(xi)
+			res = prob.solve(warm_start = True)
+			zi = self.unnormalize(z.value)
+			# We measure error relative to the unnormalized coordinates 
+			inside[i] = (np.linalg.norm(zi - xi) <= tol)	
+		return inside
+
 
 class TensorProductDomain(Domain):
 	r""" A class describing a tensor product of a multiple domains
