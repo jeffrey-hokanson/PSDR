@@ -3,6 +3,7 @@ import psdr
 from psdr import BoxDomain, ConvexHullDomain, LinIneqDomain
 
 def test_isinside(m = 5):
+	np.random.seed(0)
 	dom = BoxDomain(-10*np.ones(m), -5*np.ones(m))
 	
 	X = dom.sample(10)
@@ -13,6 +14,7 @@ def test_isinside(m = 5):
 	assert np.all(hull.isinside(X))
 
 def test_sphere(m = 3):
+	np.random.seed(0)
 	X = psdr.geometry.sample_sphere(m, 50)
 	hull = ConvexHullDomain(X)
 	dom = hull.to_linineq()  
