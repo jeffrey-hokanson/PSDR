@@ -384,7 +384,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		
 		return lb, ub
 	
-	def uncertainty_domain(self, X, fX, domain, Nsamp = int(1e3), verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
+	def uncertainty_domain(self, X, fX, domain, Nsamp = int(1e2), verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
 		r""" Compute the uncertainty associated with a set inside the domain
 		
 		This estimates the uncertainty associated with a subset of the domain,
@@ -533,8 +533,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		ubs = np.zeros(ngrid)
 
 		# We treat the endpoints separately because there is only one point
-		lbs[0], ubs[0] = self.bounds(X, fX, c1)
-		lbs[-1], ubs[-1] = self.bounds(X, fX, c2)
+		lbs[0], ubs[0] = self.uncertainty(X, fX, c1)
+		lbs[-1], ubs[-1] = self.uncertainty(X, fX, c2)
 
 		# Now for the points on the interior
 		iterator = range(1, ngrid - 1)
@@ -547,10 +547,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 		for i in iterator:
 			dom_eq = domain.add_constraints(A_eq = u.reshape(1,-1), b_eq = ys[i].reshape(1))
-			lbs[i], ubs[i] = self.bounds_domain(X, fX, dom_eq, progress = progress - 1, tqdm_kwargs = tqdm_kwargs, **kwargs)
+			lbs[i], ubs[i] = self.uncertainty_domain(X, fX, dom_eq, progress = progress - 1, tqdm_kwargs = tqdm_kwargs, **kwargs)
 
 		if ax is not None:
-			ax.fill_between(yy, lb, ub, **plot_kwargs)	
+			ax.fill_between(ys, lbs, ubs, **plot_kwargs)	
 	
 		if pgfname is not None:
 			pgf = PGF()
