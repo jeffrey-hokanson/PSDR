@@ -69,13 +69,12 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 		# If L is rank 1 then the projection of the domain is an interval
 		cs = np.array([domain.corner(U.flatten()), domain.corner(-U.flatten())])
 		Jcs = J.dot(cs.T).T
-		dim = 1
 	else:
 		# Otherwise we first uniformly sample the rank-L dimensional sphere
 		zs = sample_sphere(U.shape[1], Nboundary)
 		# And then find points on the boundary in these directions
 		# with respect to the active directions
-		cs = np.array([domain.corner(U.T.dot(z)) for z in zs])
+		cs = np.array([domain.corner(U.dot(z)) for z in zs])
 		# Construct a reduced-dimension L times the corners
 		Jcs = J.dot(cs.T).T
 	
@@ -85,13 +84,21 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 		Jcs = Jcs[I]
 		
 		# Compute the effective dimension using PCA on these points
-		s2 = scipy.linalg.svdvals( (Jcs.T - np.mean(Jcs, axis = 0).reshape(-1,1) ))
+		
+		# As we will later map back to the original domain
+		# through the convex combination of these points,
+		# we center these points to improve conditioning
+		Jcs = (Jcs.T - np.mean(Jcs, axis = 0).reshape(-1,1)).T
+
+		# We now do PCA on these centered points (i.e., SVD)
+		# to assess if these have been projected onto a low dimensional manifold
+		U2, s2, VT2 = scipy.linalg.svd(Jcs, full_matrices = False)
 		dim = np.sum(~np.isclose(s2,0))
+		# If they are on this manifold, rotate onto this basis
+		if dim < Lrank:
+			V2 = VT2.T
+			Jcs = Jcs.dot(V2[:,0:dim])
 	
-		# Note that by computing the effective dimesion in this way
-		# we remove the possibility that L might be rank-2
-		# but that Jcs might be rank-1 due to equality constraints
-		# in the active direction
 	
 	if len(Jcs) == 2:
 		# If there only two points on the boundary, 
@@ -102,8 +109,10 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	else:
 		# Otherwise we sample the convex hull of the projected corners
 		Jdom = ConvexHullDomain(Jcs)
-		if dim <= 3:
-			# This sampling offers significant speed improvements
+			
+		# Sampling a linear inequailty domain is much faster than a convex hull domain
+		# so if this is feasible, we convert to this format
+		if len(Jdom) <= 3:
 			Jdom_ineq = Jdom.to_linineq()
 			ws = Jdom_ineq.sample(Nsamp)
 		else:
