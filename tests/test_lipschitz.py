@@ -111,4 +111,19 @@ def test_set_bounds():
 	upper = UpperBound(L, X, fX)
 	x = dom.sample()
 	err = check_gradient(x, upper.eval, upper.grad) 		
-	assert err < 1e-7, "Gradient error too large"	
+	assert err < 1e-7, "Gradient error too large"
+
+def test_lipschitz_bounds():
+	fun = OTLCircuit()
+	X = fun.domain.sample_grid(2)
+	fX = fun(X)
+	grads = fun.grad(X)
+	lip = LipschitzMatrix()
+	lip.fit(grads = grads)
+	L = lip.L
+
+	Xtest = fun.domain.sample(10)
+	lb, ub = lip.bounds(X, fX, Xtest)
+	for i, x in enumerate(Xtest):
+		assert np.isclose(lb[i], np.max([fX[j] - np.linalg.norm(L.dot(X[j] - x)) for j in range(len(X)) ]))
+		assert np.isclose(ub[i], np.min([fX[j] + np.linalg.norm(L.dot(X[j] - x)) for j in range(len(X)) ]))
