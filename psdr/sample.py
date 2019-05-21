@@ -50,6 +50,10 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 		if np.isclose(err, 0):
 			return domain.sample(Nsamp)
 
+	# If there is only one point in the domain,
+	# we simply return that one point
+	if domain.is_point():
+		return domain.sample(1)	
 
 	# Compute the active directions
 	_, s, VT = scipy.linalg.svd(L)
@@ -71,8 +75,7 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 		zs = sample_sphere(U.shape[1], Nboundary)
 		# And then find points on the boundary in these directions
 		# with respect to the active directions
-		cs = np.array([domain.corner(J.T.dot(z)) for z in zs])
-		
+		cs = np.array([domain.corner(U.T.dot(z)) for z in zs])
 		# Construct a reduced-dimension L times the corners
 		Jcs = J.dot(cs.T).T
 	
@@ -89,8 +92,7 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 		# we remove the possibility that L might be rank-2
 		# but that Jcs might be rank-1 due to equality constraints
 		# in the active direction
-				
-
+	
 	if len(Jcs) == 2:
 		# If there only two points on the boundary, 
 		# we have an interval that we can easily sample
