@@ -2,7 +2,7 @@ from __future__ import print_function
 import numpy as np
 
 from psdr import PolynomialApproximation, PolynomialFunction, LegendreTensorBasis, BoxDomain
-from .checkder import *
+from checkder import *
 
 def test_poly_der(dimension = 3, degree = 5):
 	np.random.seed(0)

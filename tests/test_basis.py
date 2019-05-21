@@ -8,7 +8,7 @@ from psdr import (MonomialTensorBasis,
 	LaguerreTensorBasis, 
 	HermiteTensorBasis)
 
-from .checkder import check_jacobian, check_hessian 
+from checkder import check_jacobian, check_hessian 
 
 
 def test_equivalence(m = 3, p = 5):

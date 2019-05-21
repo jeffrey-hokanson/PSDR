@@ -1,7 +1,7 @@
 from __future__ import print_function
 import numpy as np
 from psdr import GaussianProcess, BoxDomain, Function 
-from .checkder import check_gradient 
+from checkder import check_gradient 
 
 def test_gp_der(m = 5, M = 50):
 	np.random.seed(0)

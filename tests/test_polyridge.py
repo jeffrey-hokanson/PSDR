@@ -2,7 +2,7 @@ from __future__ import print_function
 import numpy as np
 import scipy.linalg
 from psdr import PolynomialRidgeApproximation, LegendreTensorBasis, PolynomialRidgeFunction
-from .checkder import *
+from checkder import *
 
 
 def test_affine():

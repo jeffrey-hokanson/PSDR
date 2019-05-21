@@ -1,6 +1,6 @@
 from __future__ import print_function
 from psdr.demos import GolinskiGearbox, Borehole, OTLCircuit, Piston, RobotArm, WingWeight
-from .checkder import check_derivative
+from checkder import check_derivative
 
 def test_grad():
 	

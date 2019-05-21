@@ -4,7 +4,7 @@ import scipy.linalg
 from psdr import LipschitzMatrix, LipschitzConstant, DiagonalLipschitzMatrix, BoxDomain
 from psdr.demos import OTLCircuit
 
-from .checkder import *
+from checkder import *
 
 np.random.seed(0)
 
@@ -127,3 +127,27 @@ def test_lipschitz_bounds():
 	for i, x in enumerate(Xtest):
 		assert np.isclose(lb[i], np.max([fX[j] - np.linalg.norm(L.dot(X[j] - x)) for j in range(len(X)) ]))
 		assert np.isclose(ub[i], np.min([fX[j] + np.linalg.norm(L.dot(X[j] - x)) for j in range(len(X)) ]))
+
+def test_lipschitz_bound_domain():
+	fun = OTLCircuit()
+	X = fun.domain.sample_grid(2)
+	fX = fun(X)
+	grads = fun.grad(X)
+	lip = LipschitzMatrix()
+	lip.fit(grads = grads)
+	L = lip.L
+
+	dom = fun.domain.add_constraints(A_eq = np.ones((1,len(fun.domain))), b_eq = [1])
+	
+	lb, ub = lip.bounds_domain(X, fX, dom, Nsamp = 10)
+
+	# Compare against random samples from the domain
+	Xtest = dom.sample(100)
+	lbs, ubs = lip.bounds(X, fX, Xtest)
+	print("lower bound", "domain", lb, "sample", np.min(lbs)) 
+	print("upper bound", "domain", ub, "sample", np.max(ubs)) 
+	assert lb <= np.min(lbs)
+	assert ub >= np.max(ubs)
+
+if __name__ == '__main__':
+	test_lipschitz_bound_domain()
