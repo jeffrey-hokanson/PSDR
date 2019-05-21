@@ -45,6 +45,19 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		\text{such that} & \ |f(\mathbf{x}_i) - f(\mathbf{x}_j)|^2 \le (\mathbf{x}_i - \mathbf{x}_j)^\top \mathbf{H} (\mathbf{x}_i - \mathbf{x}_j) \\
 		& \ \nabla f(\mathbf{x}_k) \nabla f(\mathbf{x}_k)^\top \preceq \mathbf{H}
 
+	If the parameter :code:`epsilon` is passed, the :math:`\epsilon`-Lipschitz matrix
+	is computed instead by solving the semidefinite program
+	
+	.. math::
+
+		\min_{\mathbf{H} \in \mathbb{S}^{m}_+} & \ \text{Trace } \mathbf{H} \\
+		\text{such that} & \ (|f(\mathbf{x}_i) - f(\mathbf{x}_j)| -\epsilon)^2 
+			\le (\mathbf{x}_i - \mathbf{x}_j)^\top \mathbf{H} (\mathbf{x}_i - \mathbf{x}_j).
+
+	Note that when computing the :math:`\epsilon`-Lipschitz matrix,
+	gradient information cannot be used because gradients no longer constrain 
+	the Lipschitz matrix.
+
 	Parameters
 	----------
 	epsilon: float or None
@@ -84,7 +97,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			self.kwargs['refinement'] = 1
 
 	def fit(self, X = None, fX = None, grads = None):
-		r""" Find the Lipschitz matrix
+		r""" Estimate the Lipschitz matrix from data
 
 
 		Parameters
@@ -320,8 +333,21 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		H = np.sum([ alpha_i * Ei for alpha_i, Ei in zip(alpha, Es)], axis = 0)
 		return H
 
-	def bounds(self, X, fX, Xtest):
-		r""" Compute range of possible values at test points
+	def uncertainty(self, X, fX, Xtest):
+		r""" Compute range of possible values at test points.
+
+		Given pairs of inputs :math:`\widehat{\mathbf{x}}_i`
+		and outputs  :math:`y_i := f(\widehat{\mathbf{x}}_i)`
+		as well as the Lipschitz matrix :math:`\mathbf{L}`, compute the uncertainty interval
+		associated with the provided points :math:`\mathbf{x}_i`; namely,
+
+		.. math::
+		
+			\mathcal{U}(\mathbf{x}) = 
+			\left[ 
+				\max_{j=1,\ldots,M} y_j - \|\mathbf{L} (\mathbf{x} - \widehat{\mathbf{x}}_i)\|_2, \
+				\min_{j=1,\ldots,M} y_j + \|\mathbf{L} (\mathbf{x} - \widehat{\mathbf{x}}_i)\|_2
+			\right].
 
 		Parameters
 		----------
@@ -358,8 +384,20 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		
 		return lb, ub
 	
-	def bounds_domain(self, X, fX, domain, Nsamp = int(1e3), verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
-		r""" Compute the uncertainty for any point inside a domain
+	def uncertainty_domain(self, X, fX, domain, Nsamp = int(1e3), verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
+		r""" Compute the uncertainty associated with a set inside the domain
+		
+		This estimates the uncertainty associated with a subset of the domain,
+		essentially finding points :math:`\mathbf{x} \in \mathcal{S}`
+		corresponding to extrema of the uncertainty interval
+
+		.. math::
+		
+			\mathcal{U}(\mathcal{S} ) = 
+			\left[ 
+				\min_{\mathbf{x} \in \mathcal{S}} \max_{j=1,\ldots,M} y_j - \|\mathbf{L} (\mathbf{x} - \widehat{\mathbf{x}}_i)\|_2, \
+				\max_{\mathbf{x} \in \mathcal{S}} \min_{j=1,\ldots,M} y_j + \|\mathbf{L} (\mathbf{x} - \widehat{\mathbf{x}}_i)\|_2
+			\right].
 
 		Parameters
 		----------
@@ -462,9 +500,6 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 #			ubs = np.array([np.min(-upper_bound(res.result())) for res in ub_res])	
 #
 
-	# TODO: Remove this old function
-	#def shadow_envelope_estimate(self, *args, **kwargs):
-	#	return shadow_uncertainty(*args, **kwargs)
 
 	def shadow_uncertainty(self, domain, X, fX, ax = None, ngrid = 50, dim = 1, U = None, pgfname = None,
 			plot_kwargs = {}, progress = False, **kwargs):

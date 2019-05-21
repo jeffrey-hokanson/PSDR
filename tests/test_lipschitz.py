@@ -95,7 +95,7 @@ def test_solver(N = 50, M = 0):
 	print(np.linalg.norm(H1- H2, 'fro'))
 	assert np.isclose(np.linalg.norm(H1 - H2, 'fro'),0)
 
-def test_set_bounds():
+def test_set_uncertainty():
 	from psdr.lipschitz import LowerBound, UpperBound
 	L = np.eye(2)
 	L[1,1] = 0.1
@@ -113,7 +113,7 @@ def test_set_bounds():
 	err = check_gradient(x, upper.eval, upper.grad) 		
 	assert err < 1e-7, "Gradient error too large"
 
-def test_lipschitz_bounds():
+def test_lipschitz_uncertainty():
 	fun = OTLCircuit()
 	X = fun.domain.sample_grid(2)
 	fX = fun(X)
@@ -123,7 +123,7 @@ def test_lipschitz_bounds():
 	L = lip.L
 
 	Xtest = fun.domain.sample(10)
-	lb, ub = lip.bounds(X, fX, Xtest)
+	lb, ub = lip.uncertainty(X, fX, Xtest)
 	for i, x in enumerate(Xtest):
 		assert np.isclose(lb[i], np.max([fX[j] - np.linalg.norm(L.dot(X[j] - x)) for j in range(len(X)) ]))
 		assert np.isclose(ub[i], np.min([fX[j] + np.linalg.norm(L.dot(X[j] - x)) for j in range(len(X)) ]))
@@ -139,11 +139,11 @@ def test_lipschitz_bound_domain():
 
 	dom = fun.domain.add_constraints(A_eq = np.ones((1,len(fun.domain))), b_eq = [1])
 	
-	lb, ub = lip.bounds_domain(X, fX, dom, Nsamp = 10)
+	lb, ub = lip.uncertainty_domain(X, fX, dom, Nsamp = 10)
 
 	# Compare against random samples from the domain
 	Xtest = dom.sample(100)
-	lbs, ubs = lip.bounds(X, fX, Xtest)
+	lbs, ubs = lip.uncertainty(X, fX, Xtest)
 	print("lower bound", "domain", lb, "sample", np.min(lbs)) 
 	print("upper bound", "domain", ub, "sample", np.max(ubs)) 
 	assert lb <= np.min(lbs)
