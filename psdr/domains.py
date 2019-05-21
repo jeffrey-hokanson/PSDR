@@ -42,7 +42,7 @@ def merge(x, y):
 	z.update(y)
 	return z
 
-DEFAULT_CVXPY_KWARGS = {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False, 'kktsolver': 'robust'}
+DEFAULT_CVXPY_KWARGS = {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False, 'kktsolver': 'robust', 'warm_start': True}
 
 class EmptyDomain(Exception):
 	pass 
@@ -1660,6 +1660,33 @@ class ConvexHullDomain(Domain):
 
 		return dom
 
+	def coefficients(self, x, **kwargs):
+		r""" Given a point in the domain, determine the coefficients of the 
+
+		"""
+		#alpha = cp.Variable(len(self._X))		# convex combination parameters
+	
+		x_norm = self.normalize(x)		
+
+		#obj = cp.Minimize(cp.norm(alpha))
+		#constraints = [
+		#	x_norm == alpha.__rmatmul__(self._X_norm.T), 
+		#	alpha >=0,
+		#	cp.sum(alpha) == 1,
+		#	]
+		#prob = cp.Problem(obj, constraints)
+		#prob.solve(**merge(self.kwargs, kwargs))
+		#return alpha.value
+
+		A = np.vstack([self._X_norm.T, np.ones( (1,len(self._X_norm)) )])
+		b = np.hstack([x_norm, 1])
+		alpha, rnorm = nnls(A, b)
+		return alpha
+
+	@property
+	def X(self):
+		return np.copy(self._X)
+
 	def __len__(self):
 		return self._X.shape[1]
 	
@@ -1693,36 +1720,50 @@ class ConvexHullDomain(Domain):
 		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
 	
 	def _extent(self, x, p, **kwargs):
-		alpha = cp.Variable(len(self._X))	# convex combination parameters
-		beta = cp.Variable(1)				# Step length
-		y_norm = cp.Variable(len(self))		# Point inside the domain
-		obj = cp.Maximize(beta)
-		constraints = [y_norm == alpha.__rmatmul__(self._X_norm.T), 
-					alpha >=0, 
-					cp.sum(alpha) == 1,
-					y_norm == beta * (self.normalize(x+p) - self.normalize(x)) + self.normalize(x),
+		kwargs['warm_start'] = True
+		if not hasattr(self, '_extent_alpha'):
+			self._extent_alpha = cp.Variable(len(self._X))	# convex combination parameters
+			self._extent_beta = cp.Variable(1)				# Step length
+			self._extent_x_norm = cp.Parameter(len(self))	# starting point inside the domain
+			self._extent_p_norm = cp.Parameter(len(self))
+			self._extent_obj = cp.Maximize(self._extent_beta)
+			self._extent_constraints = [
+					self._extent_alpha.__rmatmul__(self._X_norm.T) == self._extent_beta * self._extent_p_norm + self._extent_x_norm,
+					self._extent_alpha >=0, 
+					cp.sum(self._extent_alpha) == 1,
 					]
-		prob = cp.Problem(obj, constraints)
-		prob.solve(**merge(self.kwargs, kwargs))
-		return float(beta.value)
+			self._extent_prob = cp.Problem(self._extent_obj, self._extent_constraints)
+		
+		self._extent_x_norm.value = self.normalize(x)
+		self._extent_p_norm.value = self.normalize(x+p)-self.normalize(x)
+		self._extent_prob.solve(**merge(self.kwargs, kwargs))
+		return float(self._extent_beta.value)
 	
 	def _isinside(self, X, tol = TOL):
-		m = len(self)
-		z = cp.Variable(m)						# Point inside the domain
-		x = cp.Parameter(m)						# grid point we are checking
-		alpha = cp.Variable(len(self._X))		# convex combination parameters
+		#m = len(self)
+		#z = cp.Variable(m)						# Point inside the domain
+		#x = cp.Parameter(m)						# grid point we are checking
+		#alpha = cp.Variable(len(self._X))		# convex combination parameters
 		
-		obj = cp.Minimize(cp.norm(z - x))
-		constraints = [z == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
-		prob = cp.Problem(obj, constraints)
+		#obj = cp.Minimize(cp.norm(z - x))
+		#constraints = [z == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+		#prob = cp.Problem(obj, constraints)
 		
+		#inside = np.zeros(X.shape[0], dtype = np.bool)
+		#for i, xi in enumerate(X):
+		#	x.value = self.normalize(xi)
+		#	res = prob.solve(warm_start = True)
+		#	zi = self.unnormalize(z.value)
+		#	# We measure error relative to the unnormalized coordinates 
+		#	inside[i] = (np.linalg.norm(zi - xi) <= tol)	
+		#return inside
+
 		inside = np.zeros(X.shape[0], dtype = np.bool)
 		for i, xi in enumerate(X):
-			x.value = self.normalize(xi)
-			res = prob.solve(warm_start = True)
-			zi = self.unnormalize(z.value)
-			# We measure error relative to the unnormalized coordinates 
-			inside[i] = (np.linalg.norm(zi - xi) <= tol)	
+			alpha = self.coefficients(xi)
+			rnorm = np.linalg.norm( xi - self._X.T.dot(alpha))
+			inside[i] = (rnorm < tol)
+
 		return inside
 
 

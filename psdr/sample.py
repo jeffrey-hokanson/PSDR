@@ -14,7 +14,7 @@ __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sa
 	'multiobj_seq_maximin_sample', 'StretchedSampler']
 
 
-def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
+def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	r""" Construct initial points for a low-rank L matrix
 
 	The Voronoi vertex sampling algorithm :meth:`psdr.voronoi_vertex`
@@ -41,100 +41,81 @@ def initial_sample(domain, L, Nsamp = int(1e4), Nboundary = 50):
 	Returns
 	-------
 	X0: np.ndarray(Nsamp, m)
-		Samples that are well-distributed in L metric
+		Samples that are well-distributed in L metric in domain
 	"""
+	# If we are sampling with a scalar multiple of the identity matrix,
+	# we can do no better than random sampling on the original domain
+	if L.shape[0] == L.shape[1]:
+		err = np.linalg.norm(L[0,0]*np.eye(L.shape[0]) - L)
+		if np.isclose(err, 0):
+			return domain.sample(Nsamp)
+
+
 	# Compute the active directions
 	_, s, VT = scipy.linalg.svd(L)
 	I = np.argwhere(~np.isclose(s,0)).flatten()
 	U = VT.T[:,I]
 
 	# An explicit, low-rank version of L
-	Lhat = np.diag(s[I]).dot(U.T)
+	J = np.diag(s[I]).dot(U.T)
 
 	Lrank = U.shape[1]
 
-	if Lrank != len(domain):
-		# Attempt to determine the effective dimension
-		if Lrank == 1:
-			# If L is rank 1, there is only one active subspace
-			cs = np.array([domain.corner(U.flatten()), domain.corner(-U.flatten())])
-			Lcs = Lhat.dot(cs.T).T
-			dim = 1
-		else:
-			# Otherwise we first uniformly sample the rank-L dimensional sphere
-			ds = sample_sphere(U.shape[1], Nboundary)
-			# And then find points on the boundary in these directions
-			# with respect to the active directions
-			cs = np.array([domain.corner(U.dot(d)) for d in ds])
-		
-			# Construct a reduced-dimension L times the corners
-			Lcs = Lhat.dot(cs.T).T
-		
-			# Remove duplicates
-			I = unique_points(Lcs)
-			cs = cs[I]
-			Lcs = Lcs[I]
-			
-			# Compute the effective dimension using PCA on these points
-			s2 = scipy.linalg.svdvals( (Lcs.T - np.mean(Lcs, axis = 0).reshape(-1,1) ))
-			dim = np.sum(~np.isclose(s2,0))
-		
-			# Note that by computing the effective dimesion in this way
-			# we remove the possibility that L might be rank-2
-			# but that Lcs might be rank-1 due to equality constraints
-			# in the active direction
+	if Lrank == 1:
+		# If L is rank 1 then the projection of the domain is an interval
+		cs = np.array([domain.corner(U.flatten()), domain.corner(-U.flatten())])
+		Jcs = J.dot(cs.T).T
+		dim = 1
 	else:
-		dim = len(domain)
-		Lcs = []
-
-	if dim == 1:
-		assert len(Lcs) == 2
+		# Otherwise we first uniformly sample the rank-L dimensional sphere
+		zs = sample_sphere(U.shape[1], Nboundary)
+		# And then find points on the boundary in these directions
+		# with respect to the active directions
+		cs = np.array([domain.corner(J.T.dot(z)) for z in zs])
 		
-		# Even though these are on a line in the space, 
-		# when vertex_sample with randomize=True, these points will be pushed off the line.
+		# Construct a reduced-dimension L times the corners
+		Jcs = J.dot(cs.T).T
+	
+		# Remove duplicates
+		I = unique_points(Jcs)
+		cs = cs[I]
+		Jcs = Jcs[I]
+		
+		# Compute the effective dimension using PCA on these points
+		s2 = scipy.linalg.svdvals( (Jcs.T - np.mean(Jcs, axis = 0).reshape(-1,1) ))
+		dim = np.sum(~np.isclose(s2,0))
+	
+		# Note that by computing the effective dimesion in this way
+		# we remove the possibility that L might be rank-2
+		# but that Jcs might be rank-1 due to equality constraints
+		# in the active direction
+				
+
+	if len(Jcs) == 2:
+		# If there only two points on the boundary, 
+		# we have an interval that we can easily sample
 		alphas = np.random.uniform(0,1, size = Nsamp)
 		X0 = np.vstack([alpha*cs[0] + (1-alpha)*cs[1] for alpha in alphas])	
-		return X0
-		
-	elif dim in [2,3] and len(Lcs) > dim:
-		# Construct a convex hull of low-dimensional points
-		#if len(Lcs) > dim:
-		#	# Insufficient points to describe hyperplane in m dimensions, instead return corners
-		#	return cs
-		Ldom = ConvexHullDomain(Lcs, solver = 'CVXOPT')
-		# and sample uniformly here
-		LX0 = Ldom.sample(Nsamp)
-		
-		# output points
-		X0 = np.zeros((Nsamp, len(domain)))
-		
-		# We now find a (non-unique) point in the original domain
-		# by solving a over-determined non-negative least squares problem.
-		# Since it is over-determined we can add one row specifying the
-		# convex-combination constraint and still recover the convex-combination
-		# yielding Lx, and correspondingly push that back to the original domain 
-		
-		# Left hand side plus constraint
-		A = np.vstack([ Lcs.T, np.ones( (1, len(Lcs) ))])
-		for i in range(Nsamp):
-			b = np.hstack([LX0[i], 1.])
-			# find the convex combination
-			alpha, ri = scipy.optimize.nnls(A, b)
 
-			# check the solution
-			#if np.linalg.norm(Lhat.dot(X0[i]) - LX0[i]) > 1e-4:
-			if ri > 1e-4:
-				print("Inexact solution")
+	else:
+		# Otherwise we sample the convex hull of the projected corners
+		Jdom = ConvexHullDomain(Jcs)
+		if dim <= 3:
+			# This sampling offers significant speed improvements
+			Jdom_ineq = Jdom.to_linineq()
+			ws = Jdom_ineq.sample(Nsamp)
+		else:
+			ws = Jdom.sample(Nsamp)
 
-			# project back onto the original space			
+		# And project those points back into the original domain
+		X0 = np.zeros( (Nsamp, len(domain)) )
+		for i, w in enumerate(ws):
+			# Determine the combination coefficients for these samples
+			alpha = Jdom.coefficients(w)
 			X0[i] = cs.T.dot(alpha)
-		
-		return X0
 
-	else:	
-		# We are full rank and cannot do better than random sampling
-		return domain.sample(Nsamp)
-			
+	return X0
+		
 
 def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
 	r""" Performs one step of sequential maximin sampling. 
