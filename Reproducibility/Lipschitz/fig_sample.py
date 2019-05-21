@@ -65,7 +65,7 @@ name4 = 'line'
 
 for X, fX, name in zip([X1, X2, X3, X4], [fX1, fX2, fX3, fX4], [name1, name2, name3, name4]):
 	print(" === %10s === " % name)
-	lb, ub = Lmat.bounds(X, fX, Xt)
+	lb, ub = Lmat.uncertainty(X, fX, Xt)
 	print("average uncertainty", np.mean(ub - lb)) 
 	print("max uncertainty", np.max(ub - lb))
 
@@ -76,7 +76,7 @@ for X, fX, name in zip([X1, X2, X3, X4], [fX1, fX2, fX3, fX4], [name1, name2, na
 	pgf.write('data/fig_sample_Lmat_uncertainty_%s.dat' % name) 	
 	
 	# Lipschitz constant	
-	lb, ub = Lcon.bounds(X, fX, Xt)
+	lb, ub = Lcon.uncertainty(X, fX, Xt)
 	print("average uncertainty", np.mean(ub - lb)) 
 	print("max uncertainty", np.max(ub - lb))
 

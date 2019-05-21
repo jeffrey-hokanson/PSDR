@@ -34,7 +34,7 @@ yy_gpr, yy_std = gpr.predict(Xtest, return_std = True)
 lip = psdr.LipschitzMatrix()
 lip.fit(X, fX)
 print(lip.L)
-lb, ub = lip.bounds(X, fX, Xtest)
+lb, ub = lip.uncertainty(X, fX, Xtest)
 yy_lip =  np.mean([lb,ub], axis = 0)
 
 

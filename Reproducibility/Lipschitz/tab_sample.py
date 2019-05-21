@@ -49,7 +49,7 @@ for fun, name in zip([gg, otl, piston, borehole, wing],['golinski', 'otl', 'pist
 		samp.sample(M, verbose = True)
 		
 		# Compute error bounds
-		lb, ub = lip.bounds(samp.X, samp.fX, Xg)
+		lb, ub = lip.uncertainty(samp.X, samp.fX, Xg)
 
 		# scale by function variation
 		fXg = fun(Xg)
