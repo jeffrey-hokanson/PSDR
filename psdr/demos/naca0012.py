@@ -3,9 +3,7 @@ import numpy as np
 
 from psdr import Function, BoxDomain
 
-
-
-class SU2(Function):
+class NACA0012(Function):
 	r""" A test problem from OpenAeroStruct
 
 	A test problem using OpenAeroStruct similar to that described in [JHM18]_.
@@ -18,17 +16,17 @@ class SU2(Function):
 		DOI: 10.1007/s00158-018-1912-8
 	
 	"""
-	def __init__(self, n_lower = 10, n_upper = 10):
-		domain = build_hicks_henne_domain(n_lower, n_upper)
-		# build_oas_design_domain() * build_oas_robust_domain() * build_oas_random_domain()
-		Function.__init__(self, oas_func, domain, vectorized = True)
+	def __init__(self, n_lower = 10, n_upper = 10, fraction = 0.1):
+		domain = build_hicks_henne_domain(n_lower, n_upper, fraction = fraction)
+		Function.__init__(self, naca0012_func, domain, vectorized = False)
 
-def build_hicks_henne_domain(n_lower = 10, n_upper = 10):
-	dom = BoxDomain(-0.1*np.ones(n_lower), 0.1*np.ones(n_lower), names = 'lower bump') * \
-		BoxDomain(-0.1*np.ones(n_upper), 0.1*np.ones(n_upper), names = 'upper bump')
+def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
+	dom = BoxDomain(-fraction*np.ones(n_lower), fraction*np.ones(n_lower), names = 'lower bump') * \
+		BoxDomain(-fraction*np.ones(n_upper), fraction*np.ones(n_upper), names = 'upper bump')
 
+	return dom
 
-def su2_func(x, version = 'v1', workdir = None, verbose = False):
+def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False):
 	r"""
 
 
@@ -54,7 +52,7 @@ def su2_func(x, version = 'v1', workdir = None, verbose = False):
 	# Copy the inputs to a file
 	np.savetxt(workdir + '/my.input', x, fmt = '%.15e')
 	
-	call = "docker run -t --rm --mount  type=bind,source='%s',target='/workdir' laksharma30/naca0012:%s /workdir/my.input" % (workdir, version)
+	call = "docker run -t --rm --mount  type=bind,source='%s',target='/workdir' jeffreyhokanson/naca0012:%s /workdir/my.input" % (workdir, version)
 	args = shlex.split(call)
 	with open(workdir + '/output.log', 'a') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
@@ -75,15 +73,14 @@ def su2_func(x, version = 'v1', workdir = None, verbose = False):
 
 	Y = np.loadtxt(workdir + '/my.output')
 
-	#shutil.rmtree(workdir) 
+	if not keep_data:
+		shutil.rmtree(workdir) 
 	return Y	
 	
 
-
-
 if __name__ == '__main__':
-	su2 = SU2()
-	X = su2.sample(10)
-	print(su2.domain_app.names)
-	Y = su2(X)	
-	print(Y)
+	naca = NACA0012()
+	X = naca.domain.sample(10)
+	print(naca.domain_app.names)
+	#Y = naca(X, verbose = True)	
+	#print(Y)

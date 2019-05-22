@@ -1,43 +1,45 @@
 #Use the ubuntu to bootstrap the image
 
-ARG OM_VER=d71f7477a82c95860d547e40f06ecc081945c179
-ARG OAS_VER=8ee82d3e6edf87b9d8435773c4b4531e1c66ca2b
+FROM ubuntu:disco
 
-FROM ubuntu:latest
 
 # Install background material
-RUN apt-get  -y update && \
+RUN apt-get -y update && \
 	apt-get -y upgrade && \
-	apt-get -y install \
+	apt-get -y install --no-install-recommends \
 		build-essential \ 
 		gfortran \
+		openssl \
 		git \
-		python3.6 \
-		python-dev \
-		python-numpy \
-		python-pip \
-		python-scipy \
-		vim \
+		python3 \
+		python3-pip \
+		python3-dev \
+		python3-numpy \
+		python3-pip \
+		python3-scipy \
+#		vim \
 		debianutils \
 		m4 \
 		perl \
 		autoconf \
 		automake && \
-	pip install tqdm
+	python3 -m pip install tqdm
 
+ARG SU2_VER=v6.2.0
+
+# Install SU2
 RUN	mkdir -p ~/Source && \
 	cd ~/Source && \
 	git clone https://github.com/su2code/SU2.git && \
 	cd SU2 && \
-	git checkout v6.1.0 && \
+	git checkout ${SU2_VER}  && \
+	./bootstrap && \
 	./configure && \
-	make -j 32 && \ 
-	make install
+	make -j5 && \ 
+	make install && \
+	cd /root/ && \
+	rm -r /root/Source/SU2
 
-RUN apt-get -y install python3
-RUN apt-get -y install python3-pip
-RUN python3 -m pip install numpy
-RUN python3 -m pip install tqdm
 
 COPY su2_driver.py /root/Source/su2_driver.py
 COPY mesh_out.su2 /root/Source/mesh_out.su2
