@@ -1,4 +1,10 @@
 from __future__ import division, print_function
+
+import os
+if 'DISPLAY' not in os.environ:
+	import matplotlib
+	matplotlib.use("Agg")
+
 import numpy as np
 import matplotlib.pyplot as plt
 

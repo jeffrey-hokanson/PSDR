@@ -1,9 +1,16 @@
 # Subspace based dimension reduction techniques
 from __future__ import division, print_function
+
+import os
+if 'DISPLAY' not in os.environ:
+	import matplotlib
+	matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+
 import numpy as np
 import scipy.linalg
 from scipy.spatial.distance import cdist
-import matplotlib.pyplot as plt
 import cvxpy as cp
 import cvxopt
 from itertools import combinations
