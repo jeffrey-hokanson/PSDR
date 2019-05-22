@@ -28,6 +28,8 @@ class CoordinateBasedDimensionReduction(SubspaceBasedDimensionReduction):
 				ax.set_xticklabels(domain.names, rotation = 90)
 			ax.set_xlabel('parameter')
 			ax.set_ylabel('score')
+		
+		return ax
 
 	@property
 	def	U(self):
