@@ -1,6 +1,9 @@
 from __future__ import print_function
-import matplotlib.pyplot as plt
+import filecmp
+import matplotlib
+matplotlib.use("Agg")
 
+import matplotlib.pyplot as plt
 import psdr, psdr.demos
 
 def test_shadow():
@@ -14,8 +17,17 @@ def test_shadow():
 	pra = psdr.PolynomialRidgeApproximation(degree = 5, subspace_dimension = 1)
 	pra.fit(X, fX)
 
-	ax = pra.shadow_plot(X, fX)
-	pra.shadow_envelope(Xg, fXg, ax = ax)
+
+	# Generate shadow plot with response surface
+	ax = pra.shadow_plot(X, fX, pgfname = 'test_shadow.dat')
+
+	assert filecmp.cmp('data/test_shadow.dat', 'test_shadow.dat') 
+	assert filecmp.cmp('data/test_shadow_response.dat', 'test_shadow_response.dat') 
+
+
+	# Generate shadow envelope
+	pra.shadow_envelope(Xg, fXg, ax = ax, pgfname = 'test_shadow_envelope.dat')
+	assert filecmp.cmp('data/test_shadow_envelope.dat', 'test_shadow_envelope.dat') 
 
 	fig, ax2 = plt.subplots()
 
@@ -33,11 +45,13 @@ def test_shadow_lipschitz():
 	lip.fit(grads = grads)	
 	
 	ax = lip.shadow_plot(X, fX)
-	lip.shadow_uncertainty(fun.domain, X, fX, ax = ax, ngrid = 4)
+	lip.shadow_uncertainty(fun.domain, X, fX, ax = ax, ngrid = 4, pgfname = 'test_shadow_uncertainty.dat')
+	assert filecmp.cmp('data/test_shadow_uncertainty.dat', 'test_shadow_uncertainty.dat') 
 
 
 if __name__ == '__main__':
-	test_shadow_lipschitz()
+	#test_shadow_lipschitz()
+	test_shadow()
 	plt.show()
 	
 
