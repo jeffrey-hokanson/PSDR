@@ -5,6 +5,7 @@ import numpy as np
 
 from .function import BaseFunction
 from .subspace import SubspaceBasedDimensionReduction
+from .pgf import PGF
 
 class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
 	@property
