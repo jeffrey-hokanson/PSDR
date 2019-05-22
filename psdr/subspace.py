@@ -336,6 +336,10 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 	def C(self):
 		return self._C
 
+	@property
+	def singvals(self):
+		return self._s
+
 	# TODO: Plot of eigenvalues (with optional boostrapped estimate)
 
 	# TODO: Plot of eigenvector angles with bootstrapped replicates.

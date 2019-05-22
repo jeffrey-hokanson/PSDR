@@ -222,7 +222,7 @@ class Function(BaseFunction):
 					if self.vectorized:
 						grad = np.hstack([ np.array(grad(X)) for grad in self._grads])
 					else:
-						grad = np.hstack([ np.hstack([grad(x) for grad in self._grads]) for x in X])
+						grad = np.vstack([ np.hstack([grad(x) for grad in self._grads]) for x in X])
 			grad = D.dot(grad.T).T
 			
 			return grad
