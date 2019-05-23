@@ -40,7 +40,7 @@ install:
 
 script:
  - pip freeze --local 
- - pytest --cov=psdr --cov-config=.coveragerc tests/
+ - pytest --cov=psdr --cov-branch --cov-config=.coveragerc tests/
 
 after_success:
  - if python --version | grep -c "3.7" ; then coveralls ; fi
