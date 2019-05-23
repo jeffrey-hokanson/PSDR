@@ -3,7 +3,7 @@ import numpy as np
 from psdr import BoxDomain, Function
 
 from dask.distributed import Client
-
+from checkder import *  
 
 
 def test_lambda():
@@ -84,6 +84,20 @@ def test_mult_output(M= 10,m = 5):
 			assert np.all(np.isclose(fX[i], fun(x)))
 
 
+def test_finite_diff():
+	from psdr.demos.golinski import golinski_volume, build_golinski_design_domain
+	
+	dom = build_golinski_design_domain()
+	fun = Function(golinski_volume, dom, fd_grad = True)
+
+	x = fun.domain.sample()
+	print(x)
+	print(fun(x))
+	print(fun.grad(x))	
+	err = check_derivative(x, fun.eval, fun.grad)
+	print(err)
+	assert err < 1e-5
 		
 if __name__ == '__main__':
-	test_mult_output()	
+	#test_mult_output()
+	test_finite_diff()	

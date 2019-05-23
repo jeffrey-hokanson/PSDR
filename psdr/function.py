@@ -187,7 +187,7 @@ class Function(BaseFunction):
 		if self.fd_grad:
 			h = 1e-7
 			grads = []
-			for x in X_norm:
+			for x in np.atleast_2d(X_norm):
 				fx = self.eval(x)
 				grad = np.zeros(x.shape)
 				for i in range(len(x)):
