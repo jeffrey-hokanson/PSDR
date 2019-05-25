@@ -908,6 +908,9 @@ class UnboundedDomain(Domain):
 	def __init__(self, dimension, names = None):
 		self._dimension = dimension
 		self._init_names(names)
+
+	def __str__(self):
+		return u"<UnboundedDomain on R^%d>" % (len(self),)
 	
 	def __len__(self):
 		return self._dimension
@@ -994,6 +997,18 @@ class LinQuadDomain(Domain):
 
 		
 		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
+
+	def __str__(self):
+		ret = "<%s on R^%d" % (self.__class__.__name__, len(self))
+		if len(self._Ls) > 0:
+			ret += "; %d quadratic constraints" % (len(self._Ls),)
+		if self._A.shape[0] > 0:
+			ret += "; %d linear inequality constraints" % (self._A.shape[0], )
+		if self._A_eq.shape[0] > 0:
+			ret += "; %d linear equality constraints" % (self._A_eq.shape[0], )
+		ret +=">"
+
+		return ret
 	
 	
 	################################################################################		
@@ -1791,6 +1806,9 @@ class TensorProductDomain(Domain):
 				self._domains.append(domain)
 		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 
+	def __str__(self):
+		return "<TensorProductDomain on R^%d of %d domains>" % (len(self), len(self.domains))
+		
 	@property
 	def names(self):
 		return list(itertools.chain(*[dom.names for dom in self.domains]))
