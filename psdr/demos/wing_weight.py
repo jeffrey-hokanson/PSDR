@@ -49,8 +49,8 @@ class WingWeight(Function):
 		grads = [wing_weight_grad]
 		Function.__init__(self, funs, domain, grads = grads, vectorized = True)	
 
-# Wing weight function 
-# https://www.sfu.ca/~ssurjano/wingweight.html
+	def __str__(self):
+		return "<Wing Weight Function>"
 
 def build_wing_weight_domain():
 	# Variables

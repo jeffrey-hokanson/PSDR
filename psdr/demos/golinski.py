@@ -83,7 +83,8 @@ class GolinskiGearbox(Function):
 				]
 		Function.__init__(self, funs, domain, grads = grads, vectorized = True, dask_client = dask_client)
 	
-
+	def __str__(self):
+		return "<Golinski Gearbox Function>"
 
 
 def expand_variables(x):

@@ -49,6 +49,8 @@ class OTLCircuit(Function):
 
 		Function.__init__(self, funs, domain, grads = grads, vectorized = True, dask_client = dask_client)
 
+	def __str__(self):
+		return "<OTL Circuit Function>"
 
 def build_otl_circuit_domain():
 	# Parameters

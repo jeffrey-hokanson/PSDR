@@ -22,6 +22,8 @@ class OpenAeroStruct(Function):
 		domain = build_oas_design_domain() * build_oas_robust_domain() * build_oas_random_domain()
 		Function.__init__(self, oas_func, domain, vectorized = True)
 
+	def __str__(self):
+		return "<Open Aero Struct Function>"
 
 def build_oas_design_domain(n_cp = 3):
 	# Twist

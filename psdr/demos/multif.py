@@ -90,6 +90,8 @@ class MULTIF(Function):
 		domain = self.design_domain_app * self.random_domain_app
 		Function.__init__(self, multif, domain, vectorized = False, dask_client = dask_client)
 
+	def __str__(self):
+		return "<MULTI-F Function>"
 
 def build_multif_domain(truncate = 1e-7, **kwargs):
 	design_domain = buildDesignDomain(output = 'none', **kwargs)

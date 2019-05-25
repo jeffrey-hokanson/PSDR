@@ -47,6 +47,8 @@ class RobotArm(Function):
 		
 		Function.__init__(self, funs, domain, grads = grads, vectorized = True, dask_client = dask_client)
 
+	def __str__(self):
+		return "<Robot Arm Function>"
 
 def build_robot_arm_domain():
 	# Parameters
