@@ -474,20 +474,26 @@ class Domain(object):
 		I = self.isinside(Xgrid)
 		return Xgrid[I]	
 
-	def quadrature_rule(self, N):
+	def quadrature_rule(self, N, method = 'auto'):
 		r""" Constructs quadrature rule for the domain
 
-		Given N, constructs a Monte-Carlo quadrature rule for $M \le N$ such that 
+		Given a maximum number of samples N, 
+		this function constructs a quadrature rule for the domain
+		using :math:`M \le N` samples such that 
 
 		.. math::
 		
 			\int_{\mathbf x\in \mathcal D} f(\mathbb{x}) \mathrm{d}\mathbf{x}
 			\approx \sum_{j=1}^M w_j f(\mathbf{x}_j).
+
+		
 		
 		Parameters
 		----------
 		N: int
 			Number of samples to use to construct estimate
+		method: string, ['auto', 'gauss', 'montecarlo']
+			Method to use to construct quadrature rule
 
 		Returns
 		-------
@@ -497,11 +503,75 @@ class Domain(object):
 			Weights for quadrature rule
 
 		"""
-		M = int(N)
-		w = (1./M)*np.ones(M)
+		N = int(N)
 	
-		X = self.sample(M)
-		return X, w
+		# The number of points in each direction we could use for a tensor-product
+		# quadrature rule
+		q = int(np.floor( N**(1./len(self))))
+		if method == 'auto':
+			# If we can take more than one point in each axis, use a tensor-product Gauss quadrature rule
+			if q > 1: method = 'gauss'
+			else: method = 'montecarlo'
+
+			if len(self.A_eq) > 0:
+				method = 'montecarlo'
+
+		if method == 'gauss':
+			if len(self.A_eq) > 0:
+				raise NotImplementedError("Gauss quadrature currently does not support equality constrained domains")
+
+			def quad(qs):
+				# Constructs a quadrature rule for the domain, restricting to those points that are inside
+				xs = []
+				ws = []
+				for i in range(len(self)):
+					x, w = gauss(qs[i], self.norm_lb[i], self.norm_ub[i])
+					xs.append(x)
+					ws.append(w)
+				# Construct the samples	
+				Xs = np.meshgrid(*xs)
+				# Flatten into (M, len(self)) shape 
+				X = np.hstack([X.reshape(-1,1) for X in Xs])
+			
+				# Construct the weights
+				Ws = np.meshgrid(*ws)
+				W = np.hstack([W.reshape(-1,1) for W in Ws])
+				w = np.prod(W, axis = 1)
+				
+				# remove those points outside the domain
+				I = self.isinside(X)
+				X = X[I]
+				w = w[I]	
+			
+				return X, w
+
+			qs = q*np.ones(len(self))
+			X, w = quad(qs)
+
+			# If all the points were in the domain, stop
+			if np.prod(qs) == len(X):
+				return X, w
+
+			# Now we iterate, increasing the density of the quadrature rule
+			# while staying below the maximum number of points 
+			# TODO: Use a bisection search to find the right spacing
+			while True:
+				# increase dimension of the rule 
+				qs += 1.
+				Xnew, wnew = quad(qs)
+				if len(Xnew) <= N:
+					X = Xnew
+					w = wnew
+				else:
+					break
+
+			return X, w 
+
+		elif method == 'montecarlo':
+			M = N
+			w = (1./M)*np.ones(M)
+			X = self.sample(M)
+			return X, w
 
 
 	# TODO: This will error out if the constraints specify a single point in the domain
@@ -1513,68 +1583,68 @@ class BoxDomain(LinIneqDomain):
 	def b_eq(self): return np.zeros((0))
 	
 	
-	def quadrature_rule(self, N, method = 'auto'):
-		r""" Constructs quadrature rule for the domain
-
-		Given N, constructs a quadrature rule for $M \le N$ such that 
-
-		.. math::
-		
-			\int_{\mathbf x\in \mathcal D} f(\mathbb{x}) \mathrm{d}\mathbf{x}
-			\approx \sum_{j=1}^M w_j f(\mathbf{x}_j).
-		
-		If 
-
-		Parameters
-		----------
-		N: int
-			Number of samples to use to construct estimate
-		method: ['auto', 'gauss', 'montecarlo']
-			Quadrature rule to use
-
-
-		Returns
-		-------
-		X: np.ndarray (M, len(self))
-			Samples from the domain
-		w: np.ndarray (M,)
-			Weights for quadrature rule
-
-		"""
-
-		if method == 'auto':
-			# The number of samples 
-			q = int(np.floor( N**(1./len(self))))
-			if q > 1:
-				method = 'gauss'
-			else:
-				method = 'montecarlo'
-	
-		if method == 'gauss':
-			q = int(np.floor( N**(1./len(self))))
-			# points in each axis for the quadrature rule
-			xs = []
-			ws = []
-			for i in range(len(self)):
-				x, w = gauss(q, self.lb[i], self.ub[i])
-				xs.append(x)
-				ws.append(w)
-		
-			# Construct the samples	
-			Xs = np.meshgrid(*xs)
-			# Flatten into (M, len(self)) shape 
-			X = np.hstack([X.reshape(-1,1) for X in Xs])
-
-			# Construct the weights
-			Ws = np.meshgrid(*ws)
-			W = np.hstack([W.reshape(-1,1) for W in Ws])
-			w = np.prod(W, axis = 1)
-			return X, w
-			
-
-		elif method == 'montecarlo':
-			# Call the default Monte-Carlo quadrature rule
-			return Domain.quadrature_rule(self, N)	
+#	def quadrature_rule(self, N, method = 'auto'):
+#		r""" Constructs quadrature rule for the domain
+#
+#		Given a max number of samples N,
+#		this function constructs a quadrature rule using $M \le N$ points
+#		such that 
+#
+#		.. math::
+#		
+#			\int_{\mathbf x\in \mathcal D} f(\mathbb{x}) \mathrm{d}\mathbf{x}
+#			\approx \sum_{j=1}^M w_j f(\mathbf{x}_j).
+#		
+#
+#		Parameters
+#		----------
+#		N: int
+#			Number of samples to use to construct estimate
+#		method: ['auto', 'gauss', 'montecarlo']
+#			Quadrature rule to use
+#
+#
+#		Returns
+#		-------
+#		X: np.ndarray (M, len(self))
+#			Samples from the domain
+#		w: np.ndarray (M,)
+#			Weights for quadrature rule
+#
+#		"""
+#
+#		q = int(np.floor( N**(1./len(self))))
+#		if method == 'auto':
+#			# The number of samples 
+#			if q > 1:
+#				method = 'gauss'
+#			else:
+#				method = 'montecarlo'
+#	
+#		if method == 'gauss':
+#			# points in each axis for the quadrature rule
+#			xs = []
+#			ws = []
+#			for i in range(len(self)):
+#				x, w = gauss(q, self.lb[i], self.ub[i])
+#				xs.append(x)
+#				ws.append(w)
+#		
+#			# Construct the samples	
+#			Xs = np.meshgrid(*xs)
+#			# Flatten into (M, len(self)) shape 
+#			X = np.hstack([X.reshape(-1,1) for X in Xs])
+#
+#			# Construct the weights
+#			Ws = np.meshgrid(*ws)
+#			W = np.hstack([W.reshape(-1,1) for W in Ws])
+#			w = np.prod(W, axis = 1)
+#			return X, w
+#			
+#
+#		elif method == 'montecarlo':
+#			# Call the default Monte-Carlo quadrature rule
+#			return Domain.quadrature_rule(self, N)	
 
 
 
@@ -1660,11 +1730,17 @@ class ConvexHullDomain(Domain):
 		
 		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 
+	def __str__(self):
+		ret = "<ConvexHullDomain on R^%d based on %d points"
+		
+		ret += ">"
+		return ret
+
 	def to_linineq(self, **kwargs):
 		r""" Convert the domain into a LinIneqDomain
 
 		"""
-		if self._X.shape[1] > 1:
+		if len(self) > 1:
 			hull = ConvexHull(self._X) 
 			A = hull.equations[:,:-1]
 			b = -hull.equations[:,-1]
