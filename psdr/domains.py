@@ -624,11 +624,6 @@ class Domain(object):
 		if self._point:
 			return self._hit_and_run_state.copy()
 	
-		# Sometimes we may have a point that is slightly outside due to numerical issues
-		# so we push it back in
-		if not self.isinside(x0):
-			x0 = self.closest_point(x0) 	
-
 		# See if there is an orthongonal basis for the equality constraints
 		# This is necessary so we can generate random directions that satisfy the equality constraint.
 		# TODO: Should we generalize this as a "tangent cone" or "feasible cone" that each domain implements?
@@ -656,6 +651,10 @@ class Domain(object):
 			if alpha_max - alpha_min > 1e-7:
 				alpha = np.random.uniform(alpha_min, alpha_max)
 				self._hit_and_run_state += alpha*p
+				# Sometimes we may have a point that is slightly outside due to numerical issues
+				# so we push it back in
+				if not self.isinside(self._hit_and_run_state):
+					self._hit_and_run_state = self.closest_point(self._hit_and_run_state)
 				return np.copy(self._hit_and_run_state)	
 		
 		# If we've failed to find a good direction, reinitialize, and recurse
