@@ -503,6 +503,11 @@ class Domain(object):
 			Weights for quadrature rule
 
 		"""
+
+		# If we have a single point in the domain, we can't really integrate
+		if self.is_point():
+			return self.sample().reshape(1,-1), np.ones(1) 
+	
 		N = int(N)
 	
 		# The number of points in each direction we could use for a tensor-product
@@ -1583,70 +1588,70 @@ class BoxDomain(LinIneqDomain):
 	def b_eq(self): return np.zeros((0))
 	
 	
-#	def quadrature_rule(self, N, method = 'auto'):
-#		r""" Constructs quadrature rule for the domain
-#
-#		Given a max number of samples N,
-#		this function constructs a quadrature rule using $M \le N$ points
-#		such that 
-#
-#		.. math::
-#		
-#			\int_{\mathbf x\in \mathcal D} f(\mathbb{x}) \mathrm{d}\mathbf{x}
-#			\approx \sum_{j=1}^M w_j f(\mathbf{x}_j).
-#		
-#
-#		Parameters
-#		----------
-#		N: int
-#			Number of samples to use to construct estimate
-#		method: ['auto', 'gauss', 'montecarlo']
-#			Quadrature rule to use
-#
-#
-#		Returns
-#		-------
-#		X: np.ndarray (M, len(self))
-#			Samples from the domain
-#		w: np.ndarray (M,)
-#			Weights for quadrature rule
-#
-#		"""
-#
-#		q = int(np.floor( N**(1./len(self))))
-#		if method == 'auto':
-#			# The number of samples 
-#			if q > 1:
-#				method = 'gauss'
-#			else:
-#				method = 'montecarlo'
-#	
-#		if method == 'gauss':
-#			# points in each axis for the quadrature rule
-#			xs = []
-#			ws = []
-#			for i in range(len(self)):
-#				x, w = gauss(q, self.lb[i], self.ub[i])
-#				xs.append(x)
-#				ws.append(w)
-#		
-#			# Construct the samples	
-#			Xs = np.meshgrid(*xs)
-#			# Flatten into (M, len(self)) shape 
-#			X = np.hstack([X.reshape(-1,1) for X in Xs])
-#
-#			# Construct the weights
-#			Ws = np.meshgrid(*ws)
-#			W = np.hstack([W.reshape(-1,1) for W in Ws])
-#			w = np.prod(W, axis = 1)
-#			return X, w
-#			
-#
-#		elif method == 'montecarlo':
-#			# Call the default Monte-Carlo quadrature rule
-#			return Domain.quadrature_rule(self, N)	
+	def latin_hypercube(self, N, metric = 'maximin', maxiter = 100, jiggle = False):
+		r""" Generate a Latin-Hypercube design
+
+		
+
+		This implementation is based on [PyDOE](https://github.com/tisimst/pyDOE/blob/master/pyDOE/doe_lhs.py). 
 
 
+		Parameters
+		----------
+		N: int
+			Number of samples to take
+		metric: ['maximin', 'corr']
+			Metric to use when selecting among multiple Latin Hypercube designs. 
+			One of
+		
+			- 'maximin': Maximize the minimum distance between points, or 
+			- 'corr' : Minimize the correlation between points.
+
+		jiggle: bool, default False
+			If True, randomize the points within the grid specified by the 
+			Latin hypercube design.
+
+		maxiter: int, default: 100
+			Number of random designs to generate in attempting to find the optimal design 
+			with respect to the metric.
+		"""	
+
+		N = int(N)
+		assert N > 0, "Number of samples must be positive"
+		assert metric in ['maximin', 'corr'], "Invalid metric specified"
+
+		xs = []
+		for i in range(len(self)):
+			xi = np.linspace(self.norm_lb[i], self.norm_ub[i], N + 1)
+			xi = (xi[1:]+xi[0:-1])/2.
+			xs.append(xi)
+
+		# Higher score == better
+		score = -np.inf
+		X = None
+		for it in range(maxiter):
+			# Select which components of the hypercube
+			I = [np.random.permutation(N) for i in range(len(self))]
+			# Generate actual points
+			X_new = np.array([ [xs[i][j] for j in I[i]] for i in range(len(self))]).T
+	
+			# Here we would jiggle points if so desired
+			if jiggle:
+				for i in range(len(self)):
+					h = xs[i][1] - xs[i][0] # Grid spacing
+					X_new[:,i] += np.random.uniform(-h/2, h/2, size = N)	
+
+			# Evaluate the metric
+			if metric == 'maximin':
+				new_score = np.min(pdist(X_new))
+			elif metric == 'corr':
+				new_score = -np.linalg.norm(np.eye(len(self)) - np.corrcoef(X_new.T))
+
+			if new_score > score:
+				score = new_score
+				X = X_new
+
+		return X
 
 class PointDomain(BoxDomain):
 	r""" A domain consisting of a single point
@@ -1685,6 +1690,9 @@ class PointDomain(BoxDomain):
 
 	def _sample(self, draw = 1):
 		return np.tile(self._point.reshape(1,-1), (draw, 1))
+
+	def is_point(self):
+		return True
 
 	@property
 	def lb(self):
