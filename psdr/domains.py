@@ -517,12 +517,11 @@ class Domain(object):
 			if q > 1: method = 'gauss'
 			else: method = 'montecarlo'
 
-			if len(self.A_eq) > 0:
-				method = 'montecarlo'
+		# We currently do not support gauss quadrature on equality constrained domains
+		if len(self.A_eq) > 0 and method == 'gauss':
+			method = 'montecarlo'
 
 		if method == 'gauss':
-			if len(self.A_eq) > 0:
-				raise NotImplementedError("Gauss quadrature currently does not support equality constrained domains")
 
 			def quad(qs):
 				# Constructs a quadrature rule for the domain, restricting to those points that are inside
@@ -572,9 +571,22 @@ class Domain(object):
 			return X, w 
 
 		elif method == 'montecarlo':
-			M = N
-			w = (1./M)*np.ones(M)
-			X = self.sample(M)
+			# For a Monte-Carlo rule we simply sample the domain randomly.
+			w = (1./N)*np.ones(N)
+			X = self.sample(N)
+
+			# However, we need to include a correction to account for the 
+			# volume of this domain
+			if isinstance(self, BoxDomain) or \
+				(len(self.b_eq) == 0 and len(self.b) == 0 and len(self.rhos) == 0 and not isinstance(self, ConvexHullDomain)):
+				# if the domain is a box domain, this is simple
+				vol = np.prod(self.ub - self.lb)
+			else:
+				# Otherwise we estimate the volume of domain using Monte-Carlo
+				dom = BoxDomain(self.norm_lb, self.norm_ub)
+				Xt = dom.sample(10*N)
+				vol = np.prod(dom.ub - dom.lb)*(np.sum(self.isinside(Xt))/(10.*N))
+			w *= vol
 			return X, w
 
 

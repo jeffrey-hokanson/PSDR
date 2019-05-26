@@ -36,7 +36,7 @@ def test_quad():
 
 
 def test_sphere(m = 3):
-
+	np.random.seed(0)
 	L = np.eye(m)
 	y = np.zeros(m)
 	rho = 1.
@@ -46,6 +46,12 @@ def test_sphere(m = 3):
 	X, w = dom.quadrature_rule(1e3)
 	print(np.sum(w), 4./3*np.pi)
 	assert np.isclose(np.sum(w), 4./3.*np.pi, rtol = 5e-2)
+
+	# Test using Monte Carlo
+	X, w = dom.quadrature_rule(1e3, method = 'montecarlo' )
+	print(np.sum(w), 4./3*np.pi)
+	assert np.isclose(np.sum(w), 4./3.*np.pi, rtol = 5e-2)
+
 
 if __name__ == '__main__':
 	test_sphere()
