@@ -53,6 +53,10 @@ class SolverError(ValueError):
 def closest_point(dom, x0, L, **kwargs):
 	r""" Solve the closest point problem given a domain
 	"""
+
+	if dom.isinside(x0):
+		return np.copy(x0)
+
 	x_norm = cp.Variable(len(dom))
 	constraints = dom._build_constraints_norm(x_norm)
 	x0_norm =  dom.normalize(x0)
@@ -660,11 +664,8 @@ class Domain(object):
 			
 			if alpha_max - alpha_min > 1e-7:
 				alpha = np.random.uniform(alpha_min, alpha_max)
-				self._hit_and_run_state += alpha*p
-				# Sometimes we may have a point that is slightly outside due to numerical issues
-				# so we push it back in
-				if not self.isinside(self._hit_and_run_state):
-					self._hit_and_run_state = self.closest_point(self._hit_and_run_state)
+				# We call closest point just to make sure we stay inside numerically
+				self._hit_and_run_state = self.closest_point(self._hit_and_run_state + alpha*p)
 				return np.copy(self._hit_and_run_state)	
 		
 		# If we've failed to find a good direction, reinitialize, and recurse
@@ -1796,6 +1797,10 @@ class ConvexHullDomain(Domain):
 		return self._X.shape[1]
 	
 	def _closest_point(self, x0, L = None, **kwargs):
+
+		if self.isinside(x0):
+			return np.copy(x0)
+
 		if L is None:
 			L = np.eye(len(self))
 			
