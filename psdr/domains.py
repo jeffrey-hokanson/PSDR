@@ -590,7 +590,6 @@ class Domain(object):
 			return X, w
 
 
-	# TODO: This will error out if the constraints specify a single point in the domain
 	def _hit_and_run(self, _recurse = 2):
 		r"""Hit-and-run sampling for the domain
 		"""
@@ -602,8 +601,8 @@ class Domain(object):
 			x0 = self._hit_and_run_state
 			if x0 is None: raise AttributeError
 		except AttributeError:
-			# In earlier versions, we find the starting point by finding the Chebeychev center;
-			# here we use a simpler approach that simply picks N points on the boundary 
+			# In earlier versions, we find the starting point by finding the Chebeychev center.
+			# Now we use a simpler approach that simply picks N points on the boundary 
 			# by calling corner and then take the mean (since the domain is convex).
 			# This removes the need to treat equality constraints carefully and also
 			# generalizes to LinQuadDomains. 
@@ -614,11 +613,10 @@ class Domain(object):
 			for i in range(len(self)):
 				X += [self.corner(U[:,i])]
 				X += [self.corner(-U[:,i])]
-				if i > 4:
-					# If we have collected enough points, see if these 
-					# are distinct, and if so, stop
-					if not np.isclose(np.max(pdist(X)),0):
-						break
+				if i > 4 and not np.isclose(np.max(pdist(X)),0):
+					# If we have collected enough points and these
+					# are distinct, stop
+					break
 				
 			# If we still only have effectively one point, we are a point domain	
 			if np.isclose(np.max(pdist(X)),0) and len(X) == 2*len(self):
