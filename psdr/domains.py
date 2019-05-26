@@ -590,8 +590,6 @@ class Domain(object):
 			x0 = self._hit_and_run_state
 			if x0 is None: raise AttributeError
 		except AttributeError:
-			# If this hasn't been initialized find a feasible starting point
-			N = 5
 			# In earlier versions, we find the starting point by finding the Chebeychev center;
 			# here we use a simpler approach that simply picks N points on the boundary 
 			# by calling corner and then take the mean (since the domain is convex).
@@ -600,18 +598,18 @@ class Domain(object):
 			
 			# Generate random orthogonal directions to sample
 			U = ortho_group.rvs(len(self))
-			X = [self.corner(u) for u in U[0:N]] + [self.corner(-u) for u in U[0:N]]
-			#print(np.vstack(X))
-			#print(np.all(np.isclose(X[0], X[1:])))
-			#print("internal distance", np.max(pdist(X)), "recurse", _recurse)	
-			# If these points aren't sufficiently distinct, add the rest
-			if np.isclose( np.max(pdist(X)), 0):
-				for u in U[N:]:
-					X.append(self.corner(u))
-					X.append(self.corner(-u))
+			X = []
+			for i in range(len(self)):
+				X += [self.corner(U[:,i])]
+				X += [self.corner(-U[:,i])]
+				if i > 4:
+					# If we have collected enough points, see if these 
+					# are distinct, and if so, stop
+					if not np.isclose(np.max(pdist(X)),0):
+						break
 				
 			# If we still only have effectively one point, we are a point domain	
-			if np.isclose(np.max(pdist(X)),0):
+			if np.isclose(np.max(pdist(X)),0) and len(X) == 2*len(self):
 				self._point = True
 			else:
 				self._point = False
