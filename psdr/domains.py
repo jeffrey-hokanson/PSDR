@@ -437,15 +437,14 @@ class Domain(object):
 		SolverError
 			If we are unable to find a point in the domain satisfying the constraints
 		"""
-		x_sample = self._sample(draw = int(draw))
+		draw = int(draw)
+		x_sample = self._sample(draw = draw)
 		if draw == 1: 
 			x_sample = x_sample.flatten()
 		return x_sample
 	
-	def _sample(self, draw = None):
+	def _sample(self, draw = 1):
 		# By default, use the hit and run sampler
-		if draw is None:
-			draw = 1
 
 		X = [self._hit_and_run() for i in range(3*draw)]
 		I = np.random.permutation(len(X))
