@@ -129,6 +129,7 @@ def test_lipschitz_uncertainty():
 		assert np.isclose(ub[i], np.min([fX[j] + np.linalg.norm(L.dot(X[j] - x)) for j in range(len(X)) ]))
 
 def test_lipschitz_bound_domain():
+	np.random.seed(0)
 	fun = OTLCircuit()
 	X = fun.domain.sample_grid(2)
 	fX = fun(X)
@@ -139,7 +140,7 @@ def test_lipschitz_bound_domain():
 
 	dom = fun.domain.add_constraints(A_eq = np.ones((1,len(fun.domain))), b_eq = [1])
 	
-	lb, ub = lip.uncertainty_domain(X, fX, dom, Nsamp = 10)
+	lb, ub = lip.uncertainty_domain(X, fX, dom, Nsamp = 20)
 
 	# Compare against random samples from the domain
 	Xtest = dom.sample(100)
