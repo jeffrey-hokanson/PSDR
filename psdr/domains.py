@@ -1055,6 +1055,8 @@ class LinQuadDomain(Domain):
 		Centers of the quadratic constraints
 	rhos: list of positive floats 
 		Radii of quadratic constraints
+	names: list of strings, optional
+		Names for each of the parameters in the space
 	kwargs: dict, optional
 		Additional parameters to be passed to cvxpy Problem.solve() 
 	"""
@@ -1710,7 +1712,7 @@ class PointDomain(BoxDomain):
 		return np.copy(self._point)
 
 
-class ConvexHullDomain(Domain):
+class ConvexHullDomain(LinQuadDomain):
 	r"""Define a domain that is the interior of a convex hull of points.
 
 	Given a set of points :math:`\lbrace x_i \rbrace_{i=1}^M\subset \mathbb{R}^m`,
@@ -1727,16 +1729,26 @@ class ConvexHullDomain(Domain):
 		Points from which to build the convex hull of points.
 	"""
 
-	def __init__(self, X, names = None, **kwargs):
+	def __init__(self, X, A = None, b = None, lb = None, ub = None, 
+		A_eq = None, b_eq = None, Ls = None, ys = None, rhos = None,
+		names = None, **kwargs):
+
 		self._X = np.copy(X)
 		if len(self._X.shape) == 1:
 			self._X = self._X.reshape(-1,1)
 	
 		self._init_names(names)
+		
+
+		# Start setting default values
+		self._lb = self._init_lb(lb)
+		self._ub = self._init_ub(ub)
+		self._A, self._b = self._init_ineq(A, b)
+		self._A_eq, self._b_eq = self._init_eq(A_eq, b_eq)	
+		self._Ls, self._ys, self._rhos = self._init_quad(Ls, ys, rhos)
 
 		# Setup the lower and upper bounds to improve conditioning
 		# when solving LPs associated with domain features
-		
 		# TODO: should we consider reducing dimension via rotation
 		# if the points are 
 		self._norm_lb = np.min(self._X, axis = 0)
@@ -1767,26 +1779,15 @@ class ConvexHullDomain(Domain):
 		return dom
 
 	def coefficients(self, x, **kwargs):
-		r""" Given a point in the domain, determine the coefficients of the 
+		r""" Find the coefficients of the convex combination of elements in the space yielding x
 
 		"""
-		#alpha = cp.Variable(len(self._X))		# convex combination parameters
-	
 		x_norm = self.normalize(x)		
-
-		#obj = cp.Minimize(cp.norm(alpha))
-		#constraints = [
-		#	x_norm == alpha.__rmatmul__(self._X_norm.T), 
-		#	alpha >=0,
-		#	cp.sum(alpha) == 1,
-		#	]
-		#prob = cp.Problem(obj, constraints)
-		#prob.solve(**merge(self.kwargs, kwargs))
-		#return alpha.value
-
 		A = np.vstack([self._X_norm.T, np.ones( (1,len(self._X_norm)) )])
 		b = np.hstack([x_norm, 1])
 		alpha, rnorm = nnls(A, b)
+		#print('rnorm', rnorm)
+		#assert rnorm < 1e-5, "Point x must be inside the domain"
 		return alpha
 
 	@property
@@ -1814,6 +1815,8 @@ class ConvexHullDomain(Domain):
 		
 		obj = cp.Minimize(cp.norm(LD*x_norm - LD.dot(x0_norm) ))
 		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+		constraints += self._build_constraints_norm(x_norm)
+	
 		prob = cp.Problem(obj, constraints)
 		prob.solve(**merge(self.kwargs, kwargs))
 
@@ -1825,6 +1828,7 @@ class ConvexHullDomain(Domain):
 		alpha = cp.Variable(len(self._X))		# convex combination parameters
 		obj = cp.Maximize(x_norm.__rmatmul__( D.dot(p)))
 		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+		constraints += self._build_constraints_norm(x_norm)
 		prob = cp.Problem(obj, constraints)
 		prob.solve(**merge(self.kwargs, kwargs))
 		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
@@ -1842,6 +1846,7 @@ class ConvexHullDomain(Domain):
 					self._extent_alpha >=0, 
 					cp.sum(self._extent_alpha) == 1,
 					]
+			self._extent_constraints += self._build_constraints_norm(self._extent_x_norm)
 			self._extent_prob = cp.Problem(self._extent_obj, self._extent_constraints)
 		
 		self._extent_x_norm.value = self.normalize(x)
