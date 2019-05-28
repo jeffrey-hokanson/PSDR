@@ -264,7 +264,7 @@ class SubspaceBasedDimensionReduction(object):
 	def approximate_lipschitz(self, X = None, fX = None, grads = None,  dim = None):
 		r""" Approximate the Lipschitz matrix on the low-dimensional subspace
 		"""
-		pass
+		raise NotImplementedError
 
 
 class ActiveSubspace(SubspaceBasedDimensionReduction):
