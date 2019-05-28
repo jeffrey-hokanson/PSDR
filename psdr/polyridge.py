@@ -305,7 +305,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		self.bound = bound
 
 	def __len__(self):
-		return U.shape[0]
+		return self.U.shape[0]
 
 
 	def fit(self, X, fX, U0 = None, **kwargs):
