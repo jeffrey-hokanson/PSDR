@@ -68,6 +68,10 @@ def test_score():
 	ax = lip.plot_score(domain = fun.domain)
 	ax.figure.tight_layout()
 	print(lip.U)	
+	
+	ax = lip.plot_score(ax = None)
+	#ax.figure.tight_layout()
+	#print(lip.U)	
 
 if __name__ == '__main__':
 	#test_shadow_lipschitz()
