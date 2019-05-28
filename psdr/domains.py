@@ -1758,7 +1758,13 @@ class ConvexHullDomain(LinQuadDomain):
 		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 
 	def __str__(self):
-		ret = "<ConvexHullDomain on R^%d based on %d points"
+		ret = "<ConvexHullDomain on R^%d based on %d points" % (len(self), len(self._X_norm))
+		if len(self._Ls) > 0:
+			ret += "; %d quadratic constraints" % (len(self._Ls),)
+		if self._A.shape[0] > 0:
+			ret += "; %d linear inequality constraints" % (self._A.shape[0], )
+		if self._A_eq.shape[0] > 0:
+			ret += "; %d linear equality constraints" % (self._A_eq.shape[0], )
 		
 		ret += ">"
 		return ret
@@ -1852,32 +1858,27 @@ class ConvexHullDomain(LinQuadDomain):
 		self._extent_x_norm.value = self.normalize(x)
 		self._extent_p_norm.value = self.normalize(x+p)-self.normalize(x)
 		self._extent_prob.solve(**merge(self.kwargs, kwargs))
-		return float(self._extent_beta.value)
-	
-	def _isinside(self, X, tol = TOL):
-		#m = len(self)
-		#z = cp.Variable(m)						# Point inside the domain
-		#x = cp.Parameter(m)						# grid point we are checking
-		#alpha = cp.Variable(len(self._X))		# convex combination parameters
-		
-		#obj = cp.Minimize(cp.norm(z - x))
-		#constraints = [z == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
-		#prob = cp.Problem(obj, constraints)
-		
-		#inside = np.zeros(X.shape[0], dtype = np.bool)
-		#for i, xi in enumerate(X):
-		#	x.value = self.normalize(xi)
-		#	res = prob.solve(warm_start = True)
-		#	zi = self.unnormalize(z.value)
-		#	# We measure error relative to the unnormalized coordinates 
-		#	inside[i] = (np.linalg.norm(zi - xi) <= tol)	
-		#return inside
+		try:
+			return float(self._extent_beta.value)
+		except:
+			# If we can't solve the problem, we are outside the domain or cannot move futher;
+			# hence we return 0
+			return 0.		
 
+	def _isinside(self, X, tol = TOL):
+
+		# Check that the points are in the convex hull
 		inside = np.zeros(X.shape[0], dtype = np.bool)
 		for i, xi in enumerate(X):
 			alpha = self.coefficients(xi)
 			rnorm = np.linalg.norm( xi - self._X.T.dot(alpha))
 			inside[i] = (rnorm < tol)
+
+		# Now check linear inequality/equality constraints and quadratic constraints
+		inside &= self._isinside_bounds(X, tol = tol)
+		inside &= self._isinside_ineq(X, tol = tol)	
+		inside &= self._isinside_eq(X, tol = tol)
+		inside &= self._isinside_quad(X, tol = tol)
 
 		return inside
 

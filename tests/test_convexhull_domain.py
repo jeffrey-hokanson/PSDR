@@ -47,4 +47,25 @@ def test_sphere(m = 3):
 		print('c1', c1)
 		print('c2', c2)
 		assert np.linalg.norm(c1 - c2) < 1e-5	
-	 	
+
+
+def test_constraints(m=3):
+	np.random.seed(0)
+
+	dom = BoxDomain(-1*np.ones(m), np.ones(m))
+	
+	# Lower pyramid portion
+	dom_con = dom.add_constraints(A = np.ones((1,m)), b = np.ones(1))
+	
+	# Convex hull describes the same space as dom_con
+	X = dom.sample_grid(2)
+	hull = ConvexHullDomain(X, A = dom_con.A, b = dom_con.b)
+
+	# Check that the same points are inside
+	X = dom.sample(100)
+	assert np.all(hull.isinside(X) == dom_con.isinside(X))
+
+	# Check sampling
+	X = hull.sample(100)
+	assert np.all(dom_con.isinside(X))
+
