@@ -2,6 +2,7 @@
 from __future__ import division, print_function
 
 import os
+# Necessary for running in headless enviornoments
 if 'DISPLAY' not in os.environ:
 	import matplotlib
 	matplotlib.use("Agg")
@@ -76,15 +77,18 @@ class SubspaceBasedDimensionReduction(object):
 	
 		if X is None:
 			X = self.X
+	
+		# Check dimensions
+		X = np.atleast_2d(X)
+		assert X.shape[1] == len(self), "Samples do not match dimension of space"	
 
 		if U is None:
 			U = self.U
 		else:
 			if len(U.shape) == 1:
-				U = U.reshape(X.shape[1],1)
+				U = U.reshape(len(self),1)
 			else:
-				assert U.shape[1] == X.shape[1], "Dimensions do not match"
-				U = U
+				assert U.shape[0] == len(self), "Dimensions do not match"
 
 		
 		if dim == 1:
@@ -101,6 +105,7 @@ class SubspaceBasedDimensionReduction(object):
 
 		elif dim == 2:
 			Y = U[:,0:2].T.dot(X.T).T
+			
 			if ax is not None:
 				sc = ax.scatter(Y[:,0], Y[:,1], c = fX.flatten(), s = 3)
 				ax.set_xlabel(r'active coordinate 1 $\mathbf{u}_1^\top \mathbf{x}$')
@@ -109,7 +114,11 @@ class SubspaceBasedDimensionReduction(object):
 				plt.colorbar(sc).set_label('f(x)')
 			
 			if pgfname is not None:
-				raise NotImplementedError
+				pgf = PGF()
+				pgf.add('y1', Y[:,0])
+				pgf.add('y2', Y[:,1])
+				pgf.add('fX', fX.flatten())
+				pgf.write(pgfname)
 
 		else:
 			raise NotImplementedError		

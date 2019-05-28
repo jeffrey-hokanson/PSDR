@@ -42,6 +42,7 @@ def test_shadow():
 	pra2.fit(X, fX)
 	pra2.shadow_plot(X, fX, ax = ax2)
 
+
 def test_shadow_lipschitz():
 	fun = psdr.demos.OTLCircuit()
 	X = fun.domain.sample_grid(2)
@@ -55,6 +56,24 @@ def test_shadow_lipschitz():
 	lip.shadow_uncertainty(fun.domain, X, fX, ax = ax, ngrid = 4, pgfname = 'test_shadow_uncertainty.dat')
 	#assert filecmp.cmp(os.path.join(path, 'data/test_shadow_uncertainty.dat'), 'test_shadow_uncertainty.dat') 
 
+	# Test 2-d version
+	ax = lip.shadow_plot(X, fX, dim = 2)
+
+	# Test predefined axes
+	fig, ax = plt.subplots()
+	ax = lip.shadow_plot(X, fX, dim = 1, ax = ax)
+
+	# Test specified U
+	ax = lip.shadow_plot(X, fX, U = lip.U[:,0])
+	
+	# Test specified U
+	ax = lip.shadow_plot(X, fX, U = lip.U[:,0:2])
+	
+	# Test specified U
+	ax = lip.shadow_plot(X, fX, U = lip.U[:,0:2], dim = 2)
+
+	# Test writing 2-D output
+	lip.shadow_plot(X, fX, ax = None, pgfname = 'test_shadow_uncertainty_2d.dat')
 
 def test_score():
 	fun = psdr.demos.OTLCircuit()
