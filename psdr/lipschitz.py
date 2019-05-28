@@ -566,7 +566,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			pgf.add('ub', ubs)
 			pgf.write(pgfname)
 
-class DiagonalLipschitzMatrix(LipschitzMatrix, CoordinateBasedDimensionReduction):
+class DiagonalLipschitzMatrix(CoordinateBasedDimensionReduction, LipschitzMatrix):
 	r""" Constructs a diagonal Lipschitz matrix
 
 	Much like the standard Lipschitz matrix class :meth:`psdr.LipschitzMatrix`,
@@ -580,7 +580,7 @@ class DiagonalLipschitzMatrix(LipschitzMatrix, CoordinateBasedDimensionReduction
 		self._L = scale * np.diag(np.sqrt(np.diag(H)))
 		
 		self._score = np.diag(self._L).copy()		
-		self._U = np.eye(len(self._score))[:,np.argsort(-self._score)] 
+		#self._U = np.eye(len(self._score))[:,np.argsort(-self._score)] 
 
 class LipschitzConstant(LipschitzMatrix):
 	r""" Computes the scalar Lipschitz constant
