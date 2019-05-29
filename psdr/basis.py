@@ -381,7 +381,3 @@ class HermiteTensorBasis(PolynomialTensorBasis):
 		except AttributeError:
 			raise NotImplementedError
 
-
-if __name__ == '__main__':
-	basis = MonomialTensorBasis(2,5)
-	X = np.random.randn(1,2)
