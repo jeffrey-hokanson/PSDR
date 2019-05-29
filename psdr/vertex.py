@@ -180,6 +180,10 @@ def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 			alpha_c = (b - AX0)/Ah
 		alpha_c[~np.isfinite(alpha_c)] = np.inf
 		alpha_c[alpha_c <= 0] = np.inf
+		# When the step size is near zero, the above formula is inaccurate
+		# causing points to emerge outside of the domain. Hence, we zero the
+		# step size for these points.
+		alpha_c[ np.max(np.abs(h), axis = 1) < 1e-10] = 0. 
 		alpha_c = np.min(alpha_c, axis = 1)
 		alpha = np.minimum(alpha, alpha_c)
 
@@ -190,15 +194,9 @@ def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 		# Now finally take the step
 		X0 += alpha.reshape(-1,1)*h
 
-	# Push points back into the domain if they fall outside due to numerical issues
-	# TODO: Is this really necessary?
-	#I = np.argwhere(~domain.isinside(X0))
-	#for i in I:
-	#	X0[i] = domain.closest_point(X0[i], verbose = True)
 	
 	# Keep only those points that are inside the domain
 	# (all points should be, but sometimes numerical issues push outside)
-	#print("Not inside", np.sum(~domain.isinside(X0)), " of ",  len(X0) )
-	X0 = X0[domain.isinside(X0)]
+	#X0 = X0[domain.isinside(X0)]
 
 	return X0
