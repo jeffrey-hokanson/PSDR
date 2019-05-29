@@ -121,7 +121,7 @@ def test_return_grad(m=3):
 	dom = BoxDomain(-2*np.ones(m), 2*np.ones(m))
 	x = dom.sample(1)
 
-	fun = Function(func, dom)	
+	fun = Function(func, dom, return_grad = True)	
 	# Check the derivative
 	x_norm = dom.normalize(x)
 	err = check_derivative(x_norm, fun.eval, fun.grad)
@@ -150,13 +150,22 @@ def test_return_grad(m=3):
 		else:
 			return fX
 
-	fun2 = Function(func2, dom, vectorized = True)
+	fun2 = Function(func2, dom, vectorized = True, return_grad = True)
 
 	x = fun2.domain.sample()
 	X = fun2.domain.sample(5)
 	assert np.isclose(fun2(x), fun(x)) 
 	assert np.all(np.isclose(fun2(X), fun(X)))
 	assert np.all(np.isclose(fun2.grad(X), fun.grad(X)))
+
+	# Check the __call__ interface
+	fX, grad = fun2(X, return_grad = True)
+	assert np.all(np.isclose(fX, fun(X)))
+	assert np.all(np.isclose(grad, fun.grad(X)))
+	
+	fX, grad = fun(X, return_grad = True)
+	assert np.all(np.isclose(fX, fun(X)))
+	assert np.all(np.isclose(grad, fun.grad(X)))
 	
 if __name__ == '__main__':
 	#test_mult_output()

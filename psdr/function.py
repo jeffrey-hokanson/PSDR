@@ -68,11 +68,12 @@ class Function(BaseFunction):
 	"""
 
 	def __init__(self, funs, domain, grads = None, fd_grad = None, vectorized = False, kwargs = {},
-		dask_client = None):
+		dask_client = None, return_grad = False):
 
 		self.dask_client = dask_client
 		self.vectorized = vectorized
 		self.kwargs = kwargs
+		self.return_grad = return_grad
 		
 		if callable(funs):
 			self._funs = [funs]
@@ -212,7 +213,7 @@ class Function(BaseFunction):
 			return grad
 
 		# Try return_grad the function definition
-		else:
+		elif self.return_grad:
 			if len(X.shape) == 1:
 				grad = np.vstack([fun(X, return_grad = True)[1] for fun in self._funs])
 				grads = grad.flatten()
@@ -236,19 +237,43 @@ class Function(BaseFunction):
 			
 			grads = D.dot(grads.T).T
 			return grads
+		else:
+			raise NotImplementedError("Gradient not defined and finite-difference approximation not enabled")
 
 
 	def __call__(self, X_norm, return_grad = False, **kwargs):
 		if not return_grad:
 			return self.eval(X_norm, **kwargs)
 
-		if return_grad:
-			try: 
-				# TODO: Implement support for calling function with return_grad
-				raise TypeError	
+		if self.return_grad:
+			X = self.domain_app.unnormalize(X_norm)
+			X = np.atleast_2d(X)
+			D = self.domain_app._unnormalize_der() 	
+			# If the function can return both the value and gradient simultaneously
+			if self.vectorized:
+				ret = [fun(X, return_grad = True, **kwargs) for fun in self._funs]
+				fX = np.hstack([r[0] for r in ret])
+				grad = np.vstack([np.atleast_1d(r[1]) for r in ret])
+			else:
+				fX = []
+				grad = []
+				for x in X:
+					fx = []
+					g = []
+					for fun in self._funs:
+						fxi, gi = fun(x, return_grad = True, **kwargs)
+						fx.append(fxi)
+						g.append(gi)
+					fX.append(np.hstack(fx))
+					grad.append(np.hstack(g))
 
-			except TypeError:
-				return self.eval(X_norm, **kwargs), self.grad(X_norm, **kwargs)					
+				fX = np.vstack(fX)
+				grad = np.vstack(grad)
+
+			grad = D.dot(grad.T).T
+			return fX, grad
+		else:
+			return self.eval(X_norm, **kwargs), self.grad(X_norm, **kwargs)					
 	
 #	def __get__(self, i):
 #		"""Get a particular sub-function as another Function"""
