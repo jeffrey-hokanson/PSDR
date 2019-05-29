@@ -55,45 +55,51 @@ def test_lipschitz_func(M = 20):
 
 
 
-def test_solver(N = 50, M = 0):
+def test_solver(N = 30, M = 20):
 	func = OTLCircuit()
 	X = func.domain.sample(N)
 	grads = func.grad(X)
 
 	X = func.domain.sample(M)
 	fX = func(X)
-	X = None
-	fX = None	
-	
-	lip = LipschitzMatrix(verbose = True, method = 'cvxpy')
-	lip.fit(X = X, fX = fX, grads = grads)
-	H1 = np.copy(lip.H)
 
-	lip = LipschitzMatrix(verbose = True, method = 'param')
-	lip.fit(X = X, fX = fX, grads = grads)
-	H2 = np.copy(lip.H)
-	
-	lip = LipschitzMatrix(verbose = True, method = 'cvxopt')
-	lip.fit(X = X, fX = fX, grads = grads)
-	H3 = np.copy(lip.H)
+	lip1 = LipschitzMatrix(verbose = True, method = 'cvxpy')
+	lip2 = LipschitzMatrix(verbose = True, method = 'param')
+	lip3 = LipschitzMatrix(verbose = True, method = 'cvxopt')
 
-	
+	# Gradient based	
+	for lip in [lip1, lip2, lip3]:
+		lip.fit(grads = grads)
+
 	for g in grads:
-		gap1 = np.min(scipy.linalg.eigvalsh(H1 - np.outer(g,g)))
-		gap2 = np.min(scipy.linalg.eigvalsh(H2 - np.outer(g,g)))
-		gap3 = np.min(scipy.linalg.eigvalsh(H3 - np.outer(g,g)))
+		gap1 = np.min(scipy.linalg.eigvalsh(lip1.H - np.outer(g,g)))
+		gap2 = np.min(scipy.linalg.eigvalsh(lip2.H - np.outer(g,g)))
+		gap3 = np.min(scipy.linalg.eigvalsh(lip3.H - np.outer(g,g)))
 		print("%7.2e \t %7.2e \t %7.2e" % (gap1,gap2, gap3))
 		assert gap1 >= -1e-6
 		assert gap2 >= -1e-6
 		assert gap3 >= -1e-6
 
-	#print(H1)
-	print(np.trace(H1))
-	#print(H2)
-	print(np.trace(H2))
-	print(np.trace(H3))
-	print(np.linalg.norm(H1- H2, 'fro'))
-	assert np.isclose(np.linalg.norm(H1 - H2, 'fro'),0)
+	assert np.linalg.norm(lip1.H - lip2.H, 'fro') < 1e-6
+	assert np.linalg.norm(lip1.H - lip3.H, 'fro') < 1e-6
+	assert np.linalg.norm(lip2.H - lip3.H, 'fro') < 1e-6
+
+	# Samples
+	for lip in [lip1, lip2, lip3]:
+		lip.fit(X = X, fX = fX)
+	for i in range(M):
+		for j in range(i+1,M):
+			y = X[i] - X[j]
+			for lip in [lip1, lip2, lip3]:
+				gap = y.dot(lip.H.dot(y)) - (fX[i] - fX[j])**2
+				print(float(gap))
+				assert gap >= -1e-8
+
+	assert np.linalg.norm(lip1.H - lip2.H, 'fro') < 1e-5
+	assert np.linalg.norm(lip1.H - lip3.H, 'fro') < 1e-5
+	assert np.linalg.norm(lip2.H - lip3.H, 'fro') < 1e-5
+		
+	
 
 def test_set_uncertainty():
 	from psdr.lipschitz import LowerBound, UpperBound
@@ -152,5 +158,6 @@ def test_lipschitz_bound_domain():
 
 if __name__ == '__main__':
 	#test_lipschitz_bound_domain()
-	test_lipschitz_grad()
-	test_lipschitz_func()
+	#test_lipschitz_grad()
+	#test_lipschitz_func()
+	test_solver()
