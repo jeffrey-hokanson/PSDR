@@ -31,6 +31,8 @@ from .pgf import PGF
 
 __all__ = ['LipschitzMatrix', 'LipschitzConstant', 'DiagonalLipschitzMatrix']
 
+from .domains import merge
+
 class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	r"""Constructs the subspace-based dimension reduction from the Lipschitz Matrix.
 
@@ -77,31 +79,25 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		self._L = None
 		self.kwargs = kwargs
 
-		if 'solver' not in self.kwargs:
-			self.kwargs['solver'] = cp.CVXOPT
-		
+		assert method in ['cvxopt', 'param', 'cvxpy']
 		if method == 'cvxopt':
 			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxopt
 		elif method == 'param':	
 			self._build_lipschitz_matrix = self._build_lipschitz_matrix_param
 		elif method == 'cvxpy':	
 			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxpy
-		else:
-			raise NotImplementedError
+
 
 		if epsilon is not None:
-			assert epsilon >= 0, "Epsilon must be positive"
 			epsilon = float(epsilon)
+			assert epsilon >= 0, "Epsilon must be positive"
 		self.epsilon = epsilon
 		
-		if 'abstol' not in kwargs:
-			self.kwargs['abstol'] = 1e-7
-		if 'reltol' not in kwargs:
-			self.kwargs['reltol'] = 1e-6
-		if 'feastol' not in kwargs:
-			self.kwargs['feastol'] = 1e-7
-		if 'refinement' not in kwargs:
-			self.kwargs['refinement'] = 1
+		# According to a google groups discussion
+		# https://groups.google.com/forum/#!topic/cvxopt/HSc80A5mWzY
+		# Too small tolerances can yield divide by zero errors
+		# 1e-10 was breaking, using 1e-9 instead
+		self.kwargs = merge({'solver': 'CVXOPT', 'abstol':1e-9, 'reltol':1e-9, 'feastol':1e-9, 'refinement': 1, 'kktsolver': 'robust'} , kwargs)
 
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Estimate the Lipschitz matrix from data
@@ -331,6 +327,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		else:
 			cvxopt.solvers.options['show_progress'] = False
 
+		# For some reason, using the 'kktsolver' option fails
 		for name in ['abstol', 'reltol', 'feastol', 'refinement']:
 			if name in self.kwargs:
 				cvxopt.solvers.options[name] = self.kwargs[name]
