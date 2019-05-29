@@ -575,6 +575,8 @@ class DiagonalLipschitzMatrix(CoordinateBasedDimensionReduction, LipschitzMatrix
 
 	def _fit(self, X, fX, grads, epsilon, scale):
 		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale, epsilon, structure = 'diag')
+		# Ensure entries are numerically positive
+		H = np.diag(np.maximum(np.diag(H),0))
 		# Unlike the matrix case, we do not rotate coordinates
 		self._H = scale**2 * H
 		self._L = scale * np.diag(np.sqrt(np.diag(H)))
