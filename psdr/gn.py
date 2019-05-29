@@ -51,8 +51,7 @@ def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, traject
 	"""
 	
 	dg = np.inner(g, p)
-	if dg > 0:
-		raise Exception('Descent direction p is not a descent direction: p^T g = %g >= 0' % (dg, ))
+	assert dg <= 0, 'Descent direction p is not a descent direction: p^T g = %g >= 0' % (dg, )
 
 	alpha = 1
 
