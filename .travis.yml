@@ -43,6 +43,7 @@ script:
  - pytest --cov=psdr --cov-branch --cov-config=.coveragerc tests/
 
 after_success:
- - if python --version | grep -c "3.7" ; then coveralls ; fi
+ - coveralls
 
-
+notifications:
+ webhooks: https://coveralls.io/webhook
