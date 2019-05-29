@@ -17,8 +17,12 @@ matrix:
 #   osx_image: xcode10.2
 #    python: "3.6-dev"
 
+# Merging parallel build results https://docs.coveralls.io/parallel-build-webhook
 env: 
  - COVERALLS_PARALLEL=true
+
+notifications:
+ webhooks: https://coveralls.io/webhook
 
 language: python
 
@@ -48,5 +52,3 @@ script:
 after_success:
  - coveralls
 
-notifications:
- webhooks: https://coveralls.io/webhook
