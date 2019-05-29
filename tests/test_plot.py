@@ -89,6 +89,7 @@ def test_score():
 	print(lip.U)	
 	
 	ax = lip.plot_score(ax = None)
+	ax = lip.plot_score()
 	#ax.figure.tight_layout()
 	#print(lip.U)	
 
