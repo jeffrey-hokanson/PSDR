@@ -32,6 +32,26 @@ def test_equivalence(m = 3, p = 5):
 			print(scipy.linalg.svdvals(U1.T.dot(U2)))
 			assert np.all(np.isclose(scipy.linalg.svdvals(U1.T.dot(U2)), 1.))
 
+def test_VC(m = 3, p = 5):
+	M = 100
+	X = np.random.randn(M, m)
+	bases = [MonomialTensorBasis(m, p),
+		LegendreTensorBasis(m, p),
+		ChebyshevTensorBasis(m, p),
+		LaguerreTensorBasis(m, p),
+		HermiteTensorBasis(m, p),
+		]
+
+	for basis in bases:
+		V = basis.V(X)
+		# Check vector multiplication
+		c = np.random.randn(V.shape[1])
+		assert np.all(np.isclose(V.dot(c), basis.VC(X, c)))	
+
+		# Check matrix multplication
+		c = np.random.randn(V.shape[1], 2)
+		assert np.all(np.isclose(V.dot(c), basis.VC(X, c)))	
+
 
 def test_der(m = 3, p = 5, M = 10):
 	X = np.random.randn(M, m)
