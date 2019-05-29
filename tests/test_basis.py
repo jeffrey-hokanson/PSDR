@@ -50,6 +50,7 @@ def test_VC(m = 3, p = 5):
 
 		# Check matrix multplication
 		c = np.random.randn(V.shape[1], 2)
+		c[0:2,1] = 0.
 		assert np.all(np.isclose(V.dot(c), basis.VC(X, c)))	
 
 
