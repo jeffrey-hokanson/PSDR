@@ -93,8 +93,11 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			assert epsilon >= 0, "Epsilon must be positive"
 		self.epsilon = epsilon
 		
-
-		self.kwargs = merge({'solver': 'CVXOPT', 'abstol':1e-10, 'reltol':1e-10, 'feastol':1e-10, 'refinement': 1, 'kktsolver': 'robust'} , kwargs)
+		# According to a google groups discussion
+		# https://groups.google.com/forum/#!topic/cvxopt/HSc80A5mWzY
+		# Too small tolerances can yield divide by zero errors
+		# 1e-10 was breaking, using 1e-9 instead
+		self.kwargs = merge({'solver': 'CVXOPT', 'abstol':1e-9, 'reltol':1e-9, 'feastol':1e-9, 'refinement': 1, 'kktsolver': 'robust'} , kwargs)
 
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Estimate the Lipschitz matrix from data
