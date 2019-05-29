@@ -97,7 +97,68 @@ def test_finite_diff():
 	err = check_derivative(x, fun.eval, fun.grad)
 	print(err)
 	assert err < 1e-5
-		
+
+	# Check asking for multiple gradients
+	X = fun.domain.sample(5)
+	grads = fun.grad(X)
+	for i, x in enumerate(X):
+		assert np.all(np.isclose(grads[i], fun.grad(x)))
+	
+
+def test_return_grad(m=3):
+	A = np.random.randn(m, m)
+	A += A.T
+
+	def func(x, return_grad = False):
+		fx = 0.5*x.dot(A.dot(x))
+
+		if return_grad:
+			grad = A.dot(x)
+			return fx, grad
+		else:
+			return fx
+	
+	dom = BoxDomain(-2*np.ones(m), 2*np.ones(m))
+	x = dom.sample(1)
+
+	fun = Function(func, dom)	
+	# Check the derivative
+	x_norm = dom.normalize(x)
+	err = check_derivative(x_norm, fun.eval, fun.grad)
+	assert err < 1e-5
+
+	# Check wrapping
+	fx, grad = func(x, return_grad = True)
+	assert np.isclose(fx, fun(x_norm))
+	# multiply the grad by two to correct the change of coordinates
+	assert np.all(np.isclose(2*grad, fun.grad(x_norm)))
+
+	# Check multiple outputs
+	X = dom.sample(10)
+	fX, grads = fun(X, return_grad = True)
+	for i, x in enumerate(X):
+		assert np.isclose(fun(x), fX[i])
+		assert np.all(np.isclose(fun.grad(x), grads[i]))
+
+	# Check vectorized functions
+	def func2(X, return_grad = False):
+		X = np.atleast_2d(X)
+		fX = np.vstack([0.5*x.dot(A.dot(x)) for x in X])
+		if return_grad:
+			grad = X.dot(A)
+			return fX, grad
+		else:
+			return fX
+
+	fun2 = Function(func2, dom, vectorized = True)
+
+	x = fun2.domain.sample()
+	X = fun2.domain.sample(5)
+	assert np.isclose(fun2(x), fun(x)) 
+	assert np.all(np.isclose(fun2(X), fun(X)))
+	assert np.all(np.isclose(fun2.grad(X), fun.grad(X)))
+	
 if __name__ == '__main__':
 	#test_mult_output()
-	test_finite_diff()	
+	#test_finite_diff()	
+	test_return_grad()
