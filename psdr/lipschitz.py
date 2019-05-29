@@ -31,6 +31,8 @@ from .pgf import PGF
 
 __all__ = ['LipschitzMatrix', 'LipschitzConstant', 'DiagonalLipschitzMatrix']
 
+from .domains import merge
+
 class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	r"""Constructs the subspace-based dimension reduction from the Lipschitz Matrix.
 
@@ -77,31 +79,22 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		self._L = None
 		self.kwargs = kwargs
 
-		if 'solver' not in self.kwargs:
-			self.kwargs['solver'] = cp.CVXOPT
-		
+		assert method in ['cvxopt', 'param', 'cvxpy']
 		if method == 'cvxopt':
 			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxopt
 		elif method == 'param':	
 			self._build_lipschitz_matrix = self._build_lipschitz_matrix_param
 		elif method == 'cvxpy':	
 			self._build_lipschitz_matrix = self._build_lipschitz_matrix_cvxpy
-		else:
-			raise NotImplementedError
+
 
 		if epsilon is not None:
-			assert epsilon >= 0, "Epsilon must be positive"
 			epsilon = float(epsilon)
+			assert epsilon >= 0, "Epsilon must be positive"
 		self.epsilon = epsilon
 		
-		if 'abstol' not in kwargs:
-			self.kwargs['abstol'] = 1e-7
-		if 'reltol' not in kwargs:
-			self.kwargs['reltol'] = 1e-6
-		if 'feastol' not in kwargs:
-			self.kwargs['feastol'] = 1e-7
-		if 'refinement' not in kwargs:
-			self.kwargs['refinement'] = 1
+
+		self.kwargs = merge({'solver': 'CVXOPT', 'abstol':1e-10, 'reltol':1e-10, 'feastol':1e-10, 'refinement': 1, 'kktsolver': 'robust'} , kwargs)
 
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Estimate the Lipschitz matrix from data
@@ -331,7 +324,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		else:
 			cvxopt.solvers.options['show_progress'] = False
 
-		for name in ['abstol', 'reltol', 'feastol', 'refinement']:
+		for name in ['abstol', 'reltol', 'feastol', 'refinement', 'kktsolver']:
 			if name in self.kwargs:
 				cvxopt.solvers.options[name] = self.kwargs[name]
 

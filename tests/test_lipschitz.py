@@ -15,8 +15,8 @@ def test_lipschitz_grad(N = 10):
 	grads = func.grad(X)
 	
 
-	lip_mat = LipschitzMatrix(ftol = 1e-10, gtol = 1e-10)
-	lip_diag = DiagonalLipschitzMatrix(ftol = 1e-10, gtol = 1e-10)
+	lip_mat = LipschitzMatrix()
+	lip_diag = DiagonalLipschitzMatrix()
 	lip_const = LipschitzConstant()
 	
 	
@@ -27,7 +27,7 @@ def test_lipschitz_grad(N = 10):
 		for g in grads:
 			gap = np.min(scipy.linalg.eigvalsh(H - np.outer(g,g)))
 			print(gap)
-			assert gap >= -1e-6
+			assert gap >= -1e-8
 		
 def test_lipschitz_func(M = 20):
 
@@ -51,7 +51,7 @@ def test_lipschitz_func(M = 20):
 				y = X[i] - X[j]
 				gap = y.dot(H.dot(y)) - (fX[i] - fX[j])**2
 				print(gap)
-				assert gap >= -1e-6
+				assert gap >= -1e-8
 
 
 
@@ -151,4 +151,6 @@ def test_lipschitz_bound_domain():
 	assert ub >= np.max(ubs)
 
 if __name__ == '__main__':
-	test_lipschitz_bound_domain()
+	#test_lipschitz_bound_domain()
+	test_lipschitz_grad()
+	test_lipschitz_func()
