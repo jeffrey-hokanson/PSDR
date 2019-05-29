@@ -192,8 +192,13 @@ def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
 
 	# Push points back into the domain if they fall outside due to numerical issues
 	# TODO: Is this really necessary?
-	I = np.argwhere(~domain.isinside(X0))
-	for i in I:
-		X0[i] = domain.closest_point(X0[i])
+	#I = np.argwhere(~domain.isinside(X0))
+	#for i in I:
+	#	X0[i] = domain.closest_point(X0[i], verbose = True)
+	
+	# Keep only those points that are inside the domain
+	# (all points should be, but sometimes numerical issues push outside)
+	#print("Not inside", np.sum(~domain.isinside(X0)), " of ",  len(X0) )
+	X0 = X0[domain.isinside(X0)]
 
 	return X0
