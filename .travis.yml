@@ -17,6 +17,9 @@ matrix:
 #   osx_image: xcode10.2
 #    python: "3.6-dev"
 
+env: 
+ - COVERALLS_PARALLEL=true
+
 language: python
 
 services:
