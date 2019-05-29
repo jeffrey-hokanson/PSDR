@@ -324,7 +324,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		else:
 			cvxopt.solvers.options['show_progress'] = False
 
-		for name in ['abstol', 'reltol', 'feastol', 'refinement', 'kktsolver']:
+		# For some reason, using the 'kktsolver' option fails
+		for name in ['abstol', 'reltol', 'feastol', 'refinement']:
 			if name in self.kwargs:
 				cvxopt.solvers.options[name] = self.kwargs[name]
 

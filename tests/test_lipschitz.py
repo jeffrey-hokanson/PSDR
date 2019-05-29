@@ -22,7 +22,7 @@ def test_lipschitz_grad(N = 10):
 	for lip in [lip_mat, lip_diag, lip_const]: 
 		lip.fit(grads = grads)
 		H = np.copy(lip.H)
-
+		print(lip)
 		for g in grads:
 			gap = np.min(scipy.linalg.eigvalsh(H - np.outer(g,g)))
 			print(gap)
