@@ -14,7 +14,7 @@ def test_multiobj_sample():
 
 	Xhat = []
 	for i in range(10):
-		x = psdr.multiobj_seq_maximin_sample(dom, Xhat, Ls, Nsamp = 10)
+		x = psdr.seq_maximin_sample(dom, Xhat, Ls, Nsamp = 10)
 		Xhat.append(x)
 	
 	Xhat = np.array(Xhat)
