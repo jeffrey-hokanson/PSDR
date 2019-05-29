@@ -11,7 +11,7 @@ from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain, ConvexHullDomain, SolverError
 
 __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
-	'multiobj_seq_maximin_sample', 'StretchedSampler']
+	'StretchedSampler']
 
 
 def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
@@ -128,117 +128,80 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	return X0
 		
 
-def seq_maximin_sample(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None):
-	r""" Performs one step of sequential maximin sampling. 
+def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), depth = np.inf, X0 = None):
+	r""" A multi-objective sequential maximin sampling 
+	
 
 	Given an existing set of samples :math:`\lbrace \widehat{\mathbf{x}}_j\rbrace_{j=1}^M\subset \mathcal{D}`
 	from the domain :math:`\mathcal{D} \subset \mathbb{R}^m`, this algorithm finds a point :math:`\mathbf{x} \in \mathcal{D}`
-	that approximately solves the problem
+	that approximately maximizes the distance of the new point to all other points in multiple distance metrics 
+	give by matrices :math:`\mathbf{L}_i \in \mathbb{R}^{m\times m}`
 
 	.. math::
 
-		\max_{\mathbf{x} \in \mathcal{D}} \min_{j=1,\ldots,M} \|\mathbf{L}(\mathbf{x} - \widehat{\mathbf{x}}_j)\|_2.
+		\max_{\mathbf{x} \in \mathcal{D}} \left\lbrace 
+			\min_{j=1,\ldots,M} \|\mathbf{L}_i (\mathbf{x} - \widehat{\mathbf{x}}_j)\|_2
+			\right\rbrace_{i}
 
 	This algorithm uses :meth:`psdr.voronoi_vertex` to generate local maximizers of this problem
-	and then returns the best of these.
+	for each metric and then tries to greedily satisfy the distance requirements for each metric.
 
+	A typical use case will have Ls that are of size (1,m)
+	
 
 	Parameters
 	----------
 	domain: Domain
-		Domain on which to sample of dimension m
-	Xhat: array-like (?, m)
-		Existing samples on the domain
-	L: array-like (?, m) optional
-		Matrix defining the distance metric on the domain
-	Nsamp: int, default 1e4
-		Number of samples to use for vertex sampling
-	X0: array-like (?, m)
-		Samples from the domain to use in :meth:`psdr.voronoi_vertex`
-
-	Returns
-	-------
-	x: np.ndarray(m)
-		Sample from inside the domain
+		The domain from which we will be sampling
+	Xhat: array-like (M, m)
+		Previously existing samples from the domain 
+	Ls: list of array-like (?, m) matrices, optional
+		The weight matrix (e.g., Lipschitz matrix) corresponding to each metric;
+		defaults to the identity matrix
+	Nsamp: int, optional (default 1000)
+		Number of samples to use when finding Voronoi vertices
+	depth: int, optional 
+		If specified, this stops the process trying to satisfy multiple 
+		norms after this many have been satisfied
 	"""
-	Xhat = np.array(Xhat)
-	
-	if len(Xhat) == 0:
-		# If we don't have any samples, pick one of the corners
-		if L is None:
-			return domain.corner(np.random.randn(len(domain)))
-		else:
-			_, s, VT = scipy.linalg.svd(L)
-			return domain.corner(VT.T[:,0])
-	
-	Xhat = np.atleast_2d(Xhat)
+	if Ls is None:
+		Ls = [np.eye(len(domain))]
 
-	# Generate candidate points from the Voronoi vertices
-	if X0 is None:
-		if L is None:
-			X0 = initial_sample(domain, np.eye(len(domain)), Nsamp = Nsamp)
-		else:
-			X0 = initial_sample(domain, L, Nsamp = Nsamp)
-
-	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = True)
-
-	# Compute the Euclidean distance between candidates Xcan and current samples Xhat
-	De = cdist(Xcan, Xhat)
-	if L is not None:
-		# If we have a non-trivial L matrix, also compute the distance here
-		D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
-	else:
-		D = De
-
-	# Find the distance to the closest neighbor
-	d = np.min(D, axis = 1)
-	de = np.min(De, axis = 1)
-
-	# The index of the candidate point that is furthest
-	# away from all its neighbors
-	i = np.argmax(d)
-
-	# Find points that are equivalent in distance 
-	I = np.isclose(d[i], d)
-
-	# Zero out their Euclidean distance we don't chose those	
-	de[~I] = 0.
-
-	# return the furthest point 
-	i = np.argmax(de)
-
-	return Xcan[i]
-
-
-def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3)):
-	r""" A multi-objective sequential maximin sampling 
-
-	The goal of this algorithm is to return a new sample that maximizes
-	the distance between samples in *several* different metrics.
-
-
-	A typical use case will have Ls that are of size (1,m)
-	
-	"""
-
-	Xhat = np.array(Xhat)
+	# If we have no samples we pick a corner in the direction
+	# of the dominant singular vector of the stacked L matrices
 	if len(Xhat) == 0:
 		Lall = np.vstack(Ls)
-		return seq_maximin_sample(domain, Xhat, L = Lall, Nsamp = Nsamp) 
+		_, s, VT = scipy.linalg.svd(Lall)
+		# If several singular values are close, we randomly select a direction 
+		# from that subspace
+		I = np.argwhere(np.isclose(s, s[0])).flatten()
+		u = VT.T[:,I].dot(np.random.randn(len(I)))
+		return domain.corner(u)
+	
+	Xhat = np.array(Xhat)
+	Xhat = np.atleast_2d(Xhat)
+
+	#############################################################################
+	# Otherwise, we proceed with identifiying Voronoi vertices associated with
+	# each of the metrics (L's) provided.
+	#############################################################################
 
 	vertices = []
 	it = 0
 	queue = []
 	for k, L in enumerate(Ls):
 		# Find initial samples well separated
-		X0 = initial_sample(domain, L, Nsamp = Nsamp//len(Ls))
-		
+		if X0 is None:
+			X = initial_sample(domain, L, Nsamp = Nsamp//(len(Ls)+1))
+		else:
+			X = np.copy(X0)
+
 		# find the Voronoi vertices; we don't randomize as we are only interested
 		# in the component that satisfies the constraint
-		vertices = voronoi_vertex(domain, Xhat, X0, L = L, randomize = False) 
+		vertices = voronoi_vertex(domain, Xhat, X, L = L, randomize = False) 
 		
 		# Remove duplicates in the L norm
-		I = unique_points(L.dot(X0.T).T)
+		I = unique_points(L.dot(vertices.T).T)
 		vertices = vertices[I]
 
 		# Compute the distances between points in this metric
@@ -251,14 +214,16 @@ def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3)):
 			queue.append( (-d, it, k, vertex) )
 			it += 1
 
+	#############################################################################
+	# Now greedily add constraints based on these Voronoi vertices
+	#############################################################################
 
-	# Now greedily add constraints
 	domain_samp = domain
-	used = []
+	used = []		# The indices of metrics (given by L) that we have already used
 
 	queue.sort()
 	for d, it, k, vertex in queue:
-		if domain_samp.intrinsic_dimension == 0 or len(used) == len(Ls):
+		if domain_samp.intrinsic_dimension == 0 or len(used) == len(Ls) or len(used) >= depth:
 			break
 	
 		# We ignore constraints from L's we have already considered
@@ -266,18 +231,24 @@ def multiobj_seq_maximin_sample(domain, Xhat, Ls, Nsamp = int(1e3)):
 		if k not in used:
 			L = Ls[k]
 	
-			# Try adding this equality constraint
+			# Try adding this as an equality constraint
 			domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vertex))
 			if not domain_test.empty:
 				domain_samp = domain_test
 				used.append(k)
-#				print("appended %d" % k)
-#				print(vertex)
-#				print(L, "x =", L.dot(vertex))
 
-	# Now sample the resulting domain 
-	Lall = np.vstack(Ls)
-	return seq_maximin_sample(domain_samp, Xhat, L = Lall, Nsamp = Nsamp)
+	#############################################################################
+	# On the resulting domain, we try to place points maximizing the minimum distance
+	# in the *unweighted* Euclidian norm.
+	#############################################################################
+	
+	X0 = initial_sample(domain_samp, np.eye(len(domain)), Nsamp = Nsamp//(len(Ls)+1))
+	vertices = voronoi_vertex(domain_samp, Xhat, X0)  
+	# Find the distance between the vertices and the existing samples
+	D = cdist(vertices, Xhat)
+	D = np.min(D, axis = 1)
+	# Return the one that is furthest away from the existing samples
+	return vertices[np.argmax(D)] 
 
 
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):
@@ -322,10 +293,10 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None )
 		Stephen R. Lindemann and Peng Cheng
 		Proceedings of the 2005 Interational Conference on Robotics and Automation
 	"""
+	if L is None:
+		L = np.eye(len(domain))
 	
-	if X0 is None and L is None:
-		X0 = domain.sample(Nsamp)
-	elif X0 is None and L is not None:
+	if X0 is None:
 		X0 = initial_sample(domain, L, Nsamp = Nsamp)
 
 	# Since we only care about distance in L, we can terminate early if L is rank-deficient
@@ -333,10 +304,7 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None )
 	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = False)
 
 	# Euclidean distance
-	if L is not None:
-		D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
-	else:
-		D = cdist(Xcan, Xhat)
+	D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
 
 	d = np.min(D, axis = 1)
 	return float(np.max(d))
@@ -451,14 +419,14 @@ class SequentialMaximinSampler(Sampler):
 		Xnew = []
 		# As L is fixed, we can draw these samples at once
 		for i in range(draw):
-			xnew = seq_maximin_sample(self._fun.domain, self._X, L = self._L)
+			xnew = seq_maximin_sample(self._fun.domain, self._X, Ls = [self._L])
 			Xnew.append(xnew)
 			if verbose:
 				print('%3d: ' % (i,),  ' '.join(['%8.3f' % x for x in xnew]))
 			self._X = np.vstack([self._X, xnew])
 
 		# Now we evaluate the function at these new points
-		# (this takes advantage of potential vectorization of fun
+		# (this takes advantage of potential vectorization of fun)
 		fXnew = self._fun.eval(Xnew)
 		if self._fX is None:
 			self._fX = fXnew
