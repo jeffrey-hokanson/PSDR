@@ -3,6 +3,7 @@ import numpy as np
 from psdr import NormalDomain
 
 def test_sampling(m = 5):
+	np.random.seed(0)
 	mean = np.random.randn(m)
 	L = np.random.randn(m,m)
 	cov = L.dot(L.T)
@@ -37,6 +38,7 @@ def test_sampling(m = 5):
 	assert np.isclose(1-frac_inside, truncate, atol = 100*truncate/np.sqrt(X.shape[0])), "Constraint doesn't seem to get right fraction included"
 
 def test_normalized_domain(m = 5):
+	np.random.seed(0)
 	mean = np.random.randn(m)
 	L = np.random.randn(m,m)
 	cov = L.dot(L.T)

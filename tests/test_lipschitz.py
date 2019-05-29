@@ -6,9 +6,8 @@ from psdr.demos import OTLCircuit
 
 from checkder import *
 
-np.random.seed(0)
-
 def test_lipschitz_grad(N = 10):
+	np.random.seed(0)
 
 	func = OTLCircuit()
 	X = func.domain.sample(N)
@@ -30,6 +29,7 @@ def test_lipschitz_grad(N = 10):
 			assert gap >= -1e-8
 		
 def test_lipschitz_func(M = 20):
+	np.random.seed(0)
 
 	func = OTLCircuit()
 	X = func.domain.sample(M)
@@ -55,7 +55,8 @@ def test_lipschitz_func(M = 20):
 
 
 
-def test_solver(N = 30, M = 20):
+def test_solver(N = 50, M = 20):
+	np.random.seed(0)
 	func = OTLCircuit()
 	X = func.domain.sample(N)
 	grads = func.grad(X)
@@ -80,9 +81,9 @@ def test_solver(N = 30, M = 20):
 		assert gap2 >= -1e-6
 		assert gap3 >= -1e-6
 
-	assert np.linalg.norm(lip1.H - lip2.H, 'fro') < 1e-6
-	assert np.linalg.norm(lip1.H - lip3.H, 'fro') < 1e-6
-	assert np.linalg.norm(lip2.H - lip3.H, 'fro') < 1e-6
+	assert np.linalg.norm(lip1.H - lip2.H, 'fro') < 1e-4
+	assert np.linalg.norm(lip1.H - lip3.H, 'fro') < 1e-4
+	assert np.linalg.norm(lip2.H - lip3.H, 'fro') < 1e-4
 
 	# Samples
 	for lip in [lip1, lip2, lip3]:
@@ -95,14 +96,15 @@ def test_solver(N = 30, M = 20):
 				print(float(gap))
 				assert gap >= -1e-8
 
-	assert np.linalg.norm(lip1.H - lip2.H, 'fro') < 1e-5
-	assert np.linalg.norm(lip1.H - lip3.H, 'fro') < 1e-5
-	assert np.linalg.norm(lip2.H - lip3.H, 'fro') < 1e-5
+	assert np.linalg.norm(lip1.H - lip2.H, 'fro') < 1e-4
+	assert np.linalg.norm(lip1.H - lip3.H, 'fro') < 1e-4
+	assert np.linalg.norm(lip2.H - lip3.H, 'fro') < 1e-4
 		
 	
 
 def test_set_uncertainty():
 	from psdr.lipschitz import LowerBound, UpperBound
+	np.random.seed(0)
 	L = np.eye(2)
 	L[1,1] = 0.1
 	dom = BoxDomain([-1,-1],[1,1])
@@ -120,6 +122,7 @@ def test_set_uncertainty():
 	assert err < 1e-7, "Gradient error too large"
 
 def test_lipschitz_uncertainty():
+	np.random.seed(0)
 	fun = OTLCircuit()
 	X = fun.domain.sample_grid(2)
 	fX = fun(X)
