@@ -2,4 +2,6 @@
 omit =
 	psdr/duu.py
 	psdr/pgf.py
+	psdr/ridgeopt.py
+	psdr/filtersqp.py
 	
