@@ -155,7 +155,7 @@ class PolynomialApproximation(PolynomialFunction):
 		elif self.basis_name == 'hermite':
 			self.basis = HermiteTensorBasis(m, self.degree) 
 		else:
-			raise NotImplementedError
+			raise NotImplementedError('Unknown basis type specified')
 
 		# Scale the basis to the problem
 		self.basis.set_scale(X)

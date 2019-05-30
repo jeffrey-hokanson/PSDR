@@ -28,6 +28,31 @@ def test_poly_hess(dimension = 3, degree = 5):
 
 	assert check_hessian(x, pf.eval, lambda x: pf.hessian(x).reshape(dimension, dimension) ) < 5e-5
 
+def test_dimensions(dimension = 3, degree = 5):
+	np.random.seed(0)
+	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
+	pf = PolynomialFunction(dimension, degree, coef)
+
+	x = np.random.randn(dimension)
+	X = np.random.randn(10, dimension)
+	
+	print('pf.eval(x).shape', pf.eval(x).shape) 
+	assert pf.eval(x).shape == (1,)
+	print('pf.eval(X).shape', pf.eval(X).shape) 
+	assert pf.eval(X).shape == (10,)
+
+	# gradients
+	print('pf.grad(x).shape', pf.grad(x).shape) 
+	assert pf.grad(x).shape == (dimension,)
+	print('pf.grad(X).shape', pf.grad(X).shape) 
+	assert pf.grad(X).shape == (10,dimension)
+	
+	# Hessians
+	print('pf.hessian(x).shape', pf.hessian(x).shape) 
+	assert pf.hessian(x).shape == (dimension,dimension,)
+	print('pf.hessian(X).shape', pf.hessian(X).shape) 
+	assert pf.hessian(X).shape == (10,dimension, dimension)
+	
 
 def test_poly_basis(dimension = 2, degree = 5):
 	""" test different bases"""	
@@ -54,7 +79,7 @@ def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
 
 	fXnoise = np.random.randn(X.shape[0])
 
-	for bound in ['lower', 'upper']:
+	for bound in ['lower', 'upper', None]:
 		for norm in [1,2, np.inf]:
 			for basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']:
 				pa = PolynomialApproximation(degree, basis = basis, norm = norm, bound = bound)
@@ -72,3 +97,6 @@ def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
 						print(pa(X[I]), fXnoise[I])
 						assert False
 					#assert np.all(pa(X) >= fXnoise -1e-7)
+
+if __name__ == '__main__':
+	test_dimensions()	
