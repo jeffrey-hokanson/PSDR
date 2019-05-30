@@ -4,4 +4,5 @@ omit =
 	psdr/pgf.py
 	psdr/ridgeopt.py
 	psdr/filtersqp.py
+	psdr/sqp.py
 	
