@@ -274,6 +274,14 @@ class Function(BaseFunction):
 			return fX, grad
 		else:
 			return self.eval(X_norm, **kwargs), self.grad(X_norm, **kwargs)					
+
+	def call_async(self, X_norm, return_grad = False, **kwargs):
+		r""" Calls the function in an async. manner
+		
+		This mainly exists to cleanly separate eval_async which *only* returns function values
+		and this function, call_async, which can optionally return gradients, like __call__.
+		"""
+		return self.eval_async(X_norm, return_grad = return_grad, **kwargs)
 	
 #	def __get__(self, i):
 #		"""Get a particular sub-function as another Function"""
