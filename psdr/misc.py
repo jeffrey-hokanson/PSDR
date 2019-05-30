@@ -8,7 +8,7 @@ def merge(x, y):
 	return z
 
 DEFAULT_CVXPY_KWARGS = {
-	'solver': cp.CVXOPT,
+	'solver': 'CVXOPT',
 	'reltol': 1e-10,
 	'abstol' : 1e-10,
 	'verbose': False,

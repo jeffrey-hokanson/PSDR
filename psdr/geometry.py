@@ -4,7 +4,6 @@ from __future__ import print_function
 import numpy as np
 from scipy.spatial import Voronoi 
 from scipy.spatial.distance import cdist, pdist, squareform
-from .domains import EmptyDomain
 
 __all__ = ['sample_sphere', 'unique_points', 'sample_simplex']
 

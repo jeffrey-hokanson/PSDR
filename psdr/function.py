@@ -5,13 +5,9 @@ import inspect
 
 import cloudpickle
 
-from .domains import Domain
+#from .domains import Domain
 
-def merge(x, y):
-	""" merge two dictionaries"""
-	z = x.copy()
-	z.update(y)
-	return z
+from .misc import merge
 
 
 __all__ = ['Function', 'BaseFunction']

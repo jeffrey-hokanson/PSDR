@@ -20,8 +20,10 @@ import warnings
 TOL = 1e-5
 
 from .quadrature import *
+from .misc import *
 
 __all__ = ['Domain',
+		'EuclideanDomain',
 		'UnboundedDomain',
 		'LinQuadDomain',
 		'LinIneqDomain',
@@ -33,22 +35,8 @@ __all__ = ['Domain',
 		'NormalDomain',
 		'LogNormalDomain',
 		'TensorProductDomain',
-		'SolverError',
-		'DEFAULT_CVXPY_KWARGS'
 	] 
 
-def merge(x, y):
-	z = x.copy()
-	z.update(y)
-	return z
-
-DEFAULT_CVXPY_KWARGS = {'solver': cp.CVXOPT, 'reltol': 1e-10, 'abstol' : 1e-10, 'verbose': False, 'kktsolver': 'robust', 'warm_start': True}
-
-class EmptyDomain(Exception):
-	pass 
-
-class SolverError(ValueError):
-	pass
 
 def closest_point(dom, x0, L, **kwargs):
 	r""" Solve the closest point problem given a domain
@@ -68,11 +56,8 @@ def closest_point(dom, x0, L, **kwargs):
 	LD = L.dot(D)
 	obj = cp.norm(LD*x_norm - LD.dot(x0_norm))
 
-	# There is a bug in cvxpy causing these deprecation warnings to appear
-	with warnings.catch_warnings():
-		warnings.simplefilter('ignore', PendingDeprecationWarning)
-		problem = cp.Problem(cp.Minimize(obj), constraints)
-		problem.solve(**kwargs)
+	problem = cp.Problem(cp.Minimize(obj), constraints)
+	problem.solve(**kwargs)
 
 	# TODO: Check solution state 			
 	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))	
@@ -81,34 +66,30 @@ def constrained_least_squares(dom, A, b, **kwargs):
 	x_norm = cp.Variable(len(dom))
 	D = dom._unnormalize_der() 
 	c = dom._center()	
-	# There is a bug in cvxpy causing these deprecation warnings to appear
-	with warnings.catch_warnings():
-		warnings.simplefilter('ignore', PendingDeprecationWarning)
-		# \| A x - b\|_2 
-		obj = cp.norm(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
-		constraints = dom._build_constraints_norm(x_norm)
-		problem = cp.Problem(cp.Minimize(obj), constraints)
-		problem.solve(**kwargs)
+		
+	# \| A x - b\|_2 
+	obj = cp.norm(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
+	constraints = dom._build_constraints_norm(x_norm)
+	problem = cp.Problem(cp.Minimize(obj), constraints)
+	problem.solve(**kwargs)
 	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
 
 def corner(dom, p, **kwargs):
 	x_norm = cp.Variable(len(dom))
 	D = dom._unnormalize_der() 	
-	# There is a bug in cvxpy causing these deprecation warnings to appear
-	with warnings.catch_warnings():
-		warnings.simplefilter('ignore', PendingDeprecationWarning)
-		# p.T @ x
-		if len(dom) > 1:
-			obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
-		else:
-			obj = x_norm*float(D.dot(p))
-		constraints = dom._build_constraints_norm(x_norm)
-		problem = cp.Problem(cp.Maximize(obj), constraints)
-		try:
-			local_kwargs = merge(dom.kwargs, kwargs)
-		except AttributeError:
-			local_kwargs = kwargs
-		problem.solve(**local_kwargs)
+		
+	# p.T @ x
+	if len(dom) > 1:
+		obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
+	else:
+		obj = x_norm*float(D.dot(p))
+	constraints = dom._build_constraints_norm(x_norm)
+	problem = cp.Problem(cp.Maximize(obj), constraints)
+	try:
+		local_kwargs = merge(dom.kwargs, kwargs)
+	except AttributeError:
+		local_kwargs = kwargs
+	problem.solve(**local_kwargs)
 
 	if problem.status not in ['optimal', 'optimal_inaccurate']:
 		raise SolverError
@@ -116,9 +97,14 @@ def corner(dom, p, **kwargs):
 
 
 
-
 class Domain(object):
-	r""" Abstract base class for an input domain
+	r""" Abstract base class for arbitary domain shapes
+	"""
+	pass
+
+
+class EuclideanDomain(Domain):
+	r""" Abstract base class for a Euclidean input domain
 
 	This specifies a domain :math:`\mathcal{D}\subset \mathbb{R}^m`.
 
@@ -973,7 +959,7 @@ class Domain(object):
 				alpha = min(alpha, min(pos_roots))
 		return alpha
 
-class UnboundedDomain(Domain):
+class UnboundedDomain(EuclideanDomain):
 	r""" A domain without any constraints
 	
 	This class implements a subset of the functionality of the Domain
@@ -1018,7 +1004,7 @@ class UnboundedDomain(Domain):
 		else:
 			return np.zeros(X.shape[0],dtype = np.bool)
 
-class LinQuadDomain(Domain):
+class LinQuadDomain(EuclideanDomain):
 	r"""A domain specified by a combination of linear (in)equality constraints and convex quadratic constraints
 
 
@@ -1883,7 +1869,7 @@ class ConvexHullDomain(LinQuadDomain):
 		return inside
 
 
-class TensorProductDomain(Domain):
+class TensorProductDomain(EuclideanDomain):
 	r""" A class describing a tensor product of a multiple domains
 
 
@@ -2035,7 +2021,7 @@ class TensorProductDomain(Domain):
 
 	
 
-class RandomDomain(Domain):
+class RandomDomain(EuclideanDomain):
 	r"""Abstract base class for domains with an associated sampling measure
 	"""
 

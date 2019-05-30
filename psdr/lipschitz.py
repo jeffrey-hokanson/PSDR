@@ -19,7 +19,8 @@ from itertools import combinations
 from tqdm import tqdm
 import time
 
-from .domains import Domain	
+#from .domains import Domain	
+from .misc import merge
 from .subspace import SubspaceBasedDimensionReduction
 from .coord import CoordinateBasedDimensionReduction
 from .sample import initial_sample
@@ -31,7 +32,6 @@ from .pgf import PGF
 
 __all__ = ['LipschitzMatrix', 'LipschitzConstant', 'DiagonalLipschitzMatrix']
 
-from .domains import merge
 
 class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	r"""Constructs the subspace-based dimension reduction from the Lipschitz Matrix.

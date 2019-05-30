@@ -4,7 +4,7 @@ import numpy as np
 import cvxpy as cp
 import warnings
 
-from .domains import Domain, UnboundedDomain
+from .domains import UnboundedDomain
 from .gn import trajectory_linear, linesearch_armijo
 
 
