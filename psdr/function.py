@@ -271,6 +271,9 @@ class Function(BaseFunction):
 				grad = np.vstack(grad)
 
 			grad = D.dot(grad.T).T
+			if len(X_norm.shape) == 1:
+				fX = fX.flatten()
+				grad = grad.reshape(len(self.domain))
 			return fX, grad
 		else:
 			return self.eval(X_norm, **kwargs), self.grad(X_norm, **kwargs)					

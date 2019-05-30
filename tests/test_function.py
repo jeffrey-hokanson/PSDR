@@ -160,12 +160,36 @@ def test_return_grad(m=3):
 
 	# Check the __call__ interface
 	fX, grad = fun2(X, return_grad = True)
+	print(fX.shape, fun(X).shape)
+	assert fX.shape == fun(X).shape
 	assert np.all(np.isclose(fX, fun(X)))
+	print(grad.shape, fun.grad(X).shape)
+	assert grad.shape == fun.grad(X).shape
 	assert np.all(np.isclose(grad, fun.grad(X)))
 	
+	fx, grad = fun2(x, return_grad = True)
+	print(fx.shape, fun(x).shape)
+	assert fx.shape == fun(x).shape
+	assert np.all(np.isclose(fx, fun(x)))
+	print(grad.shape, fun.grad(x).shape)
+	assert grad.shape == fun.grad(x).shape
+	assert np.all(np.isclose(grad, fun.grad(x)))
+	
 	fX, grad = fun(X, return_grad = True)
+	print(fX.shape, fun(X).shape)
+	assert fX.shape == fun(X).shape
 	assert np.all(np.isclose(fX, fun(X)))
+	print(grad.shape, fun.grad(X).shape)
+	assert grad.shape == fun.grad(X).shape
 	assert np.all(np.isclose(grad, fun.grad(X)))
+	
+	fx, grad = fun(x, return_grad = True)
+	print(fx.shape, fun(x).shape)
+	assert fx.shape == fun(x).shape
+	assert np.all(np.isclose(fx, fun(x)))
+	print(grad.shape, fun.grad(x).shape)
+	assert grad.shape == fun.grad(x).shape
+	assert np.all(np.isclose(grad, fun.grad(x)))
 	
 if __name__ == '__main__':
 	#test_mult_output()
