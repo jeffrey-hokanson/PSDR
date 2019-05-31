@@ -23,7 +23,7 @@ RUN apt-get -y update && \
 		perl \
 		autoconf \
 		automake && \
-	python3 -m pip install tqdm
+	python3 -m pip install tqdm argparse
 
 ARG SU2_VER=v6.2.0
 
@@ -43,13 +43,14 @@ RUN	mkdir -p ~/Source && \
 	echo "export SU2_HOME=/root/Source/SU2/" >> /etc/bash.bashrc && \
 	echo "export PYTHONPATH=\$SU2_RUN:\$PYTHONPATH" >> /etc/bash.bashrc
 
-COPY su2_driver.py /root/Source/su2_driver.py
-COPY mesh_out.su2 /root/Source/mesh_out.su2
-COPY def_NACA0012.cfg /root/Source/def_NACA0012.cfg
-COPY inv_NACA0012_def.cfg /root/Source/inv_NACA0012_def.cfg
+COPY naca0012_driver.py /root/naca0012_driver.py
 
-WORKDIR /root/tmp
-ENTRYPOINT ["/usr/bin/python3","-u","/root/Source/su2_driver.py"]
+
+WORKDIR /workdir
+ENV PYTHONPATH="/usr/local/bin"
+ENV SU2_RUN="/usr/local/bin"
+ENV SU2_HOME="/root/Source/SU2"
+ENTRYPOINT ["/usr/bin/python3","/root/naca0012_driver.py"]
 
 
  

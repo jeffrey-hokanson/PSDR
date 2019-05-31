@@ -20,7 +20,8 @@ class NACA0012(Function):
 	"""
 	def __init__(self, n_lower = 10, n_upper = 10, fraction = 0.1):
 		domain = build_hicks_henne_domain(n_lower, n_upper, fraction = fraction)
-		Function.__init__(self, naca0012_func, domain, vectorized = False)
+		Function.__init__(self, naca0012_func, domain, vectorized = False, kwargs = {'n_lower':n_lower, 'n_upper':n_upper})
+
 
 def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
 	dom = BoxDomain(-fraction*np.ones(n_lower), fraction*np.ones(n_lower), names = 'lower bump') * \
@@ -29,7 +30,7 @@ def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
 	return dom
 
 
-def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False):
+def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False, n_lower = 10, n_upper = 10):
 	r"""
 
 
@@ -56,6 +57,7 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data 
 	np.savetxt(workdir + '/my.input', x, fmt = '%.15e')
 	
 	call = "docker run -t --rm --mount  type=bind,source='%s',target='/workdir' jeffreyhokanson/naca0012:%s /workdir/my.input" % (workdir, version)
+	call += " --nlower %d --nupper %d" % (n_lower, n_upper)
 	args = shlex.split(call)
 	with open(workdir + '/output.log', 'a') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
