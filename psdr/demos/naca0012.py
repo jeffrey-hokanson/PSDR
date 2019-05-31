@@ -49,6 +49,7 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data 
 			workdir = tempfile.mkdtemp(dir = '/tmp')
 		else:
 			workdir = tempfile.mkdtemp()
+		assert keep_data == False, "In order to keep the run, specify a path for a directory"
 	else:
 		workdir = os.path.abspath(workdir)
 		os.makedirs(workdir)
@@ -59,7 +60,7 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data 
 	call = "docker run -t --rm --mount  type=bind,source='%s',target='/workdir' jeffreyhokanson/naca0012:%s /workdir/my.input" % (workdir, version)
 	call += " --nlower %d --nupper %d" % (n_lower, n_upper)
 	args = shlex.split(call)
-	with open(workdir + '/output.log', 'a') as log:
+	with open(workdir + '/output.log', 'ab') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
 		while True:
 			# Read output from pipe
