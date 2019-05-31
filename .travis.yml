@@ -38,6 +38,7 @@ before_install:
  - pip install -U --only-binary=numpy, scipy numpy==1.15.4
  - docker pull jeffreyhokanson/oas:v1
  - docker pull jeffreyhokanson/multif:v25
+ - docker pull jeffreyhokanson/naca0012
 
 install:
  - pip install pytest

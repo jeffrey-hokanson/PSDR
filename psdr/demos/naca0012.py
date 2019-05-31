@@ -83,9 +83,3 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data 
 	return Y	
 	
 
-if __name__ == '__main__':
-	naca = NACA0012()
-	X = naca.domain.sample(10)
-	print(naca.domain_app.names)
-	#Y = naca(X, verbose = True)	
-	#print(Y)
