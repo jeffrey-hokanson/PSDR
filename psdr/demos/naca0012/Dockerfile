@@ -28,6 +28,7 @@ RUN apt-get -y update && \
 ARG SU2_VER=v6.2.0
 
 # Install SU2
+# Note that SU2 wants to keep its source around for some reason
 RUN	mkdir -p ~/Source && \
 	cd ~/Source && \
 	git clone https://github.com/su2code/SU2.git && \
@@ -35,11 +36,12 @@ RUN	mkdir -p ~/Source && \
 	git checkout ${SU2_VER}  && \
 	./bootstrap && \
 	./configure && \
-	make -j5 && \ 
+	make -j16 && \ 
 	make install && \
-	cd /root/ && \
-	rm -r /root/Source/SU2
-
+	make clean && \
+    echo "export SU2_RUN=/usr/local/bin/" >> /etc/bash.bashrc && \ 
+	echo "export SU2_HOME=/root/Source/SU2/" >> /etc/bash.bashrc && \
+	echo "export PYTHONPATH=\$SU2_RUN:\$PYTHONPATH" >> /etc/bash.bashrc
 
 COPY su2_driver.py /root/Source/su2_driver.py
 COPY mesh_out.su2 /root/Source/mesh_out.su2

@@ -3,6 +3,8 @@ import numpy as np
 
 from psdr import Function, BoxDomain
 
+__all__ = ['NACA0012']
+
 class NACA0012(Function):
 	r""" A test problem from OpenAeroStruct
 
@@ -25,6 +27,7 @@ def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
 		BoxDomain(-fraction*np.ones(n_upper), fraction*np.ones(n_upper), names = 'upper bump')
 
 	return dom
+
 
 def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False):
 	r"""
