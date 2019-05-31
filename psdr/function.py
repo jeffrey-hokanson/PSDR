@@ -150,27 +150,31 @@ class Function(BaseFunction):
 				return np.vstack([ np.hstack([fun(x, **kwargs) for fun in self._funs]) for x in X])
 
 
-	def eval_async(self, X_norm):
+	def eval_async(self, X_norm, **kwargs):
 		r""" Evaluate the function asyncronously using dask.distributed
 		"""
 		assert self.dask_client is not None, "A dask_client must be specified on class initialization"
+		
+		kwargs = merge(self.kwargs, kwargs)
 
 		X_norm = np.atleast_1d(X_norm)
 		X = self.domain_app.unnormalize(X_norm)
 		X = np.atleast_2d(X)
 
-		def subcall(funs_pickle, x, **kwargs):
+		def subcall(funs_pickle, x, **kwargs_):
 			import cloudpickle
 			funs = [cloudpickle.loads(fun) for fun in funs_pickle]
-			return [fun(x, **kwargs) for fun in funs]
+			return [fun(x, **kwargs_) for fun in funs]
 
-		results = [self.dask_client.submit(subcall, self._funs_pickle, x, **self.kwargs) for x in X]	
+		results = [self.dask_client.submit(subcall, self._funs_pickle, x, **kwargs) for x in X]	
 		if len(X_norm.shape) == 1:
 			return results[0]
 		else:
 			return results
 
-	def grad(self, X_norm):
+	def grad(self, X_norm, **kwargs):
+		kwargs = merge(self.kwargs, kwargs)
+		
 		X_norm = np.atleast_1d(X_norm)
 
 		# If we've asked to use a finite difference gradient
@@ -183,7 +187,7 @@ class Function(BaseFunction):
 				for i in range(len(x)):
 					ei = np.zeros(x.shape)
 					ei[i] = 1.
-					grad[i] = (self.eval(x + h*ei) - fx)/h
+					grad[i] = (self.eval(x + h*ei, **kwargs) - fx)/h
 				grads.append(grad)
 
 			if len(X_norm.shape) == 1:
@@ -197,13 +201,13 @@ class Function(BaseFunction):
 		# Return gradient if specified
 		if self._grads is not None: 
 			if len(X.shape) == 1:
-				grad = np.vstack([grad(X) for grad in self._grads])
+				grad = np.vstack([grad(X, **kwargs) for grad in self._grads])
 			
 			elif len(X.shape) == 2:
 				if self.vectorized:
-					grad = np.hstack([ np.array(grad(X)) for grad in self._grads])
+					grad = np.hstack([ np.array(grad(X, **kwargs)) for grad in self._grads])
 				else:
-					grad = np.vstack([ np.hstack([grad(x) for grad in self._grads]) for x in X])
+					grad = np.vstack([ np.hstack([grad(x, **kwargs) for grad in self._grads]) for x in X])
 			grad = D.dot(grad.T).T
 			
 			return grad
@@ -211,14 +215,14 @@ class Function(BaseFunction):
 		# Try return_grad the function definition
 		elif self.return_grad:
 			if len(X.shape) == 1:
-				grad = np.vstack([fun(X, return_grad = True)[1] for fun in self._funs])
+				grad = np.vstack([fun(X, return_grad = True, **kwargs)[1] for fun in self._funs])
 				grads = grad.flatten()
 				
 			elif len(X.shape) == 2:
 				if self.vectorized:
 					grads = []
 					for fun in self._funs:
-						fXi, gradsi = fun(X, return_grad = True)
+						fXi, gradsi = fun(X, return_grad = True, **kwargs)
 						grads.append(gradsi)
 					grads = np.hstack([ np.array(grad) for grad in grads])
 				else:
@@ -226,7 +230,7 @@ class Function(BaseFunction):
 					for x in X:
 						grad = []
 						for fun in self._funs:
-							fxi, gradi = fun(x, return_grad = True)
+							fxi, gradi = fun(x, return_grad = True, **kwargs)
 							grad.append(gradi)
 						grads.append(np.hstack(grad))
 					grads = np.vstack(grads)
@@ -238,6 +242,7 @@ class Function(BaseFunction):
 
 
 	def __call__(self, X_norm, return_grad = False, **kwargs):
+		kwargs = merge(self.kwargs, kwargs)
 		if not return_grad:
 			return self.eval(X_norm, **kwargs)
 
@@ -280,6 +285,7 @@ class Function(BaseFunction):
 		This mainly exists to cleanly separate eval_async which *only* returns function values
 		and this function, call_async, which can optionally return gradients, like __call__.
 		"""
+		kwargs = merge(self.kwargs, kwargs)
 		return self.eval_async(X_norm, return_grad = return_grad, **kwargs)
 	
 #	def __get__(self, i):
