@@ -469,12 +469,15 @@ class EuclideanDomain(Domain):
 		r""" Generate samples from a Sobol sequence on this domain
 
 		A Sobol sequence is a low-discrepancy sequence [Sobol_wiki]_;
-		here we generate this sequence using a library descended from ACM TOMS algorithms 647 and 659
-		[sobol_seq]_. 
+		here we generate this sequence using a library descended from 
+		ACM TOMS algorithms 647 and 659 [sobol_seq]_. 
+		Although Sobol sequences generated on :math:`[0,1]^m`, for domains 
+		that are not a simple box, here we simply reject those samples
+		falling outside the domain (after scaling). 
 
-		*Warning*: Because this approach uses rejection sampling,
-		this function can take a while when the domain occupies a small fraction
-		of the enclosing hypercube.
+		*Warning*: when the domain occupies only a small fraction of its enclosing
+		hypercube, this function can take a while to execute.
+
 
 		Parameters
 		----------
