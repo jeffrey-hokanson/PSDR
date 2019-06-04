@@ -79,3 +79,10 @@ MULTI-F
 	.. autofunction:: psdr.demos.multif
 	.. autofunction:: psdr.demos.build_multif_design_domain
 	.. autofunction:: psdr.demos.build_multif_random_domain
+
+NACA0012
+--------
+
+.. autoclass:: psdr.demos.NACA0012
+
+
