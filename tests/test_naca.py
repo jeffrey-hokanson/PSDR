@@ -24,23 +24,18 @@ def test_naca():
 	assert np.all(np.isclose(y, y_true))
 
 def test_naca_grad():
-	naca = psdr.demos.NACA0012(n_upper = 2, n_lower = 2, verbose = False, maxiter = 1000 )	
+	# We limit number of dimensions and iteration count 
+	# so entire test takes less than 10min on Travis-CI
+	naca = psdr.demos.NACA0012(n_upper = 1, n_lower = 1, verbose = True, maxiter = 200, nprocesses = 1)	
 	x = 0.2*np.ones(len(naca.domain))	
 
 	if False:	
 		x1 = np.copy(x)
-		fx1 = naca(x1, workdir='naca_f1', keep_data = True)
-		print('x1', x1)
-		print('fx1', fx1)
-		x2 = np.copy(x)
-		x2[-1] = 0.4
-		fx2 = naca(x2, workdir = 'naca_f2', keep_data = True)
-		print('x2', x2)
-		print('fx2', fx2)
+		fx1, grad = naca(x1, workdir='naca_f1', keep_data = True, return_grad = True)
 	
 	if True:
-		err = check_jacobian(x, naca.eval, naca.grad, hvec = [ 1e-3])
+		err = check_jacobian(x, naca.eval, naca.grad, hvec = [ 1e-4])
 		print('maximum error', err)
-		assert err < 1e-3
+		assert err < 5e-2
 if __name__ == '__main__':
 	test_naca_grad()
