@@ -190,8 +190,40 @@ def test_return_grad(m=3):
 	print(grad.shape, fun.grad(x).shape)
 	assert grad.shape == fun.grad(x).shape
 	assert np.all(np.isclose(grad, fun.grad(x)))
+
+
+
+def test_return_grad2(m=3):
+	A = np.random.randn(m, m)
+	A += A.T
 	
+	B = np.random.randn(m, m)
+	B += B.T
+
+	def func(x, return_grad = False):
+		fx = [0.5*x.dot(A.dot(x)), 0.5*x.dot(B.dot(x))]
+
+		if return_grad:
+			grad = [A.dot(x), B.dot(x)]
+			return fx, grad
+		else:
+			return fx
+	
+	dom = BoxDomain(-2*np.ones(m), 2*np.ones(m))
+
+	fun = Function(func, dom, return_grad = True)	
+
+
+	X = fun.domain.sample(4)
+	fX, grads = fun(X, return_grad = True)
+	assert fX.shape == (len(X), 2)
+	assert grads.shape == (len(X), 2, m)
+	
+	for x, grad in zip(X, grads):
+		assert np.all(np.isclose(grad, fun.grad(x)))
+
+
 if __name__ == '__main__':
 	#test_mult_output()
 	#test_finite_diff()	
-	test_return_grad()
+	test_return_grad2()

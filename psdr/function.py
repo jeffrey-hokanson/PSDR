@@ -172,6 +172,20 @@ class Function(BaseFunction):
 		else:
 			return results
 
+
+	def _shape_grad(self, X, grads):
+		r""" This expects a 3-dimensional array in format [x sample #, fun #, input dim #] 
+		"""
+		grads = np.array(grads)
+		if len(X.shape) == 1 and grads.shape[1] == 1:
+			return grads.reshape(len(self.domain))
+		elif len(X.shape) == 1 and grads.shape[1] != 1:
+			return grads.reshape(grads.shape[1], len(self.domain))
+		elif grads.shape[1] == 1:
+			return grads.reshape(len(X), len(self.domain))
+		else:
+			return grads
+
 	def grad(self, X_norm, **kwargs):
 		kwargs = merge(self.kwargs, kwargs)
 		
@@ -188,55 +202,50 @@ class Function(BaseFunction):
 					ei = np.zeros(x.shape)
 					ei[i] = 1.
 					grad[i] = (self.eval(x + h*ei, **kwargs) - fx)/h
-				grads.append(grad)
-
-			if len(X_norm.shape) == 1:
-				return np.array(grads).flatten()
-			else:
-				return np.array(grads)
+				# This ensures the dimensions match expectation for 
+				grads.append(np.atleast_2d(grad))
+			
+			return self._shape_grad(X_norm, grads)
 
 		X = self.domain_app.unnormalize(X_norm)
 		D = self.domain_app._unnormalize_der() 	
 		
 		# Return gradient if specified
 		if self._grads is not None: 
-			if len(X.shape) == 1:
-				grad = np.vstack([grad(X, **kwargs) for grad in self._grads])
+			X = np.atleast_2d(X)
 			
-			elif len(X.shape) == 2:
-				if self.vectorized:
-					grad = np.hstack([ np.array(grad(X, **kwargs)) for grad in self._grads])
-				else:
-					grad = np.vstack([ np.hstack([grad(x, **kwargs) for grad in self._grads]) for x in X])
-			grad = D.dot(grad.T).T
-			
-			return grad
+			if self.vectorized:
+				# TODO: I don't think this will get dimensions quite right
+				grads = np.array([ np.array(grad(X, **kwargs)) for grad in self._grads])
+				grads = np.transpose(grads, (1,0,2))
+			else:
+				grads = np.array([ np.vstack([grad(x, **kwargs) for grad in self._grads]) for x in X])
+		
+			# Correct to apply to normalized domain
+			grads = grads.dot(D.T)
+			return self._shape_grad(X_norm, grads)
 
 		# Try return_grad the function definition
 		elif self.return_grad:
-			if len(X.shape) == 1:
-				grad = np.vstack([fun(X, return_grad = True, **kwargs)[1] for fun in self._funs])
-				grads = grad.flatten()
-				
-			elif len(X.shape) == 2:
-				if self.vectorized:
-					grads = []
-					for fun in self._funs:
-						fXi, gradsi = fun(X, return_grad = True, **kwargs)
-						grads.append(gradsi)
-					grads = np.hstack([ np.array(grad) for grad in grads])
-				else:
-					grads = []
-					for x in X:
-						grad = []
-						for fun in self._funs:
-							fxi, gradi = fun(x, return_grad = True, **kwargs)
-							grad.append(gradi)
-						grads.append(np.hstack(grad))
-					grads = np.vstack(grads)
+			X = np.atleast_2d(X)	
 			
-			grads = D.dot(grads.T).T
-			return grads
+			if self.vectorized:
+				grads = []
+				for fun in self._funs:
+					fXi, gradsi = fun(X, return_grad = True, **kwargs)
+					grads.append(gradsi)
+				grads = np.array([ np.atleast_2d(grad) for grad in grads])
+			else:
+				grads = []
+				for x in X:
+					grad = []
+					for fun in self._funs:
+						fxi, gradi = fun(x, return_grad = True, **kwargs)
+						grad.append(gradi)
+					grads.append(np.vstack(grad))
+				grads = np.array(grads)	
+			grads = grads.dot(D.T)
+			return self._shape_grad(X_norm, grads)
 		else:
 			raise NotImplementedError("Gradient not defined and finite-difference approximation not enabled")
 
@@ -247,17 +256,17 @@ class Function(BaseFunction):
 			return self.eval(X_norm, **kwargs)
 
 		if self.return_grad:
+			# If the function can return both the value and gradient simultaneously
 			X = self.domain_app.unnormalize(X_norm)
 			X = np.atleast_2d(X)
 			D = self.domain_app._unnormalize_der() 	
-			# If the function can return both the value and gradient simultaneously
 			if self.vectorized:
 				ret = [fun(X, return_grad = True, **kwargs) for fun in self._funs]
 				fX = np.hstack([r[0] for r in ret])
-				grad = np.vstack([np.atleast_1d(r[1]) for r in ret])
+				grads = np.concatenate([r[1].reshape(X.shape[0], -1, len(self.domain)) for r in ret], axis = 1)
 			else:
 				fX = []
-				grad = []
+				grads = []
 				for x in X:
 					fx = []
 					g = []
@@ -266,16 +275,17 @@ class Function(BaseFunction):
 						fx.append(fxi)
 						g.append(gi)
 					fX.append(np.hstack(fx))
-					grad.append(np.hstack(g))
+					grads.append(np.vstack(g))
 
 				fX = np.vstack(fX)
-				grad = np.vstack(grad)
+				grads = np.array(grads)
+			
+			grads = grads.dot(D.T)
 
-			grad = D.dot(grad.T).T
 			if len(X_norm.shape) == 1:
 				fX = fX.flatten()
-				grad = grad.reshape(len(self.domain))
-			return fX, grad
+			grads = self._shape_grad(X_norm, grads)
+			return fX, grads
 		else:
 			return self.eval(X_norm, **kwargs), self.grad(X_norm, **kwargs)					
 
