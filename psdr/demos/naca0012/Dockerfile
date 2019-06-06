@@ -50,13 +50,13 @@ RUN	mkdir -p ~/Source && \
 	echo "export SU2_HOME=/root/Source/SU2/" >> /etc/bash.bashrc && \
 	echo "export PYTHONPATH=\$SU2_RUN:\$PYTHONPATH" >> /etc/bash.bashrc
 
-COPY naca0012_driver.py /root/naca0012_driver.py
 
 
 WORKDIR /workdir
 ENV PYTHONPATH="/usr/local/bin"
 ENV SU2_RUN="/usr/local/bin"
 ENV SU2_HOME="/root/Source/SU2"
+COPY naca0012_driver.py /root/naca0012_driver.py
 ENTRYPOINT ["/usr/bin/python3","/root/naca0012_driver.py"]
 
 

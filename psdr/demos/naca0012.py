@@ -24,13 +24,16 @@ class NACA0012(Function):
 	fraction: float, optional (default:0.01)
 		 
 
-	References
+	Reference
 	----------
 	.. [SU2] https://su2code.github.io/	
 	"""
-	def __init__(self, n_lower = 10, n_upper = 10, fraction = 0.01):
+	def __init__(self, n_lower = 10, n_upper = 10, fraction = 0.01, **kwargs):
 		domain = build_hicks_henne_domain(n_lower, n_upper, fraction = fraction)
-		Function.__init__(self, naca0012_func, domain, vectorized = False, kwargs = {'n_lower':n_lower, 'n_upper':n_upper}, return_grad = True)
+		kwargs.update({'n_lower':n_lower, 'n_upper':n_upper}) 
+		Function.__init__(self, naca0012_func, domain, vectorized = False,
+			kwargs = kwargs, 
+			return_grad = True)
 
 
 def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
@@ -40,7 +43,8 @@ def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
 	return dom
 
 
-def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False, n_lower = 10, n_upper = 10, return_grad = False):
+def naca0012_func(x, version = 'v1', workdir = None, verbose = False, 
+	keep_data = False, n_lower = 10, n_upper = 10, return_grad = False, maxiter = 1000):
 	r"""
 
 
@@ -71,6 +75,7 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data 
 	call += " --nlower %d --nupper %d" % (n_lower, n_upper)
 	if return_grad:
 		call += " --adjoint discrete"
+	call += ' --maxiter %d' % maxiter
 	args = shlex.split(call)
 	with open(workdir + '/output.log', 'ab') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)

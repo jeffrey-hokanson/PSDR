@@ -29,17 +29,41 @@ def driver(x, n_lower = 10, n_upper = 10, maxiter = 1000, adjoint = None):
 	cfg['EXT_ITER'] = maxiter
 	
 	# Set to use Hicks-Henne bump functions
-	cfg['DV_MARKER'] = ['airfoil']
+	cfg['DV_MARKER'] = len(x)*['airfoil']
+	cfg['DV_KIND'] = len(x)*['HICKS_HENNE']
+
+	# DV_PARAM takes a dict input, much like DEFINITION_DV, except DV_KIND and DV_MARKER are outside	
+	cfg['DV_PARAM'] = {
+		'PARAM':[ [0, float(xi)] for xi in x_lower] + [ [1, float(xi)] for xi in x_upper],
+		'FFDTAG': len(x)*[ [] ], 
+		'SIZE': n_lower + n_upper,
+	}
+	
+	# DEFINITION_DV is only used for the shape_optimization.py script
+	# https://www.cfd-online.com/Forums/su2/190618-dv_param-definition_dv.html
+	# however, it does seem to be used by the adjoint code
 	cfg['DEFINITION_DV'] = {}
-	cfg['DEFINITION_DV']['KIND'] = len(x)*['HICKS_HENNE']
-	cfg['DEFINITION_DV']['SCALE'] = len(x)*[ 1.0 ]
-	cfg['DEFINITION_DV']['MARKER'] = len(x)*[ ['airfoil'] ]
-	cfg['DEFINITION_DV']['FFDTAG'] = len(x)*[ [ ] ]
+	cfg['DEFINITION_DV']['KIND'] = cfg['DV_KIND']
+	cfg['DEFINITION_DV']['SCALE'] = len(x)*[1.0,]
+	#cfg['DEFINITION_DV']['KIND'] = len(x)*['HICKS_HENNE',]
+	#cfg['DEFINITION_DV']['MARKER'] = len(x)*[ ['airfoil'] ]
+	cfg['DEFINITION_DV']['MARKER'] = cfg['DV_MARKER']
+	#cfg['DEFINITION_DV']['FFDTAG'] = len(x)*[ [ ] ]
+	cfg['DEFINITION_DV']['FFDTAG'] = cfg['DV_PARAM']['FFDTAG']
 	# lower surfaces, then upper 
-	cfg['DEFINITION_DV']['PARAM'] =  [ [0, xi] for xi in x_lower] + [ [1, xi] for xi in x_upper] 
-	cfg['DEFINITION_DV']['SIZE'] = n_lower + n_upper
+	#cfg['DEFINITION_DV']['PARAM'] =  [ [0, xi] for xi in x_lower] + [ [1, xi] for xi in x_upper] 
+	cfg['DEFINITION_DV']['PARAM'] =  cfg['DV_PARAM']['PARAM']
+	#cfg['DEFINITION_DV']['SIZE'] = n_lower + n_upper
+	cfg['DEFINITION_DV']['SIZE'] = cfg['DV_PARAM']['SIZE']
 	# Set the deformation values
+	cfg['DV_VALUE'] = x.tolist()
 	cfg['DV_VALUE_NEW'] = x.tolist()
+	cfg['DV_VALUE_OLD'] = (0.*x).tolist()
+
+	# based on discussion, it may be necessary to allow flow restarts
+	# https://github.com/su2code/SU2/issues/409
+	#cfg['RESTART_SOL'] = 'YES'
+		
 
 	# Specify the input and output for deformation
 	shutil.copy(os.path.join(su2home, 'QuickStart/mesh_NACA0012_inv.su2'), 
@@ -91,8 +115,9 @@ def driver(x, n_lower = 10, n_upper = 10, maxiter = 1000, adjoint = None):
 			cfg.dump(os.path.join(workdir, 'flow.cfg'))
 			state = discrete_adjoint('flow.cfg', compute = True)
 			grad_drag = state.GRADIENTS['DRAG']
+		
 			grad = np.vstack([grad_lift, grad_drag])
-			
+				
 			print('grad', grad)	
 
 #		#cfg.NUMBER_PART = 0
@@ -149,6 +174,7 @@ if __name__ == '__main__':
 	parser.add_argument('--nlower', type=int, default=10) 
 	parser.add_argument('--nupper', type=int, default=10) 
 	parser.add_argument('--adjoint', type=str, default = None)
+	parser.add_argument('--maxiter', type=int, default = 1000)
 	args = parser.parse_args()
 
 	# Load data
@@ -157,11 +183,12 @@ if __name__ == '__main__':
 	n_lower = args.nlower
 	n_upper = args.nupper
 	adjoint = args.adjoint
-	print("adjoint", adjoint, adjoint == 'discrete' )	
+	maxiter = args.maxiter
+
 	if adjoint is None:
-		fx = driver(x, n_lower, n_upper, adjoint = adjoint)	
+		fx = driver(x, n_lower, n_upper, adjoint = adjoint, maxiter = maxiter)	
 	else:
-		fx, grad = driver(x, n_lower, n_upper, adjoint = adjoint)
+		fx, grad = driver(x, n_lower, n_upper, adjoint = adjoint, maxiter = maxiter)
 
 	outfile = os.path.splitext(infile)[0] + '.output'
 	np.savetxt(outfile, fx)
