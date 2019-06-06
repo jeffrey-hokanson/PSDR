@@ -6,19 +6,29 @@ from psdr import Function, BoxDomain
 __all__ = ['NACA0012']
 
 class NACA0012(Function):
-	r""" A test problem from OpenAeroStruct
+	r""" The lift and drag of a NACA0012 airfoil perturbed by Hicks-Henne bump functions
 
-	A test problem using OpenAeroStruct similar to that described in [JHM18]_.
+	This function computes the lift and drag of a NACA0012 airfoil perturbed by Hicks-Henne
+	bump functions.  The lift and drag are computed using [SU2]_ using Euler flow at Mach number
+	0.8 and angle of attack 1.25. 
+
+	This example slightly modifies the configuration file that appears in the SU2 quickstart folder:
+	[inv_NACA0012.cfg](https://github.com/su2code/SU2/blob/master/QuickStart/inv_NACA0012.cfg).	
+
+	Parameters
+	----------
+	n_lower: int, optional (default: 10)
+		Number of bump functions for the lower surface
+	n_upper: int, optional (default: 10)
+		Number of bump functions for the upper surface
+	fraction: float, optional (default:0.01)
+		 
 
 	References
 	----------
-	.. [JHM18] Open-source coupled aerostructural optimization using Python.
-		John P. Jasa, John T. Hwang, and Joaquim R. R. A. Martins.
-		Structural and Multidisciplinary Optimization (2018) 57:1815-1827
-		DOI: 10.1007/s00158-018-1912-8
-	
+	.. [SU2] https://su2code.github.io/	
 	"""
-	def __init__(self, n_lower = 10, n_upper = 10, fraction = 0.1):
+	def __init__(self, n_lower = 10, n_upper = 10, fraction = 0.01):
 		domain = build_hicks_henne_domain(n_lower, n_upper, fraction = fraction)
 		Function.__init__(self, naca0012_func, domain, vectorized = False, kwargs = {'n_lower':n_lower, 'n_upper':n_upper}, return_grad = True)
 
@@ -49,6 +59,7 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data 
 			workdir = tempfile.mkdtemp(dir = '/tmp')
 		else:
 			workdir = tempfile.mkdtemp()
+		assert keep_data == False, "In order to keep the run, specify a path for a directory"
 	else:
 		workdir = os.path.abspath(workdir)
 		os.makedirs(workdir)
@@ -61,7 +72,7 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data 
 	if return_grad:
 		call += " --adjoint discrete"
 	args = shlex.split(call)
-	with open(workdir + '/output.log', 'a') as log:
+	with open(workdir + '/output.log', 'ab') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
 		while True:
 			# Read output from pipe

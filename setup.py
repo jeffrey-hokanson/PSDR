@@ -2,33 +2,29 @@ import os
 import sys
 from setuptools import setup
 
-
-if sys.version_info[0] < 3:
-	install_requires = [
+install_requires = [
 		'numpy>=1.15', 
 		'scipy', 
-		'matplotlib<3.0.0',
 		'redis',
 		'cvxpy',
 		'cvxopt',
 		'tqdm',
 		'dask',
 		'distributed',
-		# Required for python 2.7
+		'sobol_seq',
+	]
+
+if sys.version_info[0] < 3:
+	install_requires += [
+		'matplotlib<3.0.0',
+		# Required for python 2.7 from dask distributed
 		'tornado<6.0.0',
 		]
 else:
-	install_requires = [
-		'numpy>=1.15', 
-		'scipy', 
+	install_requires += [
 		'matplotlib',
-		'redis',
-		'cvxpy',
-		'cvxopt',
-		'tqdm',
-		'dask',
-		'distributed',
 		]
+
 
 
 setup(name='psdr',

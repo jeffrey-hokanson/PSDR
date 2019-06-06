@@ -147,7 +147,7 @@ def multif(x, level = 0, version = 'v25', su2_maxiter = None, workdir = None,
 			workdir = tempfile.mkdtemp(dir = '/tmp')
 		else:
 			workdir = tempfile.mkdtemp()
-
+		
 		assert keep_data == False, "In order to keep the run, specify a path for a directory"
 	else:
 		workdir = os.path.abspath(workdir)
