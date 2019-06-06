@@ -40,7 +40,7 @@ def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
 	return dom
 
 
-def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False, n_lower = 10, n_upper = 10, return_grad):
+def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False, n_lower = 10, n_upper = 10, return_grad = False):
 	r"""
 
 
@@ -97,7 +97,7 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False, keep_data 
 	if not keep_data:
 		shutil.rmtree(workdir) 
 	
-	if return_grad
+	if return_grad:
 		return fx, grad
 	else:
 		return fx

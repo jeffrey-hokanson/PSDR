@@ -1,7 +1,7 @@
 from __future__ import print_function
 import numpy as np
 import psdr, psdr.demos
-
+from checkder import check_derivative
 
 def test_naca():
 	naca = psdr.demos.NACA0012()
@@ -22,7 +22,13 @@ def test_naca():
 	y_true = np.array([0.3269333, 0.02134973])
 	print('true  ', y_true)
 	assert np.all(np.isclose(y, y_true))
+
+def test_naca_grad():
+	naca = psdr.demos.NACA0012(n_upper = 2, n_lower = 2)	
+	x = naca.domain.sample()
+	 	
+	check_derivative(x, naca.eval, naca.grad, hvec = [ 1e-3])
 	
 
 if __name__ == '__main__':
-	test_naca()
+	test_naca_grad()

@@ -29,9 +29,11 @@ def check_jacobian(x, residual, jacobian):
 	return max_err
 
 
-def check_gradient(x, residual, jacobian):
+def check_gradient(x, residual, jacobian, hvec = None):
 	n = x.shape[0]
-	hvec = np.logspace(-14,-1,100)
+	if hvec is None:
+		hvec = np.logspace(-14,-1,100)
+	
 
 	max_err = 0	
 	J = jacobian(x)
@@ -47,9 +49,10 @@ def check_gradient(x, residual, jacobian):
 
 	return max_err
 		
-def check_derivative(x, obj, grad):
+def check_derivative(x, obj, grad, hvec = None):
 	n = x.shape[0]
-	hvec = np.logspace(-14,-1,100)
+	if hvec is None:
+		hvec = np.logspace(-14,-1,100)
 
 	max_err = 0	
 	g = grad(x)
