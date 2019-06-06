@@ -44,7 +44,8 @@ def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
 
 
 def naca0012_func(x, version = 'v1', workdir = None, verbose = False, 
-	keep_data = False, n_lower = 10, n_upper = 10, return_grad = False, maxiter = 1000):
+	keep_data = False, n_lower = 10, n_upper = 10, return_grad = False, maxiter = 1000,
+	nprocesses = 1):
 	r"""
 
 
@@ -76,6 +77,7 @@ def naca0012_func(x, version = 'v1', workdir = None, verbose = False,
 	if return_grad:
 		call += " --adjoint discrete"
 	call += ' --maxiter %d' % maxiter
+	call += ' --nprocesses %d' % nprocesses
 	args = shlex.split(call)
 	with open(workdir + '/output.log', 'ab') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)

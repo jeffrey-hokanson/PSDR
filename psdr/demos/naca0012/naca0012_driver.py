@@ -12,7 +12,7 @@ workdir = '/workdir'
 su2home = os.environ['SU2_HOME']
 
 
-def driver(x, n_lower = 10, n_upper = 10, maxiter = 1000, adjoint = None):
+def driver(x, n_lower = 10, n_upper = 10, maxiter = 1000, adjoint = None, nprocesses = 1):
 
 	assert adjoint in [None, 'discrete']
 
@@ -85,82 +85,52 @@ def driver(x, n_lower = 10, n_upper = 10, maxiter = 1000, adjoint = None):
 
 	if adjoint is None:
 		cfg.dump(os.path.join(workdir, 'flow.cfg'))
-		cfd_solver_out_status = subprocess.run(['SU2_CFD','flow.cfg'],cwd=workdir)
+		if nprocesses > 1:
+			status = subprocess.run(['mpirun', '-n', "%d" % nprocesses, 'SU2_CFD', 'flow.cfg'], cwd = workdir)
+		else:
+			status = subprocess.run(['SU2_CFD','flow.cfg'],cwd=workdir)
+
+		# Read lift/drag QoI
+		data = read_aerodynamics(os.path.join(workdir, 'history.dat'))
+		fx = np.array([data['LIFT'], data['DRAG']])
+
 	elif adjoint == 'discrete':
 		print("DISCRETE")
 
 		cfg.WRT_CSV_SOL = 'YES'
 		cfg['GRADIENT_METHOD'] = 'DISCRETE_ADJOINT'
 		cfg.dump(os.path.join(workdir, 'flow.cfg'))
-		
 
 		if True:
-			cfd_solver_out_status = subprocess.run(['SU2_CFD','flow.cfg'],cwd=workdir)
-			cfd_solver_out_status = subprocess.run(['SU2_CFD_AD','flow.cfg'],cwd=workdir)
+		#	cfd_solver_out_status = subprocess.run(['SU2_CFD','flow.cfg'],cwd=workdir)
+		#	cfd_solver_out_status = subprocess.run(['SU2_CFD_AD','flow.cfg'],cwd=workdir)
 
 			#cfg['RESTART_SOL'] = 'YES'	 # As per forums this allows reuse??? 
 			# https://www.cfd-online.com/Forums/su2/199359-su2-drag-sensitivities.html
 
 			# It seems you can't get lift and drag simultaneously
 			# https://www.cfd-online.com/Forums/su2/164982-get-gradients-both-lift-drag.html	
+			if nprocesses == 1:
+				partitions = 0
+			else:
+				partitions = nprocesses
 			cfg['OBJECTIVE_FUNCTION'] = 'LIFT'
 			cfg.dump(os.path.join(workdir, 'flow.cfg'))
-			state = discrete_adjoint('flow.cfg', compute = True)
+			state = discrete_adjoint('flow.cfg', compute = True, partitions = partitions)
 			grad_lift = state.GRADIENTS['LIFT']
-			data = read_aerodynamics(os.path.join(workdir, 'history.dat'))
-			print('lift', data['LIFT'])
-			print('drag', data['DRAG'])
 			
 			cfg['OBJECTIVE_FUNCTION'] = 'DRAG'
 			cfg.dump(os.path.join(workdir, 'flow.cfg'))
-			state = discrete_adjoint('flow.cfg', compute = True)
+			state = discrete_adjoint('flow.cfg', compute = True, partitions = partitions)
 			grad_drag = state.GRADIENTS['DRAG']
 		
 			grad = np.vstack([grad_lift, grad_drag])
 				
-			print('grad', grad)	
+			# Read lift/drag QoI
+			data = read_aerodynamics(os.path.join(workdir, 'history_direct.dat'))
+			fx = np.array([data['LIFT'], data['DRAG']])
 
-#		#cfg.NUMBER_PART = 0
-#		#cfg.NZONES = 1
-#		
-#		# Forward solution
-#		info = SU2.run.direct(cfg)
-#
-#		# Adjoint solution
-#		info = SU2.run.adjoint(cfg)
-#
-#		# Compute projection
-#		info = SU2.run.projection(cfg)
-#		print(info.GRADIENTS)
-#		#SU2.run.interface.DOT(cfg)
-#		#grad_lift = SU2.io.read_gradients(cfg['GRAD_OBJFUNC_FILENAME'])	
-#		#print('lift', grad_lift)	
-#		#cfd_solver_out_status = subprocess.run(['SU2_CFD','flow.cfg'],cwd=workdir)
-#		
-#		# Adjoine t solution
-#		#cfd_solver_out_status = subprocess.run(['SU2_CFD_AD','flow.cfg'],cwd=workdir)
-#	
-#		# project the flow field to yield the drag gradient 
-#		cfg.dump(os.path.join(workdir, 'flow.cfg'))
-#		#subprocess.run(['SU2_DOT', 'flow.cfg'], cwd=workdir)
-#		#grad_lift = np.loadtxt('of_grad_cd.dat', skiprows=1,delimiter=',', usecols = [1]) 	
-#		
-#		#cfg['OBJECTIVE_FUNCTION'] = 'DRAG'
-#		#cfg.dump(os.path.join(workdir, 'flow.cfg'))
-#		#subprocess.run(['SU2_DOT', 'flow.cfg'], cwd=workdir)
-#		#grad_drag = read_gradients(cfg['GRAD_OBJFUNC_FILENAME'])	
-#	
-#		#grad = np.vstack([grad_lift, grad_drag])
-#		#print(grad)
-#		#cfd_solver_out_status = subprocess.run(['python','/usr/local/bin/discrete_adjoint.py', '-f', 'flow.cfg'],cwd=workdir)
-#		# read the gradient
-#		#grad = np.loadtxt('of_grad_cd.dat', skiprows=1,delimiter=',', usecols = [1]) 	
 	
-	# Read lift/drag QoI
-	data = read_aerodynamics(os.path.join(workdir, 'history.dat'))
-	print('lift', data['LIFT'])
-	print('drag', data['DRAG'])
-	fx = np.array([data['LIFT'], data['DRAG']])
 
 	if adjoint is None:
 		return fx
@@ -175,6 +145,7 @@ if __name__ == '__main__':
 	parser.add_argument('--nupper', type=int, default=10) 
 	parser.add_argument('--adjoint', type=str, default = None)
 	parser.add_argument('--maxiter', type=int, default = 1000)
+	parser.add_argument('--nprocesses', type=int, default = 1)
 	args = parser.parse_args()
 
 	# Load data
@@ -184,11 +155,12 @@ if __name__ == '__main__':
 	n_upper = args.nupper
 	adjoint = args.adjoint
 	maxiter = args.maxiter
+	nprocesses = args.nprocesses
 
 	if adjoint is None:
-		fx = driver(x, n_lower, n_upper, adjoint = adjoint, maxiter = maxiter)	
+		fx = driver(x, n_lower, n_upper, adjoint = adjoint, maxiter = maxiter, nprocesses = nprocesses)	
 	else:
-		fx, grad = driver(x, n_lower, n_upper, adjoint = adjoint, maxiter = maxiter)
+		fx, grad = driver(x, n_lower, n_upper, adjoint = adjoint, maxiter = maxiter, nprocesses = nprocesses)
 
 	outfile = os.path.splitext(infile)[0] + '.output'
 	np.savetxt(outfile, fx)
