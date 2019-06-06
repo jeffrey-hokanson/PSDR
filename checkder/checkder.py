@@ -6,24 +6,36 @@ from __future__ import print_function
 import numpy as np
 from numpy.linalg import norm
 
-def check_jacobian(x, residual, jacobian):
+def check_jacobian(x, residual, jacobian, hvec = None):
 	n = x.shape[0]
-	hvec = np.logspace(-14,-1,100)
+	if hvec is None:
+		hvec = np.logspace(-14,-1,100)
 
 	max_err = 0	
 	J = jacobian(x)
-
+	print("J", J)
 	#print "residual norm", norm(residual(x))
 
 	for i in range(n):
 		ei = np.zeros(x.shape, dtype = np.float)
 		ei[i] = 1.
-		err = [ np.linalg.norm( (residual(x+ei*h) - residual(x-ei*h))/(2*h) - J[:,i], 2) for h in hvec]
-		j = np.argmin(err)
-		print("%3d: nominal norm:%5.5e, err:%5.5e, h: %3.3e" % (i, np.linalg.norm(J[:,i]), min(err), hvec[j]))
-		Jest = (residual(x + ei*hvec[j]) - residual(x - ei*hvec[j]))/(2*hvec[j])
-		#print "Jest", Jest[0:4]
-		#print "J   ", J[0:4,i] 
+		err = np.zeros(len(hvec))
+		Ji_est = np.zeros((len(hvec), len(J[:,i])))
+		for k,h in enumerate(hvec):
+			x1 = x + ei * h
+			x2 = x - ei * h
+			f1 = residual(x1) 
+			f2 = residual(x2)
+			print('x', x1,', f(x)',  f1)
+			print('x', x2,', f(x)',  f2)
+			Ji_est[k,:] = (f1 - f2)/(2*h)
+			err[k] = np.linalg.norm(Ji_est[k,:] - J[:,i], 2)
+			
+		#err = [ np.linalg.norm( (residual(x+ei*h) - residual(x-ei*h))/(2*h) - J[:,i], 2) for h in hvec]
+		k = np.argmin(err)
+		print("%3d: nominal norm:%5.5e, err:%5.5e, h: %3.3e" % (i, np.linalg.norm(J[:,i]), err[k], hvec[k]))
+		print("J    [:,i]", J[:,i])
+		print("J_est[:,i]", Ji_est[k,:])
 		max_err = max(min(err)/norm(J[:,i]), max_err)
 
 	return max_err
