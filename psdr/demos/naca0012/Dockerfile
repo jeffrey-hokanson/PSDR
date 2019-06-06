@@ -21,8 +21,11 @@ RUN apt-get -y update && \
 		debianutils \
 		m4 \
 		perl \
-		autoconf \
-		automake && \
+		mpich \
+		# MPICH provides mpicxx, but not the library required to compile against
+		# which is included in libmpich-dev 
+		libmpich-dev \
+		&& \
 	python3 -m pip install tqdm argparse
 
 ARG SU2_VER=v6.2.0
@@ -31,11 +34,15 @@ ARG SU2_VER=v6.2.0
 # Note that SU2 wants to keep its source around for some reason
 RUN	mkdir -p ~/Source && \
 	cd ~/Source && \
-	git clone https://github.com/su2code/SU2.git && \
+	git clone https://github.com/su2code/SU2.git --progress --branch ${SU2_VER} && \
 	cd SU2 && \
-	git checkout ${SU2_VER}  && \
-	./bootstrap && \
-	./configure && \
+#	git checkout ${SU2_VER}  && \
+	# Build options
+	export CXXFLAGS="-O3" && \
+	ln -s /usr/bin/python3 /usr/bin/python && \
+	# SU2 wants to install its own version of the autotools
+	PATH=/root/Source/SU2/externals/autotools/bin:$PATH && \
+	./preconfigure.py --enable-mpi --enable-autodiff --prefix=/usr/local/ && \ 
 	make -j16 && \ 
 	make install && \
 	make clean && \
