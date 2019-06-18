@@ -99,6 +99,11 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		# 1e-10 was breaking, using 1e-9 instead
 		self.kwargs = merge({'solver': 'CVXOPT', 'abstol':1e-9, 'reltol':1e-9, 'feastol':1e-9, 'refinement': 1, 'kktsolver': 'robust'} , kwargs)
 
+	def __str__(self):
+		if self.epsilon is not None and self.epsilon > 0:
+			return "<Lipschitz Matrix epsilon %g>" % (self.epsilon)
+		return "<Lipschitz Matrix>"
+
 	def fit(self, X = None, fX = None, grads = None):
 		r""" Estimate the Lipschitz matrix from data
 

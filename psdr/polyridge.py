@@ -307,6 +307,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	def __len__(self):
 		return self.U.shape[0]
 
+	def __str__(self):
+		return "<PolynomialRidgeApproximation degree %d, subspace dimension %d>" % (self.degree, self.subspace_dimension)
 
 	def fit(self, X, fX, U0 = None, **kwargs):
 		r""" Given samples, fit the polynomial ridge approximation.
