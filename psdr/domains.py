@@ -136,6 +136,62 @@ class EuclideanDomain(Domain):
 	def __len__(self):
 		raise NotImplementedError
 
+
+	def sweep(self, n = 20, x = None, p = None, corner = False):
+		r""" Constructs samples for a random parameter sweep
+
+
+		Parameters
+		----------
+		n: int, optional [default: 20]
+			Number of points to sample along the direction.
+		x: array-like, optional [default: random location in the domain]
+			Point in the domain through which the sweep runs.
+		p: array-like, optional [default: random]
+			Direction in which to sweep.
+		corner: bool, optional 
+			If true, sweep between two opposite corners rather than until the boundary is hit.
+
+		Returns
+		-------
+		X: np.ndarray (n, len(self))
+			Points along the parameter sweep
+		y: np.ndarray (n,)
+			Length along sweep	
+		"""
+		if x is None:
+			x = self.sample()
+		else:
+			assert self.isinside(x), "Provided x not inside the domain"
+	
+		if p is None:
+			# Choose a valid direction
+			p = np.random.randn(len(self))
+		else:
+			assert len(p) == len(self), "Length of direction vector 'p' does not match the domain"
+
+		if corner:
+			# Two end points for search
+			c1 = self.corner(p)
+			c2 = self.corner(-p)
+		else:
+			# Orthogonalize search direction against equality constraints 
+			Qeq = self._A_eq_basis
+			p -= Qeq.dot(Qeq.T.dot(p))
+
+			a1 = self.extent(x, p)
+			c1 = x + a1*p
+			a2 = -self.extent(x, -p)
+			c2 = x + a2*p
+		
+		# Samples
+		X = np.array([ (1-alpha)*c1 + alpha*c2 for alpha in np.linspace(0,1,n)])
+
+		# line direction
+		d = (X[1] - X[0])/np.linalg.norm(X[1] - X[0])	
+		y = X.dot(d)
+		return X, y
+
 	@property
 	def intrinsic_dimension(self):
 		r""" The intrinsic dimension (ambient space minus equality constraints)"""
@@ -632,6 +688,18 @@ class EuclideanDomain(Domain):
 			w *= vol
 			return X, w
 
+	@property
+	def _A_eq_basis(self):
+		try:
+			return self._A_eq_basis_
+		except AttributeError:
+			try: 
+				if len(self.A_eq) == 0: raise AttributeError
+				Qeq = orth(self.A_eq.T)
+			except AttributeError:
+				Qeq = np.zeros((len(self),0))
+			self._A_eq_basis_ = Qeq
+		return self._A_eq_basis_
 
 	def _hit_and_run(self, _recurse = 2):
 		r"""Hit-and-run sampling for the domain
@@ -680,16 +748,7 @@ class EuclideanDomain(Domain):
 		# See if there is an orthongonal basis for the equality constraints
 		# This is necessary so we can generate random directions that satisfy the equality constraint.
 		# TODO: Should we generalize this as a "tangent cone" or "feasible cone" that each domain implements?
-		try:
-			Qeq = self._A_eq_basis
-		except AttributeError:
-			try: 
-				if len(self.A_eq) == 0: raise AttributeError
-				Qeq = orth(self.A_eq.T)
-			except AttributeError:
-				Qeq = np.zeros((len(self),0))
-			self._A_eq_basis = Qeq
-			
+		Qeq = self._A_eq_basis
 
 		# Loop over multiple search directions if we have trouble 
 		for it in range(len(self)):	
