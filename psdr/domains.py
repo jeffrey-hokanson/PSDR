@@ -15,7 +15,6 @@ from scipy.spatial import ConvexHull
 from scipy.stats import ortho_group
 from scipy.spatial.distance import pdist
 import cvxpy as cp
-import warnings
 
 import sobol_seq
 
