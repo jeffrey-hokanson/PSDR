@@ -17,23 +17,23 @@ if __name__ == '__main__':
 	# First 9 lock	
 	Ls = [np.array([[2,1]]), np.array([[1, 2]])]
 	
-	for ax, depth in zip(axes, [2, 1]):
+	for ax, slack in zip(axes, [1, 0.1]):
 		X = []
 		for i in range(M):
-			x = psdr.seq_maximin_sample(dom, X, Ls = Ls, depth = depth, Nsamp = int(1e3))
+			x = psdr.seq_maximin_sample(dom, X, Ls = Ls, slack = slack, Nsamp = int(1e3))
 			X.append(x)
 		X = np.vstack(X)
 		pgf = PGF()
 		pgf.add('x', X[:,0])
 		pgf.add('y', X[:,1])
-		pgf.write('data/fig_lock_d%d_sample.dat' % depth)
+		pgf.write('data/fig_lock_s%g_sample.dat' % slack)
 		
 		ax.plot(X[:,0], X[:,1], 'k.')
-		ax.set_title('depth=%d' % depth)
+		ax.set_title('slack=%g' % slack)
 		centers = [np.array([1.1,-1.1]), np.array([2, 0])]
 		colors = ['b', 'r']
 		for i, (L, center, color) in enumerate(zip(Ls, centers, colors)):
-			plot_projection(X, L, center, ax, 'data/fig_lock_d%d_L%d' % (depth, i) , stretch = 1.2, color = color)
+			plot_projection(X, L, center, ax, 'data/fig_lock_s%g_L%d' % (slack, i) , stretch = 1.2, color = color)
 
 	for ax in axes:
 		ax.set_xlim(-1.5,2.5)

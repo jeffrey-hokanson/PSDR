@@ -6,6 +6,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 import cvxpy as cp
 import itertools
 
+
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain, ConvexHullDomain, SolverError
@@ -131,7 +132,7 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	return X0
 		
 
-def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), depth = np.inf, X0 = None):
+def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.1):
 	r""" A multi-objective sequential maximin sampling 
 	
 
@@ -163,9 +164,10 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), depth = np.inf
 		defaults to the identity matrix
 	Nsamp: int, optional (default 1000)
 		Number of samples to use when finding Voronoi vertices
-	depth: int, optional 
-		If specified, this stops the process trying to satisfy multiple 
-		norms after this many have been satisfied
+	slack: float [0,1], optional (default 0.1)
+		Rather than taking the point that maximizes the product of the
+		distances in each metric, we choose the point x with greatest unweighted Euclidean
+		distance from those candidates that are at least slack times the score of the best.
 	"""
 	if Ls is None:
 		Ls = [np.eye(len(domain))]
@@ -217,11 +219,16 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), depth = np.inf
 		
 	#############################################################################
 	# Now we construct a number of candidate domains to sample from
+	# many of these may be empty because the constraints are infeasible
 	#############################################################################
 
+	# When generating these domains, we limit the number of vertices we consider
+	if len(Ls) == 1:
+		max_verts = 1e2
+	else:
+		max_verts = max(2, int(np.floor(1e2**(1./(len(Ls) - 1 )))))
 
-	# Generate coordinates to explore
-	max_verts = max(2, int(np.floor(1e3**(1./(len(Ls) - 1 )))))
+	# A list of which vertices to consider at each step
 	coords = []
 	for dist, vert in zip(distances, vertices):
 		if dist[0] == np.max([d[0] for d in distances]):
@@ -231,81 +238,98 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), depth = np.inf
 			# Otherwise we sample the first few largest
 			coords.append(np.arange(min(len(vert),max_verts)))
 
+	# Generate a score associated with each
+	# This score is the product to the distances in each metric 
 	idx = list(itertools.product(*coords))
 	dist_prod = [ sum([np.log10(dist[i]) for dist, i in zip(distances, idx_i)]) for idx_i in idx]
+
+	# Order these in decreasing score
 	I = np.argsort(-np.array(dist_prod))
+	idx = [idx[i] for i in I]
 
 	Xcan = []
-	for i in I[0:10]:
-		domain_samp = domain
-		idx_i = idx[i]
-		# Add the constraints on iteratively in decreasing distance
-		for k in np.argsort([-dist[i] for i, dist in zip(idx_i, distances)]):
-			L = Ls[k]
-			vert = vertices[k][idx_i[k]]
-			domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vert) )
-			if domain_test.empty:
-				print("empty after %d constraints" % k)
-				break
-			else:
-				domain_samp = domain_test
+	score_Ls = []
+	used_idx = []
+	for it in range(100):
+		new_domain = False
+		while len(idx) > 0:
+			# Grab a combination of constraints to try
+			idx_i = idx.pop(0)
 
+			# These are the used indices; negative meaning no constraint applied
+			found_idx = -1*np.ones(len(idx_i))
+
+			domain_samp = domain	
+			# Add the constraints on iteratively in decreasing distance
+			for k in np.argsort([-dist[i] for i, dist in zip(idx_i, distances)]):
+				L = Ls[k]
+				vert = vertices[k][idx_i[k]]
+				domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vert) )
+				if domain_test.empty:
+					#print("empty after %d constraints" % k)
+					break
+				else:
+					domain_samp = domain_test
+					found_idx[k] = idx_i[k]
+
+			#print('found_idx', found_idx)
+			#if found_idx not in used_idx:
+			if len(used_idx) == 0 or np.min([np.linalg.norm(found_idx - used_idx_i) for used_idx_i in used_idx]) > 0:
+				used_idx.append(found_idx)
+				new_domain = True
+				break
+
+		if not new_domain:
+			break
+		
 		# Generate candidates 
 		X0 = initial_sample(domain_samp, np.eye(len(domain)), Nsamp = 100)
 		Xcan_new = voronoi_vertex(domain_samp, Xhat, X0)
+		
+		# Score samples: product of distances in each of the L metrics
+		score_Ls_new = np.zeros(Xcan_new.shape[0])
+		for L in Ls:
+			D = cdist(L.dot(Xcan_new.T).T, L.dot(Xhat.T).T)
+			d = np.min(D, axis = 1)
+			with np.errstate(divide='ignore'):
+				score_Ls_new += np.log10(d)
+		score_Ls = np.hstack([score_Ls, score_Ls_new])
 		Xcan.append(Xcan_new)
-	print(Xcan)
+		
+		# If remaining candidates are too close, break
+		# (and we've used all the constraints)
+		#print("score", np.max(score_Ls_new), "best", np.max(score_Ls), "b_eq", domain_samp.b_eq, "idx_i", idx_i)
+		active_constraints = np.sum(found_idx >=0)
+		if np.max(score_Ls_new) < np.log10(slack) + np.max(score_Ls) and active_constraints == len(Ls):
+			# This prevents us from generating candidates that will be removed 
+			#print("stopping")
+			break
+
+	#print("done with sampling")
+	
 	Xcan = np.vstack(Xcan)
 	# Remove duplicates
 	I = unique_points(Xcan)
 	Xcan = Xcan[I]	
+	score_Ls = score_Ls[I]
 	
-	# Score samples
-	score_Ls = np.zeros(Xcan.shape[0])
-	score_I = np.zeros(Xcan.shape[0])
-	for L in Ls:
-		D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
-		d = np.min(D, axis = 1)
-		score_Ls += np.log10(d)
-			
-	print(score_Ls)
-	assert False	
-
-	#############################################################################
-	# Now greedily add constraints based on these Voronoi vertices
-	#############################################################################
-
-	domain_samp = domain
-	used = []		# The indices of metrics (given by L) that we have already used
-
-	queue.sort()
-	for d, it, k, vertex in queue:
-		if domain_samp.intrinsic_dimension == 0 or len(used) == len(Ls) or len(used) >= depth:
-			break
 	
-		# We ignore constraints from L's we have already considered
-		# since these must necessarily yield empty domains	
-		if k not in used:
-			L = Ls[k]
+	# Compute Euclidean distances	
+	D = cdist(Xcan, Xhat)
+	d = np.min(D, axis = 1)
+	score_I = np.log10(d)
 	
-			# Try adding this as an equality constraint
-			domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vertex))
-			if not domain_test.empty:
-				domain_samp = domain_test
-				used.append(k)
+	#for i in range(len(Xcan)):
+	#	print("%3d\t %g \t %g" % (i, score_Ls[i], score_I[i]))
 
-	#############################################################################
-	# On the resulting domain, we try to place points maximizing the minimum distance
-	# in the *unweighted* Euclidian norm.
-	#############################################################################
-	
-	X0 = initial_sample(domain_samp, np.eye(len(domain)), Nsamp = Nsamp//(len(Ls)+1))
-	vertices = voronoi_vertex(domain_samp, Xhat, X0)  
-	# Find the distance between the vertices and the existing samples
-	D = cdist(vertices, Xhat)
-	D = np.min(D, axis = 1)
-	# Return the one that is furthest away from the existing samples
-	return vertices[np.argmax(D)] 
+	# Now select the one within 95% of optimum 
+	I = (score_Ls >= np.max(score_Ls) + np.log10(slack))
+	# Delete those not matching critera
+	Xcan = Xcan[I]
+	score_I = score_I[I]
+	# pick the remaining point with highest metric
+	i = np.argmax(score_I)
+	return Xcan[i]
 
 
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):

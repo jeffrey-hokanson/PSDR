@@ -1,18 +1,15 @@
 import numpy as np
 import psdr
 import psdr.demos
-from psdr.opg import *
 
 fun = psdr.demos.OTLCircuit()
-X = fun.domain.sample(500)
-fX = fun(X).flatten()
-opg = OuterProductGradient()
-opg.fit(X, fX)
 
+X = fun.domain.sample_grid(2)
+X = np.vstack([X, fun.domain.sample(5)])
+L1 = np.ones((1, len(fun.domain)))
+L2 = np.zeros((1,len(fun.domain)))
+L2[0,3] = 1.
+Ls = [L1, L2]
 
-grads = fun.grad(X)
-act = psdr.ActiveSubspace()
-act.fit(grads)
+x = psdr.seq_maximin_sample(fun.domain, X, Ls = Ls)
 
-print('opg', opg.U[:,0])
-print('act', act.U[:,0])
