@@ -84,10 +84,10 @@ if __name__ == '__main__':
 	ax = axes[1]
 	#Ls = [orth(np.ones((2,1))).T, np.array([[1],[0]]).T]
 	#Ls = [np.array([[0],[1]]).T, np.array([[1],[0]]).T]
-	Ls = [np.array([[2,1]])]
+	Ls = [np.array([[2,1]]), np.array([[0.1, 1]])]
 	X = []
 	for i in range(M):
-		x = psdr.seq_maximin_sample(dom, X, Ls = Ls)
+		x = psdr.seq_maximin_sample(dom, X, Ls = Ls, depth = 1)
 		X.append(x)
 	X = np.vstack(X)
 	pgf = PGF()
@@ -97,10 +97,14 @@ if __name__ == '__main__':
 	
 	ax.plot(X[:,0], X[:,1], 'k.')
 	ax.set_title('Lipschitz')
-	
+
 	L = Ls[0]
 	center = np.array([1.1,-1.1])
-	plot_projection(X, L, center, ax, 'data/fig_latin_lip', stretch = 1.2, color = 'r')
+	plot_projection(X, L, center, ax, 'data/fig_latin_lip0', stretch = 1.2, color = 'r')
+	
+	L = Ls[1]
+	center = np.array([1.2,-1])
+	plot_projection(X, L, center, ax, 'data/fig_latin_lip0', stretch = 1.2, color = 'b')
 
 	
 	for ax in axes:

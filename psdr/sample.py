@@ -4,7 +4,7 @@ import scipy.linalg
 import scipy.optimize
 from scipy.spatial.distance import cdist, pdist, squareform
 import cvxpy as cp
-
+import itertools
 
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
@@ -64,6 +64,9 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	J = np.diag(s[I]).dot(U.T)
 
 	Lrank = U.shape[1]
+
+	# Make sure we sample enough points on the boundary to preserve the full dimension
+	Nboundary = max(Nboundary, Lrank + 1)
 
 	if Lrank == 1:
 		# If L is rank 1 then the projection of the domain is an interval
@@ -187,8 +190,7 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), depth = np.inf
 	#############################################################################
 
 	vertices = []
-	it = 0
-	queue = []
+	distances = []
 	for k, L in enumerate(Ls):
 		# Find initial samples well separated
 		if X0 is None:
@@ -198,21 +200,76 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), depth = np.inf
 
 		# find the Voronoi vertices; we don't randomize as we are only interested
 		# in the component that satisfies the constraint
-		vertices = voronoi_vertex(domain, Xhat, X, L = L, randomize = False) 
+		vert = voronoi_vertex(domain, Xhat, X, L = L, randomize = False) 
 		
 		# Remove duplicates in the L norm
-		I = unique_points(L.dot(vertices.T).T)
-		vertices = vertices[I]
+		I = unique_points(L.dot(vert.T).T)
+		vert = vert[I]
 
 		# Compute the distances between points in this metric
-		D = cdist(L.dot(vertices.T).T, L.dot(Xhat.T).T)
+		D = cdist(L.dot(vert.T).T, L.dot(Xhat.T).T)
 		D = np.min(D, axis = 1)
- 
-		for d, vertex in zip(D, vertices):
-			# Place this point onto the priority queue
-			# Note we include an iterator so that ties are always broken cleanly
-			queue.append( (-d, it, k, vertex) )
-			it += 1
+		# Order the vertices in decreasing distance
+		I = np.argsort(-D)
+		vert = vert[I]
+		vertices.append(vert)
+		distances.append(D[I])
+		
+	#############################################################################
+	# Now we construct a number of candidate domains to sample from
+	#############################################################################
+
+
+	# Generate coordinates to explore
+	max_verts = max(2, int(np.floor(1e3**(1./(len(Ls) - 1 )))))
+	coords = []
+	for dist, vert in zip(distances, vertices):
+		if dist[0] == np.max([d[0] for d in distances]):
+			# If this coordinate has the largest distance, we only sample the largest one 
+			coords.append([0])
+		else:
+			# Otherwise we sample the first few largest
+			coords.append(np.arange(min(len(vert),max_verts)))
+
+	idx = list(itertools.product(*coords))
+	dist_prod = [ sum([np.log10(dist[i]) for dist, i in zip(distances, idx_i)]) for idx_i in idx]
+	I = np.argsort(-np.array(dist_prod))
+
+	Xcan = []
+	for i in I[0:10]:
+		domain_samp = domain
+		idx_i = idx[i]
+		# Add the constraints on iteratively in decreasing distance
+		for k in np.argsort([-dist[i] for i, dist in zip(idx_i, distances)]):
+			L = Ls[k]
+			vert = vertices[k][idx_i[k]]
+			domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vert) )
+			if domain_test.empty:
+				print("empty after %d constraints" % k)
+				break
+			else:
+				domain_samp = domain_test
+
+		# Generate candidates 
+		X0 = initial_sample(domain_samp, np.eye(len(domain)), Nsamp = 100)
+		Xcan_new = voronoi_vertex(domain_samp, Xhat, X0)
+		Xcan.append(Xcan_new)
+	print(Xcan)
+	Xcan = np.vstack(Xcan)
+	# Remove duplicates
+	I = unique_points(Xcan)
+	Xcan = Xcan[I]	
+	
+	# Score samples
+	score_Ls = np.zeros(Xcan.shape[0])
+	score_I = np.zeros(Xcan.shape[0])
+	for L in Ls:
+		D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
+		d = np.min(D, axis = 1)
+		score_Ls += np.log10(d)
+			
+	print(score_Ls)
+	assert False	
 
 	#############################################################################
 	# Now greedily add constraints based on these Voronoi vertices

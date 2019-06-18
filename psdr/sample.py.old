@@ -1,585 +1,618 @@
-""" Functions for constructing efficient samples of ridge functions
-
-
-"""
+from __future__ import print_function
 import numpy as np
-from opt import linprog, LinProgException 
-from scipy.spatial import Voronoi
-from scipy.spatial.distance import cdist
-from scipy.linalg import orth
-from domains import ConvexHullDomain, LinIneqDomain, BoxDomain, EmptyDomain
-
-import sys
-
-from parallel import pmap
-from tqdm import tqdm
+import scipy.linalg
+import scipy.optimize
+from scipy.spatial.distance import cdist, pdist, squareform
+import cvxpy as cp
 
 
-def constrain_domain(domain, A = None, b = None, A_eq = None, b_eq = None):
-	""" Return a domain with the specified constraints added
-	"""
-	m = len(domain)
-	if A is None:
-		A = np.zeros((0,m))
-	if b is None:
-		b = np.zeros((0,))
-	if A_eq is None:
-		A_eq = np.zeros((0,m))
-	if b_eq is None:
-		b_eq = np.zeros((0,))
+from .vertex import voronoi_vertex 
+from .geometry import sample_sphere, unique_points, sample_simplex
+from .domains import LinIneqDomain, ConvexHullDomain, SolverError
 
-	A = np.vstack([domain.A, A])
-	b = np.hstack([domain.b, b])
-	A_eq = np.vstack([domain.A_eq, A_eq])
-	b_eq = np.hstack([domain.b_eq, b_eq])
-	return LinIneqDomain(A = A, b = b, lb = domain.lb, ub = domain.ub, A_eq = A_eq, b_eq = b_eq) 
-
-def sample_sphere(dim, n, k = 100):
-	""" Sample points on a high-dimensional sphere 
-
-	Uses Mitchell's best candidate algorithm.
-	See:
-		https://www.jasondavies.com/maps/random-points/
-		https://bl.ocks.org/mbostock/d7bf3bd67d00ed79695b
-
-	Parameters
-	----------
-	dim: int, positive
-		Dimension of the space to sample
-	n: int, positive
-		Number of points to sample
-	k: int, positive (optional)
-		Number of candidates to take at each step
-	"""
-	X = np.zeros( (n, dim) )
-	
-	# First sample
-	x = np.random.randn(dim)
-	x /= np.linalg.norm(x)
-	X[0] = x
-	
-	for i in range(1,n):
-		# Draw candidates (normalized points on the sphere)
-		Xcan = np.random.randn(k, dim)
-		Xcan = (Xcan.T/np.sqrt(np.sum(Xcan**2, axis = 1))).T
-
-		# Compute the distance
-		dist = np.min(1 - np.dot(X[:i,], Xcan.T), axis = 0)
-		I = np.argmax(dist)
-		X[i] = Xcan[I]
-
-	return X
-
-def sample_uniform(domain, X0 = None, M = None, target_separation = None, mitchell_sample = 100, verbose = False):
-	""" Sample the domain approximately evenly using Mitchell's best candidate algorithm
-	
-	Parameters
-	----------
-	domain: Domain
-		Domain from which to sample
-	X0: np.ndarray (M,m)
-		Previous samples which to include in the distance comparison step
-	M: int [optional]
-		Number of samples to generate
-	target_separation: float [optional]
-		Stop generating samples when the distance between these samples divided by domain radius
-		drops below this value
-	mitchell_sample: int [optional]
-		Number of samples to take in Mitchell's best candidate algorithm
-	verbose: bool [optional]
-		Display messages
-			
-	"""
-	assert M is not None or target_separation is not None, "One of n or target_separation must be specified"
-	mitchell_sample = int(mitchell_sample)
-
-	if target_separation is None:
-		target_separation = 0.
-	
-	if M is None:
-		M = np.inf	
-	else:
-		M = int(M)
-
-	m = len(domain)
-	
-	if M == 0:
-		return np.zeros((0,m))
-	
-	if X0 is None:
-		X0 = np.zeros((0, m))
-	else:
-		assert len(X0.shape) ==2, "X0 should be of shape (number samples, dimension of domain)"
-		assert X0.shape[1] == m, "Dimension of X0 should match that of the domain"
-
-	X = np.zeros((0,m))
-	while True:
-		# Points to compare against
-		Xcomp = np.vstack([X0, X])
-		
-		if Xcomp.shape[0] == 0:
-			# If we have nothing to compare against, sample one point randomly
-			Xcan = domain.sample(1)
-			X = Xcan.reshape(1,-1)
-			dist = np.inf	
-
-		else:
-			Xcan = domain.sample(mitchell_sample)
-			if mitchell_sample == 1:
-				Xcan = Xcan.reshape(1,-1)
-		
-			dist = np.min(cdist(Xcomp, Xcan), axis = 0)
-			I = np.argmax(dist)
-			dist = dist[I]
-			if target_separation > dist:
-				break
-			X = np.vstack([X, Xcan[I].reshape(1,-1)])
-			
-		if verbose:
-			print "%4d samples; max min distance %1.2e" % (X.shape[0], target_separation/domain.radius)
-		if X.shape[0] >= M or target_separation > dist:
-			break	
-	return X
+__all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
+	'StretchedSampler']
 
 
+def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
+	r""" Construct initial points for a low-rank L matrix
 
-
-def sample_ridges(domain, Us, M = None, target_separation = None, verbose = True, X0 = None, mitchell_sample = 100, M_interior = 10):
-	""" Sample a domain along multiple ridges simultaneously
-	
-	Parameters
-	----------
-	domain: Domain
-		Domain from which to sample of dimension m
-
-	Us: list of np.ndarrays of size (m,n) 
-		Ridge directions
-	
-	M: int
-		Maximum number of samples to construct
-
-	target_separation: float [optional]
-		Target separation of points in each ridge direction, 
-		relative to each projected domains radius
-
-	X0: np.ndarray of size (M,m) [optional]
-		Previously selected points
-
-	verbose: bool [optional]
-		If true, show messages
-	
-	M_interior: int [optional]
-		If target_separation is not provided, take this many samples per ridge direction
-		
-	"""
-	m = len(domain)
-	
-	if X0 is None:
-		X0 = np.zeros((0, m))
-	else:
-		assert len(X0.shape) ==2, "X0 should be of shape (number samples, dimension of domain)"
-		assert X0.shape[1] == m, "Dimension of X0 should match that of the domain"
-
-	# If ridge directions have been supplied as a vector, reshape to matrices
-	for i in range(len(Us)):
-		if len(Us[i].shape) == 1:
-			Us[i] = Us[i].reshape(-1,1)
-
-	if verbose:
-		print "Building ridge domains"
-	
-	ridge_domains = [build_ridge_domain(domain, U) for U in Us]
-
-	if M is None:
-		M = np.inf	
-
-	# Build space to hold samples
-	X = np.zeros((0,m))
-
-	while True:
-		# Points to compare against
-		Xcomp = np.vstack([X0, X])
-		
-		# Which ridge directions are being used
-		active_ridges = [False]*len(Us)
-
-		# Pick points where we want to sample
-		Uy_list= []
-		dists = []
-		for ridge_domain, U in zip(ridge_domains, Us):
-			Y0 = np.dot(U.T, Xcomp.T).T
-			# We perform a rather exhaustive sample of these low dimensional domains since this is cheap
-			y = sample_uniform(ridge_domain, M = 1, X0 = Y0, mitchell_sample = 10*10**len(ridge_domain) )
-			if Y0.shape[0] > 0:
-				dist = cdist(y, Y0)
-				dist = np.min(dist)
-			else:
-				dist = np.inf
-			Uy_list.append( (U, y[0]) )
-			dists.append(dist/ridge_domain.radius)
-		
-		# Determine which ridge needs to be sampled the most
-		I = np.argmax(dists)
-		#print "Selected ridge %d" % I	
-		U0, y0 = Uy_list[I]
-		max_dist = dists[I]
-		active_ridges[I] = True
-		#print "y0", y0	
-		Uy_constraints = [(U0, y0)]
-		
-		if target_separation > max_dist:
-			if verbose:
-				print "Stopping because target density achieved"
-			break
-
-		# Now select points which to sample
-		Uy_list = []
-		for ridge_domain, U in zip(ridge_domains, Us):
-			if np.linalg.norm(U - U0, 'fro') > 1e-10:
-				# Only construct points that are not in our first constraint
-				Y0 = np.dot(U.T, Xcomp.T).T
-				if target_separation is not None:
-					ys = sample_uniform(ridge_domain, target_separation = target_separation, mitchell_sample = mitchell_sample, X0 = Y0)
-				else:
-					ys = sample_uniform(ridge_domain, M = M_interior, mitchell_sample = mitchell_sample, X0 = Y0)
-				
-				for y in ys:
-					Uy_list.append((U, y))
-
-		n_candidates = len(Uy_list)
-		#print "Found %d candidates" % (n_candidates,)	
-		#while len(Uy_list) > 0:
-		while False:
-			# Do a greedy search to determine which constraint to add
-			radii = np.zeros(len(Uy_list))
-			for k, (U, y) in tqdm(enumerate(Uy_list), total = len(Uy_list), desc = "Combinations"):
-				A_eq = np.vstack([np.atleast_2d(U0.T) for U0,y0 in Uy_constraints] + [np.atleast_2d(U.T)])
-				b_eq = np.hstack([y0 for U0,y0 in Uy_constraints] + [y])
-				radii[k] = domain_radius(domain, A_eq, b_eq)
-			
-			print "radii", radii
-	
-			I = np.argmax(radii)
-			if radii[I] > 0:
-				U0, y0 = Uy_list.pop(I)
-				Uy_constraints.append( (U0, y0) )
-				# Remove U that are the same as the constraint we just added
-				Uy_list = [ (U,y) for (U,y) in Uy_list if np.linalg.norm(U - U0, 'fro') > 1e-10]
-				k = int(np.argwhere([np.linalg.norm(U - U0, 'fro') < 1e-10 for U in Us])[0])
-				active_ridges[k] = True
-				#print "Combined %d constraints" % len(Uy_constraints)
-			else:
-				break
-
-		if verbose:
-			print "sample #%4d; using %2d constraints from %3d candidates; max dist %1.2e" % (
-				X.shape[0], len(Uy_constraints), n_candidates, max_dist), "active ridges", np.argwhere(active_ridges).flatten()
-		
-		A_eq = np.vstack([np.atleast_2d(U.T) for U,y in Uy_constraints])
-		b_eq = np.hstack([np.atleast_1d(y) for U,y in Uy_constraints])
-	
-		# Sample this point
-		domain_constrained = constrain_domain(domain, A_eq = A_eq, b_eq = b_eq)
-		X_new = sample_uniform(domain_constrained, M = 1, mitchell_sample = mitchell_sample, X0 = Xcomp)
-		X = np.vstack([X, X_new])
-		if X.shape[0] >= M:
-			break
-	return X
-
-
-
-def extent(dom, U, z):
-	c = np.dot(U, z)
-	x = linprog(c, A_ub = dom.A, b_ub = dom.b, lb = dom.lb, ub = dom.ub, A_eq = dom.A_eq, b_eq = dom.b_eq)
-	return np.dot(U.T,x)
-
-def domain_radius(domain, A_eq, b_eq):
-	try:
-		inner_dom = constrain_domain(domain, A_eq = A_eq, b_eq = b_eq)
-		return inner_dom.radius
-	except:
-		return 0.
-
-
-def random_voronoi_vertex(domain, X, L = None):
-	""" Compute a random vertex of the Voronoi diagram associated with the set of points
-
-	Computes one vertex (intersection of multiple Voronoi cells) randomly
-
-
-	TODO: Replace with randomized algorithm with reduced complexity cost,
-	as per discussion with Drew Kouri
+	The Voronoi vertex sampling algorithm :meth:`psdr.voronoi_vertex`
+	requires an initial set of points which are then pushed towards Voronoi vertices.
+	In high dimensional spaces with a low-rank distance metric given by L, random sampling
+	is going to concentrate samples in this metric and ignore the boundaries.
+	This will make the Voronoi vertices sampled by this algorithm tend to ignore
+	areas near the boundary and hence, these will provide poor samples for a maximin
+	design of experiments. This algorithm attempts to sample a high-dimensional space
+	with a low-rank pseudo-metric  
 
 	Parameters
 	----------
 	domain: Domain
-		Specifies the space in which X lives
-	X: np.ndarray(M,n)
-		Current samples from the domain
-	L: np.ndarray(n,n)
-		Metric associated the desired Voronoi diagram 
-	""" 
-	if L is None:
-		L = np.eye(X.shape[1])
+		Domain on which to sample
+	L: array-like (?,m)
+		Matrix defining the (semi)-metric for the space
+	Nsamp: int, optional
+		Number of samples to return
+	Nboundary: int, optional
+		Number of samples to take from the boundary for constructing the boundary
+		of the domain projected onto a low-rank L
 
-	i = np.random.randint(X.shape[0])
-	xi = X[i]
-	# Compute the linear inequalities associated with this point
-	A = []
-	b = []
-	for j, xj in enumerate(X):
-		if i != j:
-			b.append( -0.5*np.dot( np.dot(L, xi - xj).T, np.dot(L, xi + xj)))
-			A.append( -np.dot( np.dot(L, xi - xj).T, L)) 
-	A = np.vstack(A)
-	b = np.hstack(b)
-
-	# Build up the domain associated with the Voronoi cell
-	cell = domain.add_constraint(A = A, b = b, center = xi)
-	r = np.random.randn(len(cell))
-	return cell.corner(r)
-
-
-
-# Keep this
-def voronoi_vertices(Y):
-	""" Compute all the Voronoi vertices 
-
-	This function provides a uniform access to the Voronoi vertices,
-	those points in n-dimensional space that are equidistant from n+1 points.
-	
-	This is necessary since QHull, and consequently scipy.spartial.Voronoi
-	only can handle 2-dimensional and higher 
-
-	Parameters
-	----------
-	Y: np.ndarray(M, n)
-		Array of points 
-	
 	Returns
 	-------
-	np.ndarray(N, n)
-		points far away from X in the projected domain
+	X0: np.ndarray(Nsamp, m)
+		Samples that are well-distributed in L metric in domain
 	"""
-	if len(Y.shape) ==1 or Y.shape[1] == 1:
-		# Q-hull doesn't handle the 1d case because it is straightfoward
-		yhat = np.sort(Y.flatten())
-		return 0.5*(yhat[1:] + yhat[:-1]).reshape(-1,1)
+	# If we are sampling with a scalar multiple of the identity matrix,
+	# we can do no better than random sampling on the original domain
+	if L.shape[0] == L.shape[1]:
+		err = np.linalg.norm(L[0,0]*np.eye(L.shape[0]) - L)
+		if np.isclose(err, 0):
+			return domain.sample(Nsamp)
+
+	# If there is only one point in the domain,
+	# we simply return that one point
+	if domain.is_point():
+		return domain.sample(1)	
+
+	# Compute the active directions
+	_, s, VT = scipy.linalg.svd(L)
+	I = np.argwhere(~np.isclose(s,0)).flatten()
+	U = VT.T[:,I]
+
+	# An explicit, low-rank version of L
+	J = np.diag(s[I]).dot(U.T)
+
+	Lrank = U.shape[1]
+
+	# Make sure we sample enough points on the boundary to preserve the full dimension
+	Nboundary = max(Nboundary, Lrank + 1)
+
+	if Lrank == 1:
+		# If L is rank 1 then the projection of the domain is an interval
+		cs = np.array([domain.corner(U.flatten()), domain.corner(-U.flatten())])
+		Jcs = J.dot(cs.T).T
 	else:
-		vor = Voronoi(Y)
-		return vor.vertices 
+		# Otherwise we first uniformly sample the rank-L dimensional sphere
+		zs = sample_sphere(U.shape[1], Nboundary)
+		# And then find points on the boundary in these directions
+		# with respect to the active directions
+		cs = np.array([domain.corner(U.dot(z)) for z in zs])
+		# Construct a reduced-dimension L times the corners
+		Jcs = J.dot(cs.T).T
+	
+		# Remove duplicates
+		I = unique_points(Jcs)
+		cs = cs[I]
+		Jcs = Jcs[I]
+		
+		# Compute the effective dimension using PCA on these points
+		
+		# As we will later map back to the original domain
+		# through the convex combination of these points,
+		# we center these points to improve conditioning
+		Jcs = (Jcs.T - np.mean(Jcs, axis = 0).reshape(-1,1)).T
 
-# Keep this
-def zonotope(domain, U, n_sample = None):
-	""" Construct an approximate zonotope 
-	"""
+		# We now do PCA on these centered points (i.e., SVD)
+		# to assess if these have been projected onto a low dimensional manifold
+		U2, s2, VT2 = scipy.linalg.svd(Jcs, full_matrices = False)
+		dim = np.sum(~np.isclose(s2,0))
+		# If they are on this manifold, rotate onto this basis
+		if dim < Lrank:
+			V2 = VT2.T
+			Jcs = Jcs.dot(V2[:,0:dim])
+	
+	
+	if len(Jcs) == 2:
+		# If there only two points on the boundary, 
+		# we have an interval that we can easily sample
+		alphas = np.random.uniform(0,1, size = Nsamp)
+		X0 = np.vstack([alpha*cs[0] + (1-alpha)*cs[1] for alpha in alphas])	
 
-	if n_sample is None:
-		n_sample = 10*4**U.shape[1]
-
-	# Construct samples of boundary
-	if U.shape[1] == 1:
-		# With a one dimensional ridge, we only need to consider +/- U
-		X = np.vstack([ domain.corner(U.flatten()), domain.corner(-U.flatten())])
 	else:
-		Z = sample_sphere(U.shape[1], n_sample)
-		X = np.vstack([ domain.corner(np.dot(U, z)) for z in Z])
+		# Otherwise we sample the convex hull of the projected corners
+		Jdom = ConvexHullDomain(Jcs)
+			
+		# Sampling a linear inequailty domain is much faster than a convex hull domain
+		# so if this is feasible, we convert to this format
+		if len(Jdom) <= 3:
+			Jdom_ineq = Jdom.to_linineq()
+			ws = Jdom_ineq.sample(Nsamp)
+		else:
+			ws = Jdom.sample(Nsamp)
 
-	# Compress down onto the ridge
-	Y = np.dot(U.T, X.T).T
-	return ConvexHullDomain(Y)
+		# And project those points back into the original domain
+		X0 = np.zeros( (Nsamp, len(domain)) )
+		for i, w in enumerate(ws):
+			# Determine the combination coefficients for these samples
+			alpha = Jdom.coefficients(w)
+			X0[i] = cs.T.dot(alpha)
 
+	return X0
+		
 
-# Keep this
-def stretch_sample(domain, Us, X0 = None, M = 1, verbose = False, enrich = True, M_interior = 100):
-	""" Sample greedly from a set of ridge directions
+def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), depth = np.inf, X0 = None):
+	r""" A multi-objective sequential maximin sampling 
+	
 
-	Stretch sampling chooses a new sample 
+	Given an existing set of samples :math:`\lbrace \widehat{\mathbf{x}}_j\rbrace_{j=1}^M\subset \mathcal{D}`
+	from the domain :math:`\mathcal{D} \subset \mathbb{R}^m`, this algorithm finds a point :math:`\mathbf{x} \in \mathcal{D}`
+	that approximately maximizes the distance of the new point to all other points in multiple distance metrics 
+	give by matrices :math:`\mathbf{L}_i \in \mathbb{R}^{m\times m}`
+
+	.. math::
+
+		\max_{\mathbf{x} \in \mathcal{D}} \left\lbrace 
+			\min_{j=1,\ldots,M} \|\mathbf{L}_i (\mathbf{x} - \widehat{\mathbf{x}}_j)\|_2
+			\right\rbrace_{i}
+
+	This algorithm uses :meth:`psdr.voronoi_vertex` to generate local maximizers of this problem
+	for each metric and then tries to greedily satisfy the distance requirements for each metric.
+
+	A typical use case will have Ls that are of size (1,m)
+	
 
 	Parameters
 	----------
 	domain: Domain
-		Space on which to sample
-	Us: list of np.arrays 
-		List of subspaces on which to sample
-	X0: [optional] np.array(M, m)
-		List of samples already taken from the space
-	M: [optional] int, default: 1
-		Number of samples to take
-	verbose: [optional] bool, default: False
-		If True, explain choices at each step
+		The domain from which we will be sampling
+	Xhat: array-like (M, m)
+		Previously existing samples from the domain 
+	Ls: list of array-like (?, m) matrices, optional
+		The weight matrix (e.g., Lipschitz matrix) corresponding to each metric;
+		defaults to the identity matrix
+	Nsamp: int, optional (default 1000)
+		Number of samples to use when finding Voronoi vertices
+	depth: int, optional 
+		If specified, this stops the process trying to satisfy multiple 
+		norms after this many have been satisfied
 	"""
+	if Ls is None:
+		Ls = [np.eye(len(domain))]
 
-	if X0 is None:
-		X0 = np.zeros((0, len(domain)))
-
-	X1 = np.zeros((0, len(domain)))
-
-	# Construct the zonotope for each domain
-	zts = [zonotope(domain, U) for U in Us]
-
-	for i in range(M):
-		# For each direction, find the point furthest away from other points
-		Xall = np.vstack([X0, X1])
-		
-		Ybest = []
-		maxdist = []
-		boundary_can = []
-		message = ''
-		for zt, U in zip(zts, Us):
-			# Project current points onto this subspace
-			Yall = np.dot(U.T, Xall.T).T
-			
-			# Construc the candidates 
-			Yboundary = zt.X # samples from the boundary we used to make the zonotope
-			Yvoronoi = voronoi_vertices(np.vstack([Yall, zt.vertices]))
-			Ycan = np.vstack([Yboundary, Yvoronoi])
-
-			# Pick the point that has the maximum minimum distance
-			dist = np.min(cdist(Ycan, Yall, 'euclidean'), axis = 1)
-			j = np.argmax(dist)
-
-			# Record if sampled from voronoi or zonotope 
-			boundary_can.append(j < len(Yboundary))
-			Ybest.append(Ycan[j])
-			maxdist.append(dist[j])
-
-		# Choose the ridge direction with furthest away point
-		j = np.argmax(maxdist)
-		maxdist = maxdist[j]
-		U_best = Us[j]
-		y_best = Ybest[j]
-		boundary_can = boundary_can[j]
+	# If we have no samples we pick a corner in the direction
+	# of the dominant singular vector of the stacked L matrices
+	if len(Xhat) == 0:
+		Lall = np.vstack(Ls)
+		_, s, VT = scipy.linalg.svd(Lall)
+		# If several singular values are close, we randomly select a direction 
+		# from that subspace
+		I = np.argwhere(np.isclose(s, s[0])).flatten()
+		u = VT.T[:,I].dot(np.random.randn(len(I)))
+		return domain.corner(u)
 	
-		message = 'Step %3d using U %3d, dist %5.5f, ' % (i, j, maxdist)
+	Xhat = np.array(Xhat)
+	Xhat = np.atleast_2d(Xhat)
 
-		if boundary_can:
-			# If we are a candidate from the boundary,
-			# find the corner in that direction
-			x_new1 = domain.corner(np.dot(U_best, y_best))		
-			x_new2 = domain.corner(-np.dot(U_best, y_best))	
-			if np.linalg.norm(np.dot(U_best.T, x_new1) - y_best) < np.linalg.norm(np.dot(U_best.T, x_new2) - y_best):
-				x_new = x_new1
-			else:
-				x_new = x_new2
-			message += 'sampled boundary '
+	#############################################################################
+	# Otherwise, we proceed with identifiying Voronoi vertices associated with
+	# each of the metrics (L's) provided.
+	#############################################################################
+
+	vertices = []
+	it = 0
+	queue = []
+	for k, L in enumerate(Ls):
+		# Find initial samples well separated
+		if X0 is None:
+			X = initial_sample(domain, L, Nsamp = Nsamp//(len(Ls)+1))
 		else:
-			# Otherwise, we add this equality constraint to the domain
-			# and pick a far away sample
-			try:
-				# Try constructing the domain by adding an equality constraint
-				sample_dom = domain.add_constraint(A_eq = U_best.T, b_eq = y_best)
-			except EmptyDomain:
-				# If we can't form this domain (likely due to numerical artifacts near the boundary)
-				# find the closest point inside the domain by solving a quadratic program
-				x_new = domain.projected_closest_point(U_best.T, y_best).reshape(-1)
-				message += 'sampled closest  '
-			else:	
-				message += 'sampled interior '
-			
-				if enrich:
-					# Generate candidate directions on each of the ridges
-					ps = []
-					for U in [Us[k] for k in range(len(Us)) if k != j]:
-						if U.shape[1] == 1:
-							ps.append(U.flatten())
-							ps.append(-U.flatten())
-						else: 	
-							ps += [np.dot(U, z) for z in sample_sphere(U.shape[1], 10)]
+			X = np.copy(X0)
 
-					# Generate list of directions of the desired length
-					I = np.random.permutation(len(ps))
-					ps = [ps[k] for k in I[0:M_interior - 1]]
-					Xcan = [sample_dom.corner(p) for p in ps] + [sample_dom.center.flatten()]
-					if len(Xcan) < M_interior:
-						Xcan += [x for x in sample_dom.sample(M_interior - len(Xcan))]
-					Xcan = np.vstack(Xcan)
-				else:
-					Xcan = sample_dom.sample(M_interior)
-
-				# Pick the point satisfying this constraint furthest away
-				dist = np.min(cdist(Xcan, Xall), axis = 1)
-				k = np.argmax(dist)
-				x_new = Xcan[k].reshape(-1)
-
-		if not domain.isinside(x_new):
-			if verbose:
-				print "point not inside" 
-			x_new = domain.closest_point(x_new).reshape(-1)
+		# find the Voronoi vertices; we don't randomize as we are only interested
+		# in the component that satisfies the constraint
+		vertices = voronoi_vertex(domain, Xhat, X, L = L, randomize = False) 
 		
-		# Compute distance
-		if verbose:
-			measdist = np.min(cdist(np.dot(U_best.T, x_new).reshape(1,-1) ,np.dot(U_best.T, Xall.T).T))
-			message += 'measured dist %5.5e' % (measdist,) 
+		# Remove duplicates in the L norm
+		I = unique_points(L.dot(vertices.T).T)
+		vertices = vertices[I]
+
+		# Compute the distances between points in this metric
+		D = cdist(L.dot(vertices.T).T, L.dot(Xhat.T).T)
+		D = np.min(D, axis = 1)
+ 
+		for d, vertex in zip(D, vertices):
+			# Place this point onto the priority queue
+			# Note we include an iterator so that ties are always broken cleanly
+			queue.append( (-d, it, k, vertex) )
+			it += 1
+
+	#############################################################################
+	# Now greedily add constraints based on these Voronoi vertices
+	#############################################################################
+
+	domain_samp = domain
+	used = []		# The indices of metrics (given by L) that we have already used
+
+	queue.sort()
+	for d, it, k, vertex in queue:
+		if domain_samp.intrinsic_dimension == 0 or len(used) == len(Ls) or len(used) >= depth:
+			break
 	
-		X1 = np.vstack([X1, x_new.reshape(1,-1)])
-
-		if verbose:
-			print message
-
-	return X1
+		# We ignore constraints from L's we have already considered
+		# since these must necessarily yield empty domains	
+		if k not in used:
+			L = Ls[k]
 	
+			# Try adding this as an equality constraint
+			domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vertex))
+			if not domain_test.empty:
+				domain_samp = domain_test
+				used.append(k)
 
-if __name__ == '__main__':
-	m = 5
-	A = np.zeros((1,m))
-	A[0,0] = 1
-	A[0,1] = 1
-	b = -1*np.ones((1,))
-	dom = LinIneqDomain(A, b, lb = -1*np.ones(m), ub = 1*np.ones(m))
-	X = dom.sample(1000)
+	#############################################################################
+	# On the resulting domain, we try to place points maximizing the minimum distance
+	# in the *unweighted* Euclidian norm.
+	#############################################################################
 	
-	#L = np.zeros((2,m))
-	#L[0,0] = 1
-	#L[1,1] = 1
-	#x = random_voronoi_vertex(dom, X, L)
-	#print x
-
-	U = orth(np.random.randn(m,2))
-	Xcan = voronoi_vertices(np.dot(U.T, X.T).T)
-	#print Xcan.shape
-	#dom2 = zonotope(dom, U)
-	#print dom2.vertices
-	stretch_sample(dom, [U], X, M = 10, verbose = True)
+	X0 = initial_sample(domain_samp, np.eye(len(domain)), Nsamp = Nsamp//(len(Ls)+1))
+	vertices = voronoi_vertex(domain_samp, Xhat, X0)  
+	# Find the distance between the vertices and the existing samples
+	D = cdist(vertices, Xhat)
+	D = np.min(D, axis = 1)
+	# Return the one that is furthest away from the existing samples
+	return vertices[np.argmax(D)] 
 
 
-if False:# __name__ == '__main__':
-	from domains import *
-	import matplotlib.pyplot as plt
-	#demo_sample()
+def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):
+	r""" Estimate the fill distance of the points Xhat in the domain
+
+	The *fill distance* (Def. 1.4 of [Wen04]_) or *dispersion* [LC05]_
+	is the furthest distance between any point :math:`\mathbf{x} \in \mathcal{D}` 
+	and a set of points 
+	:math:`\lbrace \widehat{\mathbf{x}}_j \rbrace_{j=1}^m \subset \mathcal{D}`:
+		
+	.. math::
+
+		\sup_{\mathbf{x} \in \mathcal{D}} \min_{j=1,\ldots,M} \|\mathbf{L}(\mathbf{x} - \widehat{\mathbf{x}}_j)\|_2.
+
+	Similar to :meth:`psdr.seq_maximin_sample`, this uses :meth:`psdr.voronoi_vertex` to find 
+	a subset of local maximizers and returns the best of these.
+
+	Parameters
+	----------
+	domain: Domain
+		Domain on which to compute the dispersion
+	Xhat: array-like (?, m)
+		Existing samples on the domain
+	L: array-like (?, m) optional
+		Matrix defining the distance metric on the domain
+	Nsamp: int, default 1e4
+		Number of samples to use for vertex sampling
+	X0: array-like (?, m)
+		Samples from the domain to use in :meth:`psdr.voronoi_vertex`
+
+	Returns
+	-------
+	d: float
+		Fill distance lower bound
+
+	References
+	----------
+	..  [Wen04] Scattered Data Approximation. Holger Wendland.
+			Cambridge University Press, 2004.
+			https://doi.org/10.1017/CBO9780511617539
+	.. [LC05] Iteratively Locating Voronoi Vertices for Dispersion Estimation
+		Stephen R. Lindemann and Peng Cheng
+		Proceedings of the 2005 Interational Conference on Robotics and Automation
+	"""
+	if L is None:
+		L = np.eye(len(domain))
 	
-	m = 5
-	A = np.zeros((1,m))
-	A[0,0] = 1
-	A[0,1] = 1
-	b = -1*np.ones((1,))
-	dom = LinIneqDomain(A, b, lb = -1*np.ones(m), ub = 1*np.ones(m))
+	if X0 is None:
+		X0 = initial_sample(domain, L, Nsamp = Nsamp)
+
+	# Since we only care about distance in L, we can terminate early if L is rank-deficient
+	# and hence we turn off the randomization
+	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = False)
+
+	# Euclidean distance
+	D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
+
+	d = np.min(D, axis = 1)
+	return float(np.max(d))
+
+	
+class Sampler:
+	r""" Generic sampler interface
+
+	Parameters
+	----------
+	fun: Function
+		Function for which to preform a design of experiments
+	X: array-like (?,m)
+		Existing samples from the domain
+	fX: array-like (?,nfun)
+		Existing evaluations of the function at the points in X
+	"""
+	def __init__(self, fun, X = None, fX = None):
+		self._fun = fun
+		
+		if X is None:
+			X = np.zeros((0, len(fun.domain)))
+		else:
+			X = np.copy(np.array(X))
+			assert X.shape[1] == len(fun.domain), "Input dimensions do not match function"
+		
+		self._X = X
+		
+		if fX is not None:
+			fX = np.copy(np.array(fX))
+			assert fX.shape[0] == X.shape[0], "Number of function values does not match number of samples"
+
+		self._fX = fX
+
+	def sample(self, draw = 1, verbose = False):
+		r""" Sample the function
 
 
-	#X0 = sample_uniform(dom, M = 10, verbose = True, mitchell_sample = 10)
-	#X = sample_uniform(dom, M = 10, X0 = X0, verbose = True, mitchell_sample = 10)
+		Parameters
+		----------
+		draw: int, default 1
+			Number of samples to take
+		"""
+		return self._sample(draw = draw, verbose = verbose)
 	
-	U0 = np.zeros(m)
-	U0[0] = 1.
-	U0[1] = -1.
-	U0 /= np.linalg.norm(U0)
-	U1 = np.zeros(m)
-	U1[1] = 1
-	U1[0] = 1.
-	U1 /= np.linalg.norm(U1)
-	Us = [U0, U1]
-	#X = sample_ridges(dom, Us, target_separation = None, M = 100, M_interior = 0)
+	def sample_async(self, draw = 1):
+		r""" Sample the function asynchronously updating the search parameters
+
+
+		Parameters
+		----------
+		draw: int, default 1
+			Number of samples to take
+		"""
+		return self._sample_async(draw = draw)
+
+	def _sample(self, draw = 1, verbose = False):
+		raise NotImplementedError
 	
-	fig, ax = plt.subplots()
-	ax.hist(np.dot(U0.T, X.T).T)
-	rdom = build_ridge_domain(dom, U0)
-	rng = rdom.range(np.ones(1))
-	ax.axvline(rng[0], color = 'k')
-	ax.axvline(rng[1], color = 'k')
-	fig, ax = plt.subplots()
-	ax.hist(np.dot(U1.T, X.T).T)
-	rdom = build_ridge_domain(dom, U1)
-	rng = rdom.range(np.ones(1))
-	ax.axvline(rng[0], color = 'k')
-	ax.axvline(rng[1], color = 'k')
-	plt.show()
+	def _sample_async(self, draw = 1):
+		raise NotImplementedError
+
+	@property
+	def X(self):
+		r""" Samples from the function's domain"""
+		return self._X.copy()
+
+	@property
+	def fX(self):
+		r""" Outputs from the function corresponding to samples X"""
+		if self._fX is not None:
+			return self._fX.copy()
+		else:
+			return None
+	
+class SequentialMaximinSampler(Sampler):
+	r""" Sequential maximin sampling with a fixed metric
+
+	Given a distance metric provided by :math:`\mathbf{L}`,
+	construct a sequence of samples :math:`\widehat{\mathbf{x}}_i`
+	that are local solutions to
+
+
+	.. math::
+		
+		\widehat{\mathbf{x}}_j = \arg\max_{\mathbf{x} \in \mathcal{D}} \min_{i=1,\ldots,j}
+			 \|\mathbf{L}(\mathbf{x} - \widehat{\mathbf{x}}_i)\|_2.
+
+	
+	Parameters
+	----------
+	fun: Function
+		Function for which to preform a design of experiments
+	L: array-like (?, m)
+		Matrix defining the metric
+	X: array-like (?,m)
+		Existing samples from the domain
+	fX: array-like (?,nfun)
+		Existing evaluations of the function at the points in X
+
+	"""
+	def __init__(self, fun, L = None, X = None, fX = None):
+		Sampler.__init__(self, fun, X = X, fX = fX)
+		if L is None:
+			L = np.eye(len(fun.domain))
+		else:
+			L = np.atleast_2d(np.array(L))
+			assert L.shape[1] == len(fun.domain), "Dimension of L does not match domain"
+		self._L = L
+
+	def _sample(self, draw = 1, verbose = False):
+		Xnew = []
+		# As L is fixed, we can draw these samples at once
+		for i in range(draw):
+			xnew = seq_maximin_sample(self._fun.domain, self._X, Ls = [self._L])
+			Xnew.append(xnew)
+			if verbose:
+				print('%3d: ' % (i,),  ' '.join(['%8.3f' % x for x in xnew]))
+			self._X = np.vstack([self._X, xnew])
+
+		# Now we evaluate the function at these new points
+		# (this takes advantage of potential vectorization of fun)
+		fXnew = self._fun.eval(Xnew)
+		if self._fX is None:
+			self._fX = fXnew
+		else:
+			if len(fXnew.shape) > 1:
+				self._fX = np.vstack([self._fX, fXnew])
+			else:
+				self._fX = np.hstack([self._fX, fXnew])
+
+
+class StretchedSampler(Sampler):
+	r"""
+
+	"""
+	def __init__(self, fun, X = None, fX = None, pras = None, funmap = None):
+		Sampler.__init__(self, fun, X = X, fX = fX)
+		self._pras = pras 
+
+		if funmap is None:
+			funmap = lambda x: x
+		self._funmap = funmap
+
+
+	def _sample(self, draw = 1):
+		for it in range(draw):
+			return self._sample_one()
+
+	def _sample_one(self):
+		 pass
+
+
+#class Sampler(object):
+#	def __init__(self, f, domain, pool = None, X0 = None, fX0 = None):
+#		
+#		# Copy over variables
+#		self.f = f
+#		self.domain = domain
+#		
+#		if pool is None:
+#			pool = SequentialPool()
+#		self.pool = pool
+#
+#		if X0 is None:
+#			self.X = []
+#		else:
+#			self.X = [x for x in X0]
+#		if fX0 is None:
+#			self.fX = []
+#		else:
+#			self.fX = [fx for fx in fX0]
+#		
+#
+#	def _draw_sample(self, Xrunning):
+#		raise NotImplementedError
+#
+#	def sample(self, draw = 1):
+#		""" 
+#		"""
+#		for k in range(draw):
+#			Xrunning = np.zeros((0, len(self.domain))) 
+#			xnew = self._draw_sample([Xrunning,])
+#			job = self.pool.apply(self.f, args = [xnew,])
+#			fxnew = job.output
+#			self.X  += [xnew]
+#			self.fX += [float(fxnew)]
+#			
+#
+#	def parallel_sample(self, draw = 1, dt = 0.1):
+#		# TODO: Add assertion about pool support async 
+#		njobs = 0
+#		jobs = []
+#	
+#		while njobs < draw:
+#			# If we have a worker avalible 
+#			if self.pool.avail_workers() > 0:
+#				# Determine which jobs are done
+#				done = [k for k, job in enumerate(jobs) if job.ready()]
+#
+#				# Get the updated information
+#				Xnew = [jobs[k].args[0] for k in done]
+#				fXnew = [jobs[k].output for k in done]
+#
+#				# Update the input/ouput pairs
+#				self.X  += Xnew
+#				self.fX += fXnew
+#
+#				# Delete the completed jobs
+#				jobs = [jobs[k] for k in enumerate(jobs) if k not in done]
+#				
+#				# Extract the points that are currently running
+#				Xrunning = [jobs.args[0] for k in jobs] 
+#				
+#				# Draw a sample and enqueue it
+#				x = self._draw_sample(Xrunning)
+#				jobs.append(self.pool.apply_async(self.f, args = [x,]))
+#				njobs += 1	
+#			else:
+#				time.sleep(dt)
+#
+#		# Wait for all jobs to finish
+#		self.pool.join()		
+#				
+#		Xnew  = [job.args[0] for job in jobs]
+#		fXnew = [job.output for job in jobs]
+#
+#		# Update X, fX
+#		self.X += Xnew
+#		self.fX += fXnew
+#
+#
+#
+#class RandomSampler(Sampler):
+#	def _draw_sample(self, Xrunning):
+#		return self.domain.sample()	
+#
+#class UniformSampler(Sampler):
+#	""" Sample uniformly on the normalized domain
+#
+#	"""
+#	def __init__(self, f, domain, pool = None, X0 = None, fX0 = None):
+#		Sampler.__init__(self, f, domain, pool = pool, X0 = X0, fX0 = fX0) 		
+#		self.domain_norm = self.domain.normalized_domain()
+#		self.L = np.eye(len(self.domain))
+#
+#	def _draw_sample(self, Xrunning):
+#		Xall = np.array(self.X + Xrunning)
+#		Xall_norm = self.domain.normalize(Xall)
+#		
+#		xnew_norm = maximin_sample(Xall_norm, self.domain_norm, self.L)
+#		xnew = self.domain.unnormalize(xnew_norm)
+#		return xnew
+#
+#class RidgeSampler(Sampler):
+#	"""
+#
+#	Note: the ridge approximation is always formed on the normalized domain
+#
+#	Parameters
+#	----------
+#	pra: Instance of PolynomialRidgeApproximation
+#	"""
+#	def __init__(self, f, domain, pra, **kwargs):
+#		Sampler.__init__(self, f, domain, **kwargs)
+#		self.domain_norm = self.domain.normalized_domain()
+#		self.pra = pra
+#		self.U = None
+#		self.fill_dist = np.inf
+#
+#	def _draw_sample(self, Xrunning):
+#		if len(self.fX) <= len(self.domain)+1:
+#			return self.domain.sample()
+#
+#		# Build ridge approximation
+#		X_norm = self.domain.normalize(self.X)
+#		fX = np.array(self.fX)
+#		I = np.isfinite(fX)
+#		try:
+#			self.pra.fit(X_norm[I], fX[I])
+#		except (UnderdeterminedException, IllposedException):
+#			# If we can't yet solve the problem, sample randomly
+#			return self.domain.sample()		
+#
+#		Xall = np.vstack(self.X + Xrunning)
+#		Xall_norm = self.domain.normalize(Xall)
+#		self.U = self.pra.U
+#		xnew_norm = maximin_sample(Xall_norm, self.domain_norm, L = self.U.T)
+#		self.fill_dist = np.min(cdist(self.U.T.dot(xnew_norm).reshape(1,-1), self.U.T.dot(Xall_norm.T).T))
+#		xnew = self.domain.unnormalize(xnew_norm)
+#		return xnew
+#					
+#if __name__ == '__main__':
+#	from demos import golinski_volume, build_golinski_design_domain
+#	from poly_ridge import PolynomialRidgeApproximation
+#	dom = build_golinski_design_domain()
+#		
+#	f = golinski_volume
+#	
+#	np.random.seed(0)
+#
+#	pra = PolynomialRidgeApproximation(degree = 5, subspace_dimension = 1)
+#	samp = RidgeSampler(f, dom, pra)
+#	samp.sample(2)
+#	for k in range(2,1000):
+#		samp.sample()
+#		print("%3d %5.2e" % (k, samp.fill_dist))
+		 
