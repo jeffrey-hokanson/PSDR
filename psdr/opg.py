@@ -4,6 +4,8 @@ import numpy as np
 
 from .subspace import SubspaceBasedDimensionReduction, ActiveSubspace
 
+__all__ = ['OuterProductGradient']
+
 class OuterProductGradient(ActiveSubspace):
 	r""" The Outer Product Gradient approach of Hardle and Stoker
 
@@ -62,6 +64,9 @@ class OuterProductGradient(ActiveSubspace):
 		self.kernel = kernel
 		self.standardize = standardize
 
+	def __str__(self):
+		return "<Outer Product Gradient>"
+
 	def fit(self, X, fX):
 		r""" 
 
@@ -74,7 +79,12 @@ class OuterProductGradient(ActiveSubspace):
 		"""
 
 		X = np.atleast_2d(X)
-		assert len(fX.shape) == 1, "Must provide a scalar quantity of interest fX"
+		fX = np.atleast_1d(fX)
+
+		if len(fX.shape) > 1:
+			fX = fX.flatten()
+			assert len(fX) == len(X), "Must provide one-dimensional inputs of same dimension as X"
+		
 		assert len(fX) == len(X), "Number of points X must match number of function samples fX"
 		
 		N = len(X)
@@ -92,9 +102,10 @@ class OuterProductGradient(ActiveSubspace):
 		# Bandwidth from Xia 2007, [Li18, eq. 11.5] 
 		bw = 2.34*len(X)**(-1./(max(X.shape[1], 3) +6))
 		kernel = lambda dist: np.exp(-bw*dist**2/2.)
-	
 
 		# TODO: Implement both naive approach in Li as well as weighted LS
+		# N.B.: weighted LS will be slower (but better conditioned) because it is solve a large LS
+		# vs a small pos-definite linear system
 
 		# Step 3: Estimate gradients
 		z_grads = np.zeros(Z.shape)		# estimated gradients in the transformed coordinates
@@ -120,3 +131,7 @@ class OuterProductGradient(ActiveSubspace):
 			U = Dinv2.dot(self.U)
 			Q, R = np.linalg.qr(U, mode = 'reduced')
 			self._U = Q
+	
+			self._fix_subspace_signs_grads(self._U, z_grads)		
+		
+

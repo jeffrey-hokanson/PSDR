@@ -8,6 +8,7 @@ from .gp import *
 from .sample import *
 from .polyridge import *
 from .poly import *
+from .opg import *
 
 # Optimization
 from .minimax import *
