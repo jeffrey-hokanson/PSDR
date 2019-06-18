@@ -13,6 +13,14 @@ Active Subspace
 ===============
 
 .. autoclass:: psdr.ActiveSubspace
+	:members: fit
+
+
+Outer Product Gradient
+======================
+
+.. autoclass:: psdr.OuterProductGradient
+	:members: fit
 
 
 Lipschitz Matrix
@@ -20,4 +28,5 @@ Lipschitz Matrix
 
 .. autoclass:: psdr.LipschitzMatrix
    :members: fit, H, L, uncertainty, uncertainty_domain, shadow_uncertainty 
+
 
