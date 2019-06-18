@@ -6,4 +6,5 @@ Tutorial
 
 	borehole
 	ASAP
+	sweep
 	multiprocessing
