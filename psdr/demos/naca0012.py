@@ -13,7 +13,7 @@ class NACA0012(Function):
 	0.8 and angle of attack 1.25. 
 
 	This example slightly modifies the configuration file that appears in the SU2 quickstart folder:
-	[inv_NACA0012.cfg](https://github.com/su2code/SU2/blob/master/QuickStart/inv_NACA0012.cfg).	
+	(inv_NACA0012.cfg)[https://github.com/su2code/SU2/blob/master/QuickStart/inv_NACA0012.cfg].
 
 	Parameters
 	----------
@@ -24,7 +24,7 @@ class NACA0012(Function):
 	fraction: float, optional (default:0.01)
 		 
 
-	Reference
+	References
 	----------
 	.. [SU2] https://su2code.github.io/	
 	"""

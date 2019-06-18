@@ -36,6 +36,10 @@ Golinski Gearbox
 
 .. autoclass:: psdr.demos.GolinskiGearbox
 
+Nowacki Beam
+------------
+
+.. autoclass:: psdr.demos.NowackiBeam
 
 OTL Circuit Function
 --------------------
