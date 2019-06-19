@@ -132,7 +132,7 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	return X0
 		
 
-def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.1):
+def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.9):
 	r""" A multi-objective sequential maximin sampling 
 	
 
@@ -223,20 +223,17 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 	#############################################################################
 
 	# When generating these domains, we limit the number of vertices we consider
-	if len(Ls) == 1:
-		max_verts = 1e2
-	else:
-		max_verts = max(2, int(np.floor(1e2**(1./(len(Ls) - 1 )))))
+	max_verts = max(2, int(np.floor(1e2**(1./len(Ls) ))))
 
 	# A list of which vertices to consider at each step
 	coords = []
 	for dist, vert in zip(distances, vertices):
-		if dist[0] == np.max([d[0] for d in distances]):
-			# If this coordinate has the largest distance, we only sample the largest one 
-			coords.append([0])
-		else:
-			# Otherwise we sample the first few largest
-			coords.append(np.arange(min(len(vert),max_verts)))
+		#if dist[0] == np.max([d[0] for d in distances]):
+		#	# If this coordinate has the largest distance, we only sample the largest one 
+		#	coords.append([0])
+		#else:
+		# Otherwise we sample the first few largest
+		coords.append(np.arange(min(len(vert),max_verts)))
 
 	# Generate a score associated with each
 	# This score is the product to the distances in each metric 
@@ -287,12 +284,12 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 		Xcan_new = voronoi_vertex(domain_samp, Xhat, X0)
 		
 		# Score samples: product of distances in each of the L metrics
-		score_Ls_new = np.zeros(Xcan_new.shape[0])
+		score_Ls_new = np.ones(Xcan_new.shape[0])
 		for L in Ls:
 			D = cdist(L.dot(Xcan_new.T).T, L.dot(Xhat.T).T)
 			d = np.min(D, axis = 1)
 			with np.errstate(divide='ignore'):
-				score_Ls_new += np.log10(d)
+				score_Ls_new *= d # np.log10(d)
 		score_Ls = np.hstack([score_Ls, score_Ls_new])
 		Xcan.append(Xcan_new)
 		
@@ -300,7 +297,7 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 		# (and we've used all the constraints)
 		#print("score", np.max(score_Ls_new), "best", np.max(score_Ls), "b_eq", domain_samp.b_eq, "idx_i", idx_i)
 		active_constraints = np.sum(found_idx >=0)
-		if np.max(score_Ls_new) < np.log10(slack) + np.max(score_Ls) and active_constraints == len(Ls):
+		if np.max(score_Ls_new) < slack*np.max(score_Ls) and active_constraints == len(Ls):
 			# This prevents us from generating candidates that will be removed 
 			#print("stopping")
 			break
@@ -316,18 +313,24 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 	
 	# Compute Euclidean distances	
 	D = cdist(Xcan, Xhat)
-	d = np.min(D, axis = 1)
-	score_I = np.log10(d)
+	score_I = np.min(D, axis = 1)
 	
-	#for i in range(len(Xcan)):
-	#	print("%3d\t %g \t %g" % (i, score_Ls[i], score_I[i]))
+#	for i in np.argsort(-score_Ls):
+#		print("%3d\t %g \t %g" % (i, score_Ls[i], score_I[i]))
+
+#	import matplotlib.pyplot as plt
+#	fig, ax = plt.subplots()
+#	ax.plot(score_Ls, score_I, 'k.')
+#	ax.set_xlabel('Ls score')
+#	ax.set_ylabel('I score')
+#	plt.show()
 
 	# Now select the one within 95% of optimum 
-	I = (score_Ls >= np.max(score_Ls) + np.log10(slack))
+	I = (score_Ls >= np.max(score_Ls)*slack)
 	# Delete those not matching critera
 	Xcan = Xcan[I]
 	score_I = score_I[I]
-	# pick the remaining point with highest metric
+	# pick the remaining point with highest Euclidean metric
 	i = np.argmax(score_I)
 	return Xcan[i]
 
