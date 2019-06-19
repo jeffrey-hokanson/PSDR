@@ -17,7 +17,7 @@ if __name__ == '__main__':
 	# First 9 lock	
 	Ls = [np.array([[2,1]]), np.array([[1, 2]])]
 	
-	for ax, slack in zip(axes, [1, 0.1]):
+	for ax, slack in zip(axes, [1, 0.5]):
 		X = []
 		for i in range(M):
 			x = psdr.seq_maximin_sample(dom, X, Ls = Ls, slack = slack, Nsamp = int(1e3))
