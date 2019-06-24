@@ -65,6 +65,11 @@ For further documentation, please see our page on Read the Docs:
 [Documentation](https://psdr.readthedocs.io/en/latest/).
 
 
+## Similar Software
+
+* [SMT: Surrogate Modeling Toolbox](https://smt.readthedocs.io/en/latest/)
+
+
 ## Contributing
 I welcome contributions to this library,
 particularly of test functions similar to those in `psdr.demos`.
