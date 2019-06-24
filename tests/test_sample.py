@@ -1,6 +1,7 @@
 from __future__ import print_function
 import numpy as np
 from scipy.spatial.distance import cdist, pdist
+import psdr
 from psdr import BoxDomain, seq_maximin_sample, fill_distance_estimate, initial_sample
 from psdr import SequentialMaximinSampler 
 from psdr.demos import Borehole, GolinskiGearbox
@@ -62,6 +63,23 @@ def test_seqmaximin():
 			assert len(samp.fX) == 7	
 
 
+def test_maximin(N = 11, m = 5):
+	dom = BoxDomain(-np.ones(m), np.ones(m))
+	L = np.ones((1,m))
+	X = psdr.maximin_sample(dom, N, L = L, maxiter = 500)
+	print(X)
+	d = L.dot(X.T).flatten()
+	d = np.sort(d)
+	print(d)
+	d_expect = np.linspace(-m,m, N)
+	print(d_expect)
+	assert np.all(np.isclose(d, d_expect, atol = 1e-5))
+		
+	# Now do a 2-d version
+	L = np.random.randn(2, m)
+	X = psdr.maximin_sample(dom, N, L = L, maxiter = 50, verbose = True)
+
 if __name__ == '__main__':
 	#test_initial_sample()
-	test_seqmaximin()
+	#test_seqmaximin()
+	test_maximin()

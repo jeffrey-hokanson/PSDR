@@ -1,5 +1,6 @@
 from __future__ import print_function
 import numpy as np
+import numpy.ma as ma
 import scipy.linalg
 import scipy.optimize
 from scipy.spatial.distance import cdist, pdist, squareform
@@ -12,7 +13,7 @@ from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain, ConvexHullDomain, SolverError
 
 __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
-	'StretchedSampler']
+	'StretchedSampler', 'maximin_sample']
 
 
 def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
@@ -131,6 +132,76 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 
 	return X0
 		
+
+
+def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500):
+	r""" Construct a maximin design by block coordinate descent
+
+
+	Given a domain :math:`\mathcal{D}\subset \mathbb{R}^m` and a matrix :math:`\mathbf{L}`,
+	this function constructs an :math:`N` point maximin design solving 
+
+	.. math:: 
+
+		\max_{\mathbf{x}_1,\ldots, \mathbf{x}_N \in \mathcal{D}} 
+		\min_{i\ne j} \|\mathbf{L} (\mathbf{x}_i - \mathbf{x}_j)\|_2.
+
+	Here we use a block coordinate descent approach, treating each :math:`\mathbf{x}_i`
+	in sequence, maximizing the minimum distance by moving it to its nearest Voronoi vertex.
+	This process is then repeated until the maximum number of iterations is exceeded
+	or the points :math:`\mathbf{x}_i` move less than a specified tolerance. 
+
+	Parameters
+	----------
+	domain: Domain	
+		Space on which to build design
+	Nsamp: int
+		Number of samples to construct 
+	L: array-like (*,m); optional
+		Matrix defining the metric in which we seek to construct the maximin design.
+		By default, this is the identity matrix.
+	xtol: float, positive; optional
+		Stopping criteria for movement of points
+	verbose: bool; optional
+		If True, print convergence information
+	maxiter: int; optional 
+		Maximum number of iterations of block coordinate descent
+	"""
+	if L is None:
+		L = np.eye(len(domain))
+	else:
+		L = np.atleast_2d(L)
+
+	X = initial_sample(domain, L, Nsamp)
+	
+	mask = np.ones(Nsamp, dtype = np.bool)
+	for it in range(maxiter):
+		max_move = 0
+		for i in range(Nsamp):
+			# Remove the current iterate 
+			mask[i] = False
+			Xt = X[mask,:]
+			# Reset the mask
+			mask[i] = True 
+			x = voronoi_vertex(domain, Xt, X[i], L = L, randomize = False)		
+		
+			# Compute movement of this point
+			move = np.linalg.norm(L.dot(X[i] - x.flatten()), np.inf)
+			max_move = max(max_move, move)
+			
+			# update this point
+			X[i] = x
+	
+			
+		if verbose:
+			d = np.min(pdist(L.dot(X.T).T))
+			print('iter %5d: movement %6e; min pairwise distance %6e' % (it,max_move,d ) )
+
+		# Only break at the end of a cycle
+		if max_move < xtol:
+			break
+		
+	return X
 
 def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.9):
 	r""" A multi-objective sequential maximin sampling 
