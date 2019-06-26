@@ -168,6 +168,12 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 		Rather than taking the point that maximizes the product of the
 		distances in each metric, we choose the point x with greatest unweighted Euclidean
 		distance from those candidates that are at least slack times the score of the best.
+
+	References
+	----------
+	.. [Mul01] Coffee-House Designs.
+		Werner G. Muller
+		in Optimimum Design 2000, A. Atkinson et al. eds., 2001
 	"""
 	if Ls is None:
 		Ls = [np.eye(len(domain))]
