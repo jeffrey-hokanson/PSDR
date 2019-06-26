@@ -6,6 +6,7 @@ import scipy.optimize
 from scipy.spatial.distance import cdist, pdist, squareform
 import cvxpy as cp
 import itertools
+import pycosat
 
 
 from .vertex import voronoi_vertex 
@@ -13,7 +14,7 @@ from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain, ConvexHullDomain, SolverError
 
 __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
-	'StretchedSampler', 'maximin_sample']
+	'StretchedSampler', 'maximin_sample', 'lipschitz_sample']
 
 
 def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
@@ -202,6 +203,83 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 			break
 		
 	return X
+
+
+def lipschitz_sample(domain, Nsamp, Ls):
+	r""" Construct a maximin design with respect to multiple Lipschitz matrices
+	"""	 
+	
+	# Construct maximin points for each metric L
+	ys = []
+	for L in Ls:
+		X = maximin_sample(domain, Nsamp, L)
+		y = L.dot(X.T).T
+		ys.append(y) 
+	
+	# The matrix of equality constraints that will appear for each point
+	A_eq = np.vstack(Ls)
+
+	def encode(metric, order, value):
+		return metric*Nsamp**2 + order*Nsamp + value + 1
+	def decode(idx):
+		return (idx-1) // Nsamp**2, ((idx-1) % Nsamp**2)// Nsamp, (idx-1) % Nsamp
+
+	
+	cnf = []
+	for metric in range(len(Ls)):
+		for order in range(Nsamp):
+			# At least one must be one
+			cnf += [ [encode(metric, order, value) for value in range(Nsamp)] ]	
+			# Not more than one is on
+			# we do this by checking not ( v1 and v2) which is equivalent to 
+			# not v1 or not v2 by DeMorgan
+			cnf += [ [-encode(metric, order, v1), -encode(metric, order, v2)] 
+						for v1, v2 in zip(*np.triu_indices(Nsamp,1)) ]
+
+		# Each equality constraint cannot be selected more than once
+		for value in range(Nsamp):
+			cnf += [ [-encode(metric, o1, value), -encode(metric, o2, value)] 
+						for o1, o2 in zip(*np.triu_indices(Nsamp, 1)) ]
+
+	# To fix ordering of the samples, we fix the ordering of the first metric
+	cnf += [ [encode(0, value, value)]  for value in range(Nsamp)]
+
+
+	# TODO: Encode constraints from unsatisfiabile points
+	if len(Ls) > 1:
+		for idx in itertools.product(range(Nsamp), repeat = len(Ls)):
+			b_eq = np.hstack([ys[metric][idx[metric]] for metric in range(len(Ls))])
+			dom = domain.add_constraints(A_eq = A_eq, b_eq = b_eq)
+			if dom.empty:
+				print("empty", idx)
+				
+				cnf += [ [-encode(metric, order, idx[metric]) for metric in range(len(Ls))] 
+						for order in range(Nsamp)] 
+
+	print(cnf)
+
+	for it, sol in enumerate(pycosat.itersolve(cnf)):
+		print("iter", it)
+		# Convert the solution format into a permutation matrix
+		sol = np.array(sol)
+		perms = -np.ones((len(Ls), Nsamp), dtype = np.int)
+		for i in np.argwhere(sol > 0).flatten():
+			metric, order, value = decode(sol[i])
+			perms[metric, order] = value
+
+		print(perms)
+		# Construct a series of domains from this set of constraints
+		doms = []
+		for order in range(Nsamp):
+			b_eq = np.hstack([ys[metric][perms[metric,order]] for metric in range(len(Ls))])
+			doms.append(domain.add_constraints(A_eq = A_eq, b_eq = b_eq))
+	
+		X = np.vstack([dom.sample() for dom in doms])
+		print(X)
+		assert False 
+ 
+	# Now we construct 
+
 
 def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.9):
 	r""" A multi-objective sequential maximin sampling 
