@@ -1,5 +1,6 @@
 from __future__ import print_function
 import numpy as np
+import numpy.ma as ma
 import scipy.linalg
 import scipy.optimize
 from scipy.spatial.distance import cdist, pdist, squareform
@@ -12,7 +13,7 @@ from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain, ConvexHullDomain, SolverError
 
 __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
-	'StretchedSampler']
+	'StretchedSampler', 'maximin_sample']
 
 
 def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
@@ -132,7 +133,77 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	return X0
 		
 
-def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.1):
+
+def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500):
+	r""" Construct a maximin design by block coordinate descent
+
+
+	Given a domain :math:`\mathcal{D}\subset \mathbb{R}^m` and a matrix :math:`\mathbf{L}`,
+	this function constructs an :math:`N` point maximin design solving 
+
+	.. math:: 
+
+		\max_{\mathbf{x}_1,\ldots, \mathbf{x}_N \in \mathcal{D}} 
+		\min_{i\ne j} \|\mathbf{L} (\mathbf{x}_i - \mathbf{x}_j)\|_2.
+
+	Here we use a block coordinate descent approach, treating each :math:`\mathbf{x}_i`
+	in sequence, maximizing the minimum distance by moving it to its nearest Voronoi vertex.
+	This process is then repeated until the maximum number of iterations is exceeded
+	or the points :math:`\mathbf{x}_i` move less than a specified tolerance. 
+
+	Parameters
+	----------
+	domain: Domain	
+		Space on which to build design
+	Nsamp: int
+		Number of samples to construct 
+	L: array-like (*,m); optional
+		Matrix defining the metric in which we seek to construct the maximin design.
+		By default, this is the identity matrix.
+	xtol: float, positive; optional
+		Stopping criteria for movement of points
+	verbose: bool; optional
+		If True, print convergence information
+	maxiter: int; optional 
+		Maximum number of iterations of block coordinate descent
+	"""
+	if L is None:
+		L = np.eye(len(domain))
+	else:
+		L = np.atleast_2d(L)
+
+	X = initial_sample(domain, L, Nsamp)
+	
+	mask = np.ones(Nsamp, dtype = np.bool)
+	for it in range(maxiter):
+		max_move = 0
+		for i in range(Nsamp):
+			# Remove the current iterate 
+			mask[i] = False
+			Xt = X[mask,:]
+			# Reset the mask
+			mask[i] = True 
+			x = voronoi_vertex(domain, Xt, X[i], L = L, randomize = False)		
+		
+			# Compute movement of this point
+			move = np.linalg.norm(L.dot(X[i] - x.flatten()), np.inf)
+			max_move = max(max_move, move)
+			
+			# update this point
+			X[i] = x
+	
+			
+		if verbose:
+			d = np.min(pdist(L.dot(X.T).T))
+			print('iter %5d: movement %6e; min pairwise distance %6e' % (it,max_move,d ) )
+
+		# Only break at the end of a cycle
+		if max_move < xtol:
+			break
+		
+	return X
+
+def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.9):
 	r""" A multi-objective sequential maximin sampling 
 	
 
@@ -229,20 +300,17 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 	#############################################################################
 
 	# When generating these domains, we limit the number of vertices we consider
-	if len(Ls) == 1:
-		max_verts = 1e2
-	else:
-		max_verts = max(2, int(np.floor(1e2**(1./(len(Ls) - 1 )))))
+	max_verts = max(2, int(np.floor(1e2**(1./len(Ls) ))))
 
 	# A list of which vertices to consider at each step
 	coords = []
 	for dist, vert in zip(distances, vertices):
-		if dist[0] == np.max([d[0] for d in distances]):
-			# If this coordinate has the largest distance, we only sample the largest one 
-			coords.append([0])
-		else:
-			# Otherwise we sample the first few largest
-			coords.append(np.arange(min(len(vert),max_verts)))
+		#if dist[0] == np.max([d[0] for d in distances]):
+		#	# If this coordinate has the largest distance, we only sample the largest one 
+		#	coords.append([0])
+		#else:
+		# Otherwise we sample the first few largest
+		coords.append(np.arange(min(len(vert),max_verts)))
 
 	# Generate a score associated with each
 	# This score is the product to the distances in each metric 
@@ -293,12 +361,12 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 		Xcan_new = voronoi_vertex(domain_samp, Xhat, X0)
 		
 		# Score samples: product of distances in each of the L metrics
-		score_Ls_new = np.zeros(Xcan_new.shape[0])
+		score_Ls_new = np.ones(Xcan_new.shape[0])
 		for L in Ls:
 			D = cdist(L.dot(Xcan_new.T).T, L.dot(Xhat.T).T)
 			d = np.min(D, axis = 1)
 			with np.errstate(divide='ignore'):
-				score_Ls_new += np.log10(d)
+				score_Ls_new *= d # np.log10(d)
 		score_Ls = np.hstack([score_Ls, score_Ls_new])
 		Xcan.append(Xcan_new)
 		
@@ -306,7 +374,7 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 		# (and we've used all the constraints)
 		#print("score", np.max(score_Ls_new), "best", np.max(score_Ls), "b_eq", domain_samp.b_eq, "idx_i", idx_i)
 		active_constraints = np.sum(found_idx >=0)
-		if np.max(score_Ls_new) < np.log10(slack) + np.max(score_Ls) and active_constraints == len(Ls):
+		if np.max(score_Ls_new) < slack*np.max(score_Ls) and active_constraints == len(Ls):
 			# This prevents us from generating candidates that will be removed 
 			#print("stopping")
 			break
@@ -322,18 +390,24 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 	
 	# Compute Euclidean distances	
 	D = cdist(Xcan, Xhat)
-	d = np.min(D, axis = 1)
-	score_I = np.log10(d)
+	score_I = np.min(D, axis = 1)
 	
-	#for i in range(len(Xcan)):
-	#	print("%3d\t %g \t %g" % (i, score_Ls[i], score_I[i]))
+#	for i in np.argsort(-score_Ls):
+#		print("%3d\t %g \t %g" % (i, score_Ls[i], score_I[i]))
+
+#	import matplotlib.pyplot as plt
+#	fig, ax = plt.subplots()
+#	ax.plot(score_Ls, score_I, 'k.')
+#	ax.set_xlabel('Ls score')
+#	ax.set_ylabel('I score')
+#	plt.show()
 
 	# Now select the one within 95% of optimum 
-	I = (score_Ls >= np.max(score_Ls) + np.log10(slack))
+	I = (score_Ls >= np.max(score_Ls)*slack)
 	# Delete those not matching critera
 	Xcan = Xcan[I]
 	score_I = score_I[I]
-	# pick the remaining point with highest metric
+	# pick the remaining point with highest Euclidean metric
 	i = np.argmax(score_I)
 	return Xcan[i]
 
