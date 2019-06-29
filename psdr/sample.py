@@ -221,8 +221,12 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 	This algorithm uses :meth:`psdr.voronoi_vertex` to generate local maximizers of this problem
 	for each metric and then tries to greedily satisfy the distance requirements for each metric.
 
-	A typical use case will have Ls that are of size (1,m)
-	
+	A typical use case will have Ls that are of size (1,m)	
+	This greedy sequential approach for constructing a maximin design is 
+	the Coffee-House Designs of Muller [Mul01]_. However, the approach of Muller
+	allows for a generic nonlinear solve for each sample point.  Here though
+	we restrict the domain to a polytope specified by linear inequalities
+	so we can invoke :meth:`psdr.voronoi_vertex` to solve each step. 
 
 	Parameters
 	----------
