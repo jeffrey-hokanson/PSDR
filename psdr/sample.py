@@ -17,6 +17,20 @@ __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sa
 	'StretchedSampler', 'maximin_sample', 'lipschitz_sample']
 
 
+def low_rank_L(L):
+	L = np.atleast_2d(L)
+	_, s, VT = scipy.linalg.svd(L)
+	
+	I = np.argwhere(~np.isclose(s,0)).flatten()
+	if np.all(I):
+		return L
+	else:
+		U = VT.T[:,I]
+		# An explicit, low-rank version of L
+		J = np.diag(s[I]).dot(U.T)
+		return J
+
+
 def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	r""" Construct initial points for a low-rank L matrix
 
@@ -58,28 +72,24 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	if domain.is_point():
 		return domain.sample(1)	
 
-	# Compute the active directions
-	_, s, VT = scipy.linalg.svd(L)
-	I = np.argwhere(~np.isclose(s,0)).flatten()
-	U = VT.T[:,I]
-
 	# An explicit, low-rank version of L
-	J = np.diag(s[I]).dot(U.T)
+	J = low_rank_L(L)
 
-	Lrank = U.shape[1]
+	Lrank = J.shape[0]
 
 	# Make sure we sample enough points on the boundary to preserve the full dimension
 	Nboundary = max(Nboundary, Lrank + 1)
 
 	if Lrank == 1:
 		# If L is rank 1 then the projection of the domain is an interval
-		cs = np.array([domain.corner(U.flatten()), domain.corner(-U.flatten())])
+		cs = np.array([domain.corner(J.flatten()), domain.corner(-J.flatten())])
 		Jcs = J.dot(cs.T).T
 	else:
 		# Otherwise we first uniformly sample the rank-L dimensional sphere
-		zs = sample_sphere(U.shape[1], Nboundary)
+		zs = sample_sphere(Lrank, Nboundary)
 		# And then find points on the boundary in these directions
 		# with respect to the active directions
+		U, _ = np.linalg.qr(J.T)
 		cs = np.array([domain.corner(U.dot(z)) for z in zs])
 		# Construct a reduced-dimension L times the corners
 		Jcs = J.dot(cs.T).T
@@ -152,6 +162,11 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 	This process is then repeated until the maximum number of iterations is exceeded
 	or the points :math:`\mathbf{x}_i` move less than a specified tolerance. 
 
+	This block coordinate descent approach was previously described in [SHSV03]_.
+	Here we exploit the fact that for a linear inequality constrained domain,
+	we can find solution to each block optimization problem by invoking 
+	:meth:`psdr.voroni_vertex`.
+
 	Parameters
 	----------
 	domain: Domain	
@@ -167,11 +182,26 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 		If True, print convergence information
 	maxiter: int; optional 
 		Maximum number of iterations of block coordinate descent
+
+
+	References
+	----------
+	.. [SHSV03] Erwin Stinstra, Dick den Hertog, Peter Stehouwer, Arjen Vestjens.
+		Constrained Maximin Designs for Computer Experiments.
+		Technometrics 2003, 45:4, 340-346, DOI: 10.1198/004017003000000168
+
 	"""
 	if L is None:
 		L = np.eye(len(domain))
 	else:
-		L = np.atleast_2d(L)
+		L = low_rank_L(L)
+	
+	if L.shape[0] == 1:
+		# In the case of a 1-D Lipschitz matrix, we can exploit
+		# the closed form solution -- namely uniformly spaced points between the corners
+		c1 = domain.corner(L.flatten())
+		c2 = domain.corner(-L.flatten())
+		return np.vstack([(1-alpha)*c1 + c2*alpha for alpha in np.linspace(0,1, Nsamp)]) 	
 
 	X = initial_sample(domain, L, Nsamp)
 	
@@ -208,6 +238,7 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 def lipschitz_sample(domain, Nsamp, Ls):
 	r""" Construct a maximin design with respect to multiple Lipschitz matrices
 	"""	 
+	
 	
 	# Construct maximin points for each metric L
 	ys = []
