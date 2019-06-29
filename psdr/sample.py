@@ -4,6 +4,7 @@ import numpy.ma as ma
 import scipy.linalg
 import scipy.optimize
 from scipy.spatial.distance import cdist, pdist, squareform
+from scipy.spatial import Delaunay
 import cvxpy as cp
 import itertools
 import pycosat
@@ -242,19 +243,57 @@ def lipschitz_sample(domain, Nsamp, Ls):
 	
 	# Construct maximin points for each metric L
 	ys = []
-	for L in Ls:
+	As = [ [None for j in range(Nsamp)] for L in Ls]
+	bs = [ [None for j in range(Nsamp)] for L in Ls]
+	for i, L in enumerate(Ls):
 		X = maximin_sample(domain, Nsamp, L)
 		y = L.dot(X.T).T
-		ys.append(y) 
-	
-	# The matrix of equality constraints that will appear for each point
-	A_eq = np.vstack(Ls)
+
+		# Construct the set of neighbors for each point
+		if y.shape[1] == 1:
+			I = np.argsort(y.flatten())
+			neighbors = [ None for j in range(Nsamp)]
+			for j in range(Nsamp):
+				if j == 0:
+					neighbors[I[j]] = np.array([I[j+1]], dtype = np.int)
+				elif j == Nsamp - 1:
+					neighbors[I[j]] = np.array([I[j-1]], dtype = np.int)
+				else:
+					neighbors[I[j]] = np.array([ I[j-1], I[j+1] ], dtype = np.int)
+			
+		else:
+			delaunay = Delaunay(y)
+			indices, indptr = delaunay.vertex_neighbor_vertices
+			# https://stackoverflow.com/a/23700182
+			neighbors = [indptr[indices[k]:indices[k+1]] for k in range(len(y))]
+		
+		# Now construct the inequality constraints for each point's Voronoi cell
+		for j, neigh in enumerate(neighbors):
+			A = []
+			b = []
+			for k in neigh:
+				p = 0.5*(X[j] + X[k]) 	# point on separating hyperplane
+				n = (X[k] - X[j]).reshape(-1,1) 		# normal vector to hyperplane
+				A.append( n.T.dot(L.T).dot(L))
+				b.append( n.T.dot(L.T).dot(L).dot(p) )
+			
+			As[i][j] = np.vstack(A)
+			bs[i][j] = np.hstack(b)
+			dom = domain.add_constraints(A = As[i][j], b = bs[i][j])
+			assert dom.isinside(X[j])
+			assert np.sum(dom.isinside(X)) == 1	
+
 
 	def encode(metric, order, value):
 		return metric*Nsamp**2 + order*Nsamp + value + 1
 	def decode(idx):
 		return (idx-1) // Nsamp**2, ((idx-1) % Nsamp**2)// Nsamp, (idx-1) % Nsamp
 
+	def subdomain(idx):
+		A = np.vstack([As[metric][idx[metric]] for metric in range(len(Ls))])
+		b = np.hstack([bs[metric][idx[metric]] for metric in range(len(Ls))])
+		return domain.add_constraints(A = A, b = b)
+		
 	
 	cnf = []
 	for metric in range(len(Ls)):
@@ -279,15 +318,12 @@ def lipschitz_sample(domain, Nsamp, Ls):
 	# TODO: Encode constraints from unsatisfiabile points
 	if len(Ls) > 1:
 		for idx in itertools.product(range(Nsamp), repeat = len(Ls)):
-			b_eq = np.hstack([ys[metric][idx[metric]] for metric in range(len(Ls))])
-			dom = domain.add_constraints(A_eq = A_eq, b_eq = b_eq)
+			dom = subdomain(idx)
 			if dom.empty:
 				print("empty", idx)
 				
 				cnf += [ [-encode(metric, order, idx[metric]) for metric in range(len(Ls))] 
 						for order in range(Nsamp)] 
-
-	print(cnf)
 
 	for it, sol in enumerate(pycosat.itersolve(cnf)):
 		print("iter", it)
@@ -302,8 +338,7 @@ def lipschitz_sample(domain, Nsamp, Ls):
 		# Construct a series of domains from this set of constraints
 		doms = []
 		for order in range(Nsamp):
-			b_eq = np.hstack([ys[metric][perms[metric,order]] for metric in range(len(Ls))])
-			doms.append(domain.add_constraints(A_eq = A_eq, b_eq = b_eq))
+			doms.append(subdomain(perms[:,order]))
 	
 		X = np.vstack([dom.sample() for dom in doms])
 		print(X)
