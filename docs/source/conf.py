@@ -44,6 +44,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
+	'sphinx.ext.viewcode',
 	'nbsphinx',
 ]
 
@@ -69,7 +70,7 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
-exclude_patterns = ['**.ipynb_checkpoints']
+exclude_patterns = ['**.ipynb_checkpoints','_build']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -179,6 +180,9 @@ texinfo_documents = [
 #}
 
 nbsphinx_allow_errors = True
+
+# Always run each notebook
+nbsphinx_execute = 'always'
 
 # -- Options for todo extension ----------------------------------------------
 

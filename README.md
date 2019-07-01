@@ -61,13 +61,12 @@ is well described by the value of this one linear combination of its input param
 
 
 ## Documentation
-For further documentation, please see our page on Read the Docs:
-[Documentation](https://psdr.readthedocs.io/en/latest/).
+For further documentation, please see our page on [Read the Docs](https://psdr.readthedocs.io/en/latest/).
 
 
 ## Similar Software
 
-* [SMT: Surrogate Modeling Toolbox](https://smt.readthedocs.io/en/latest/)
+* [SMT: Surrogate Modeling Toolbox](https://smt.readthedocs.io/en/latest/) ([github](https://github.com/SMTorg/smt))
 
 
 ## Contributing

@@ -2,7 +2,9 @@ sphinx
 cloud_sptheme
 alabaster
 ipykernel
-git+https://github.com/spatialaudio/nbsphinx.git@master
+nbsphinx
+sphinx_rtd_theme
+jupyter
 numpydoc
 matplotlib
 scipy>=1.1.0

@@ -34,7 +34,7 @@ class NowackiBeam(Function):
     ==========================    =================================================    ===============================================================
     cross-sectional area          :math:`a = bh`                                       objective: minimize
     bending stress                :math:`\sigma = 6FL/(bh^2)`                          objective: minimize
-    tip deflectio                 :math:`\delta = FL^3/(3EI_Y) \quad I_Y = bh^3/12`    constraint: :math:`\delta \le 0.005`
+    tip deflection                :math:`\delta = FL^3/(3EI_Y) \quad I_Y = bh^3/12`    constraint: :math:`\delta \le 0.005`
     bending stress                :math:`\sigma_B = 6FL/(bh^2)`                        constraint: :math:`\sigma_B \le \sigma_Y` 
     shear stress                  :math:`\tau = 3F/(2bh)`                              constraint: :math:`\tau \le \sigma_Y/2`
     height to breadth ratio       :math:`\rho = h/b`                                   constraint: :math:`\rho \le 10`
@@ -56,8 +56,7 @@ class NowackiBeam(Function):
 	===============  =======================================
 
 
-	This example origated in [Now80]_.
-
+	This example originates in [Now80]_.
 
 	References
 	----------
@@ -68,8 +67,6 @@ class NowackiBeam(Function):
 		Horst Nowacki
 		In: Computer Aided Design Modeling, J. Encarncao (editor)
 		DOI:10.1007/BFb0040161
-
-
 	"""
 
 	def __init__(self):
