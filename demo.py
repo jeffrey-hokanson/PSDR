@@ -22,7 +22,7 @@ if True:
 	
 	#L1 = np.ones((1, len(domain)))
 	#L1 = None
-	X = psdr.lipschitz_sample(domain, 7, [L1,L2])
+	X = psdr.lipschitz_sample(domain, 7, [L1,L2], verbose =True)
 	#X = psdr.sample.minimax_sample(domain, 5, L = L1, verbose = True, maxiter = 200)
 	#X = psdr.maximin_sample(fun.domain, 20, L = L1, verbose = True)
 	print(X)

@@ -79,7 +79,27 @@ def test_maximin(N = 11, m = 5):
 	L = np.random.randn(2, m)
 	X = psdr.maximin_sample(dom, N, L = L, maxiter = 50, verbose = True)
 
+
+def test_lipschitz_sample(N = 5, m = 3):
+	dom = BoxDomain(-np.ones(m), np.ones(m))
+	# Add an inequality constraint so some combinations aren't feasible
+	dom = dom.add_constraints(A = np.ones((1,m)), b = np.ones(1))
+	Ls = [np.random.randn(1,m) for j in range(2)]
+
+	# Limit the number of iterations to reduce computational cost
+	X = psdr.lipschitz_sample(dom, N, Ls, maxiter = 3, jiggle = False)
+	print(X)
+	assert np.all(dom.isinside(X))
+
+	# Verify that each point is distinct in projections
+	for L in Ls:
+		y = L.dot(X.T).T
+		print(y)
+		assert np.min(pdist(y)) > 0, "points not distinct in projection"
+	
+
 if __name__ == '__main__':
 	#test_initial_sample()
 	#test_seqmaximin()
-	test_maximin()
+	#test_maximin()
+	test_lipschitz_sample()

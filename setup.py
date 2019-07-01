@@ -12,6 +12,7 @@ install_requires = [
 		'dask',
 		'distributed',
 		'sobol_seq',
+		'pylgl',
 	]
 
 if sys.version_info[0] < 3:

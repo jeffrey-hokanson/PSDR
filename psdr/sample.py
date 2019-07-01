@@ -8,7 +8,7 @@ from scipy.spatial import Delaunay
 import cvxpy as cp
 import itertools
 import pycosat
-
+import pylgl
 
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
@@ -223,7 +223,6 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 			
 			# update this point
 			X[i] = x
-	
 			
 		if verbose:
 			d = np.min(pdist(L.dot(X.T).T))
@@ -236,8 +235,28 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 	return X
 
 
-def lipschitz_sample(domain, Nsamp, Ls):
+def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = False, maxiter_maximin = 0,
+		jiggle = False):
 	r""" Construct a maximin design with respect to multiple Lipschitz matrices
+
+
+
+
+	Parameters
+	----------
+	domain: Domain
+		domain from which the samples are taken
+	Nsamp: int
+		Number of points to take
+	Ls: list of arrays of size (*,m)
+		Weighted metrics
+	xtol: float, optional
+		Tolerance to solve the maximin problem for each candidate design
+	maxiter: int, optional
+		Number of feasible designs that are randomly selected from
+		the space of available solutions.
+	verbose: bool, optional
+		If True, print iteration information
 	"""	 
 	
 	
@@ -315,18 +334,31 @@ def lipschitz_sample(domain, Nsamp, Ls):
 	cnf += [ [encode(0, value, value)]  for value in range(Nsamp)]
 
 
-	# TODO: Encode constraints from unsatisfiabile points
+	# Encode constraints from unsatisfiable points
+	# Note that since this traverses all combinations,
+	# this requires 
 	if len(Ls) > 1:
 		for idx in itertools.product(range(Nsamp), repeat = len(Ls)):
 			dom = subdomain(idx)
 			if dom.empty:
-				print("empty", idx)
-				
+	#			print("empty", idx)
 				cnf += [ [-encode(metric, order, idx[metric]) for metric in range(len(Ls))] 
 						for order in range(Nsamp)] 
 
-	for it, sol in enumerate(pycosat.itersolve(cnf)):
-		print("iter", it)
+	score_best = -np.inf
+	# Extract the random number generator seed https://stackoverflow.com/a/49749486
+	seed = np.uint16(np.random.get_state()[1][0]) 
+	
+	# Iterate through feasible permutation sets randomly (hence why using pylgl instead of pycosat)
+	solution_iterator = pylgl.itersolve(cnf,
+		randec = True, 
+		randecint = True,
+		randphase = True,
+		randphaseint = True,
+		seed = seed,
+		) 
+ 
+	for it, sol in enumerate(itertools.islice(solution_iterator, maxiter)):
 		# Convert the solution format into a permutation matrix
 		sol = np.array(sol)
 		perms = -np.ones((len(Ls), Nsamp), dtype = np.int)
@@ -334,18 +366,53 @@ def lipschitz_sample(domain, Nsamp, Ls):
 			metric, order, value = decode(sol[i])
 			perms[metric, order] = value
 
-		print(perms)
 		# Construct a series of domains from this set of constraints
 		doms = []
 		for order in range(Nsamp):
 			doms.append(subdomain(perms[:,order]))
-	
-		X = np.vstack([dom.sample() for dom in doms])
-		print(X)
-		assert False 
- 
-	# Now we construct 
 
+		# Pick initial guesses for the domain
+		if jiggle:	
+			X = np.vstack([dom.sample() for dom in doms])
+		else:
+			# chebyshev center 
+			X = np.vstack([dom.center for dom in doms])
+			maxiter_maximin = 0
+		
+		# Use the block coordinate descent approach to 
+		# solve a maximin problem of placing each point inside its domain
+		mask = np.ones(Nsamp, dtype = np.bool)
+		for it2 in range(maxiter_maximin):
+			max_move = 0
+			x_move = 0
+			for i, dom in enumerate(doms):
+				# Remove the current iterate 
+				mask[i] = False
+				Xt = X[mask,:]
+				# Reset the mask
+				mask[i] = True 
+			
+				# Note in contrast to maximin 
+				# (1) we work in an unweighted metric
+				# (2) each point is constrained to the domain `dom` 	
+				x_new = voronoi_vertex(dom, Xt, X[i], L = None, randomize = False)
+				max_move = max(max_move, np.linalg.norm(X[i] - x_new, np.inf))
+				X[i] = x_new
+			if max_move < xtol:
+				break
+		
+		# Euclidean score			
+		score = np.min(pdist(X))
+		#for L in Ls:
+		#	Y = L.dot(X.T).T
+		#	score *= np.min(pdist(Y))
+
+		if score > score_best:
+			score_best = score
+			X_best = X 	
+		if verbose:
+			print("it %3d: best score %7.2e; current iterate %7.2e" % (it, score_best, score))
+	return X_best 
 
 def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.9):
 	r""" A multi-objective sequential maximin sampling 
