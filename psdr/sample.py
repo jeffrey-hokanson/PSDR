@@ -403,9 +403,9 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 		
 		# Euclidean score			
 		score = np.min(pdist(X))
-		#for L in Ls:
-		#	Y = L.dot(X.T).T
-		#	score *= np.min(pdist(Y))
+		for L in Ls:
+			Y = L.dot(X.T).T
+			score *= np.min(pdist(Y))
 
 		if score > score_best:
 			score_best = score
