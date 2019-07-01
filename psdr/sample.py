@@ -303,7 +303,8 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 
 
 	def encode(metric, order, value):
-		return metric*Nsamp**2 + order*Nsamp + value + 1
+		# Python3 needs this explicitly an int to interface with pylgl
+		return int(metric*Nsamp*Nsamp + order*Nsamp + value + 1)
 	def decode(idx):
 		return (idx-1) // Nsamp**2, ((idx-1) % Nsamp**2)// Nsamp, (idx-1) % Nsamp
 
@@ -350,11 +351,11 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 	
 	# Iterate through feasible permutation sets randomly (hence why using pylgl instead of pycosat)
 	solution_iterator = pylgl.itersolve(cnf,
-		randec = True, 
-		randecint = True,
-		randphase = True,
-		randphaseint = True,
-		seed = seed,
+		randec = 1, 
+		randecint = 1,
+		randphase = 1,
+		randphaseint = 1,
+		seed = int(seed),
 		) 
  
 	for it, sol in enumerate(itertools.islice(solution_iterator, maxiter)):
