@@ -711,37 +711,42 @@ class EuclideanDomain(Domain):
 			x0 = self._hit_and_run_state
 			if x0 is None: raise AttributeError
 		except AttributeError:
-			# In earlier versions, we find the starting point by finding the Chebeychev center.
-			# Now we use a simpler approach that simply picks N points on the boundary 
-			# by calling corner and then take the mean (since the domain is convex).
-			# This removes the need to treat equality constraints carefully and also
-			# generalizes to LinQuadDomains. 
+		
+			try:
+				# The simpliest and inexpensive approach is to start hit and run
+				# at the Chebyshev center of the domain.  This value is cached 
+				# and so will not require recomputation if reinitialized
+				x0, r = self.chebyshev_center()
 			
-			# Generate random orthogonal directions to sample
-			U = ortho_group.rvs(len(self))
-			X = []
-			for i in range(len(self)):
-				X += [self.corner(U[:,i])]
-				X += [self.corner(-U[:,i])]
-				if i > 4 and not np.isclose(np.max(pdist(X)),0):
-					# If we have collected enough points and these
-					# are distinct, stop
-					break
-				
-			# If we still only have effectively one point, we are a point domain	
-			if np.isclose(np.max(pdist(X)),0) and len(X) == 2*len(self):
-				self._point = True
-			else:
-				self._point = False
+			except AttributeError:
+				# Otherwise we pick points on the boundary and then initialize
+				# at the center of the domain.
 
-			# Take the mean
-			x0 = sum(X)/len(X)
-			x0 = self.closest_point(x0)
+				# Generate random orthogonal directions to sample
+				U = ortho_group.rvs(len(self))
+				X = []
+				for i in range(len(self)):
+					X += [self.corner(U[:,i])]
+					X += [self.corner(-U[:,i])]
+					if i >= 3 and not np.isclose(np.max(pdist(X)),0):
+						# If we have collected enough points and these
+						# are distinct, stop
+						break
+					
+				# If we still only have effectively one point, we are a point domain	
+				if np.isclose(np.max(pdist(X)),0) and len(X) == 2*len(self):
+					self._point = True
+				else:
+					self._point = False
+
+				# Take the mean
+				x0 = sum(X)/len(X)
+				x0 = self.closest_point(x0)
 			
 			self._hit_and_run_state = x0
 			
 		# If we are point domain, there is no need go any further
-		if self._point:
+		if self.is_point():
 			return self._hit_and_run_state.copy()
 	
 		# See if there is an orthongonal basis for the equality constraints
