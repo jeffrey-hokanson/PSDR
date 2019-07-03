@@ -56,7 +56,7 @@ if __name__ == '__main__':
 	fig, axes = plt.subplots(1, 2, figsize = (10, 5))
 
 	# Number of samples
-	M = 10
+	M = 20
 
 	# Latin Hypercube sampling
 	X = dom.latin_hypercube(M)
@@ -85,7 +85,7 @@ if __name__ == '__main__':
 	#Ls = [orth(np.ones((2,1))).T, np.array([[1],[0]]).T]
 	#Ls = [np.array([[0],[1]]).T, np.array([[1],[0]]).T]
 	Ls = [np.array([[2,1]]), np.array([[1, 2]])]
-	X = psdr.lipschitz_sample(dom, M, Ls = Ls, verbose = True, maxiter = 500, jiggle = False, maxiter_maximin = 0)
+	X = psdr.lipschitz_sample(dom, M, Ls = Ls, verbose = True, maxiter = 1000, jiggle = False, maxiter_maximin = 0)
 	pgf = PGF()
 	pgf.add('x', X[:,0])
 	pgf.add('y', X[:,1])
