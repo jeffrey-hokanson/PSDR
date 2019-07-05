@@ -84,7 +84,7 @@ if __name__ == '__main__':
 	ax = axes[1]
 	#Ls = [orth(np.ones((2,1))).T, np.array([[1],[0]]).T]
 	#Ls = [np.array([[0],[1]]).T, np.array([[1],[0]]).T]
-	Ls = [np.array([[2,1]]), np.array([[1, 2]])]
+	Ls = [np.array([[-1,2]]), np.array([[3, 1]])]
 	X = psdr.lipschitz_sample(dom, M, Ls = Ls, verbose = True, maxiter = 1000, jiggle = False, maxiter_maximin = 0)
 	pgf = PGF()
 	pgf.add('x', X[:,0])
@@ -95,11 +95,11 @@ if __name__ == '__main__':
 	ax.set_title('Lipschitz')
 
 	L = Ls[0]
-	center = np.array([1.1,-1.1])
+	center = np.array([1.1,1.1])
 	plot_projection(X, L, center, ax, 'data/fig_latin_lip0', stretch = 1.2, color = 'r')
 	
 	L = Ls[1]
-	center = np.array([1.2,-1])
+	center = np.array([1.1,-1.1])
 	plot_projection(X, L, center, ax, 'data/fig_latin_lip0', stretch = 1.2, color = 'b')
 
 	
