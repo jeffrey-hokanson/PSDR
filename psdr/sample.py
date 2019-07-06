@@ -235,8 +235,7 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 	return X
 
 
-def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = False, maxiter_maximin = 0,
-		jiggle = False):
+def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle = False):
 	r""" Construct a maximin design with respect to multiple Lipschitz matrices
 
 
@@ -250,15 +249,18 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 		Number of points to take
 	Ls: list of arrays of size (*,m)
 		Weighted metrics
-	xtol: float, optional
-		Tolerance to solve the maximin problem for each candidate design
 	maxiter: int, optional
 		Number of feasible designs that are randomly selected from
 		the space of available solutions.
 	verbose: bool, optional
 		If True, print iteration information
+	jiggle: bool or int, optional
+		If True or an int, draw that number of samples from each sub-domain
+		and test for optimality
 	"""	 
 	
+	if jiggle is True:
+		jiggle = 20
 	
 	# Construct maximin points for each metric L
 	ys = []
@@ -270,6 +272,8 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 
 		# Construct the set of neighbors for each point
 		if y.shape[1] == 1:
+			# Since Qhull doesn't support 1-d, we explicitly compute the neighbors
+			# for the 1-d case.
 			I = np.argsort(y.flatten())
 			neighbors = [ None for j in range(Nsamp)]
 			for j in range(Nsamp):
@@ -283,6 +287,7 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 		else:
 			delaunay = Delaunay(y)
 			indices, indptr = delaunay.vertex_neighbor_vertices
+			# Convert the Delaunay data structure into a list of neighbors
 			# https://stackoverflow.com/a/23700182
 			neighbors = [indptr[indices[k]:indices[k+1]] for k in range(len(y))]
 		
@@ -340,45 +345,30 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 	# Encode constraints from unsatisfiable points
 	# Note that since this traverses all combinations,
 	# this requires computation that scales with Nsamp^(# of Ls) 
-	if len(Ls) > 1:
-		for idx in itertools.product(range(Nsamp), repeat = len(Ls)):
-			dom = subdomain(idx)
-			if dom.empty:
-				geo_cnf += [ [-encode(metric, order, idx[metric]) for metric in range(len(Ls))] 
-						for order in range(Nsamp)] 
+	#if len(Ls) > 1:
+	#	for idx in itertools.product(range(Nsamp), repeat = len(Ls)):
+	#		dom = subdomain(idx)
+	#		if dom.empty:
+	#			geo_cnf += [ [-encode(metric, order, idx[metric]) for metric in range(len(Ls))] 
+	#					for order in range(Nsamp)] 
 
-	#  
 	score_best = -np.inf
-
 	sol_cnf = []	# Constraints from existing solutions
 	dist_cnf = []	# 
-	kwargs = {'randec': True, 'randecint': True, 'randphase': True, 'simplify': True}
-	# The verbose flag doesn't seem to work
-	#kwargs['verbose'] = 100
-	for it in range(maxiter):
-		# Specify the seed for the random number generator for reproducability
-		kwargs['seed'] = np.int32(np.random.randint(np.iinfo(np.int32).min, np.iinfo(np.int32).max))
-		#kwargs['seed'] = 0
-		#sol = pylgl.solve(geo_cnf + sol_cnf + dist_cnf, **kwargs)
-		sol = pycosat.solve(geo_cnf + sol_cnf + dist_cnf, verbose = 0)
+	it = 0
+	while it < maxiter:
+		sol = pycosat.solve(geo_cnf + sol_cnf + dist_cnf)
 		if not isinstance(sol, list):
 			# If we can't find a solution, remove the pairwise distance constraints
 			# and find a new solution
-			#sol = pylgl.solve(geo_cnf + sol_cnf, **kwargs)
-			sol = pycosat.solve(geo_cnf + sol_cnf)
-			dist_cnf = []
+			if len(dist_cnf) != 0:
+				if verbose: print('cleared distance constraints')	
+				dist_cnf = []
 			# If we still don't have a solution, stop
-			if not isinstance(sol, list):
-				print(sol)
-				print(geo_cnf)
-				print(sol_cnf)
+			else:
+				if verbose:	print('no more solutions found')
 				break
-			
-			if verbose:
-				print('cleared distance constraints')	
-		
-		# don't select this soltuion again	
-		sol_cnf += [ [-x for x in sol]]	
+
 		
 		# Convert the solution format into a permutation matrix
 		sol = np.array(sol)
@@ -387,47 +377,64 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 			metric, order, value = decode(sol[i])
 			perms[metric, order] = value
 
-		print(perms)
-
 		# Construct a series of domains from this set of constraints
-		doms = []
+		subdoms = []
 		for order in range(Nsamp):
-			doms.append(subdomain(perms[:,order]))
-
-		# Compute Chebyshev centers to compute distance between boxes	
-		X_center= np.vstack([dom.center for dom in doms])
+			subdoms.append(subdomain(perms[:,order]))
 	
-		D = squareform(pdist(X_center))
-		D += np.eye(D.shape[0])*np.max(D)*100
-		i,j = np.unravel_index(D.argmin(), D.shape)
- 
-		# NOT AND selecting both of the regions yielding nearby points 
-		for o1, o2 in zip(*np.triu_indices(Nsamp,1)):
-			dist_cnf += [ [-encode(metric, o1, perms[metric, i]) for metric in range(len(Ls))]
-						+ [-encode(metric, o2, perms[metric, j]) for metric in range(len(Ls))]]
-	
-		# Now generate test solutions
-		if jiggle is False:
-			Xs = [X_center]
-		else:
-			Xs = [ np.vstack([dom.sample() for dom in doms]) for it2 in range(10) ]	
+		# Find domains that are empty and remove that combination
+		# This happens here so we don't need to iterate over all combinations
+		# at the start---something that is expensive in cases where only a small 
+		# fraction of subdomains are invalid
+		for order, subdom in enumerate(subdoms):
+			if subdom.empty:
+				# If the subdomain is empty, block future samples from using this one
+				geo_cnf += [ [-encode(metric, o, perms[metric, order]) for metric in range(len(Ls))] 
+						for o in range(Nsamp)] 
 
-		updated = False
-		for X in Xs:
-			score = np.min(pdist(X))
-			for L in Ls:
-				Y = L.dot(X.T).T
-				score *= np.min(pdist(Y))
-			if score > score_best:
-				score_best = score
-				X_best = X
-				updated = True
+		if all([ not subdom.empty for subdom in subdoms]):
+			# don't select this soltuion again	
+			sol_cnf += [ [-x for x in sol]]	
 			
-		if verbose:
-			mess = "it %3d: best score %10.5e; current iterate %10.5e" % (it, score_best, score)
-			if updated:
-				mess += ' *updated*'
-			print(mess)
+			# update iterator
+			it += 1
+			# Compute Chebyshev centers to compute distance between boxes	
+			X_center= np.vstack([subdom.center for subdom in subdoms])
+		
+			D = squareform(pdist(X_center))
+			D += np.eye(D.shape[0])*np.max(D)*100
+			i,j = np.unravel_index(D.argmin(), D.shape)
+	 
+			# NOT AND selecting both of the regions yielding nearby points 
+			for o1, o2 in zip(*np.triu_indices(Nsamp,1)):
+				dist_cnf += [ [-encode(metric, o1, perms[metric, i]) for metric in range(len(Ls))]
+							+ [-encode(metric, o2, perms[metric, j]) for metric in range(len(Ls))]]
+		
+			# Now generate test solutions
+			if jiggle is False:
+				Xs = [X_center]
+			else:
+				Xs = [X_center] + [ np.vstack([subdom.sample() for subdom in subdoms]) for it2 in range(jiggle) ]	
+
+			updated = False
+			for X in Xs:
+				score = np.min(pdist(X))
+				for L in Ls:
+					Y = L.dot(X.T).T
+					score *= np.min(pdist(Y))
+				if score > score_best:
+					score_best = score
+					X_best = X
+					updated = True
+				
+			if verbose:
+				mess = "it %3d: best score %10.5e; current iterate %10.5e" % (it, score_best, score)
+				if updated:
+					mess += ' *updated*'
+				print(mess)
+		else:
+			if verbose:
+				print('found invalid domain')
 	return X_best 
 
 
