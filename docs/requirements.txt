@@ -20,4 +20,4 @@ tornado
 cvxopt
 tqdm
 sobol_seq
-pylgl
+pycosat

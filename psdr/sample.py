@@ -8,6 +8,7 @@ from scipy.spatial import Delaunay
 import cvxpy as cp
 import itertools
 import pylgl
+import pycosat
 
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
@@ -313,52 +314,72 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 		b = np.hstack([bs[metric][idx[metric]] for metric in range(len(Ls))])
 		return domain.add_constraints(A = A, b = b)
 		
-	
-	cnf = []
+
+	# Construct the geometric constraints we enforce with the SAT solver
+	# i.e., no repetition	
+	geo_cnf = []
 	for metric in range(len(Ls)):
 		for order in range(Nsamp):
 			# At least one must be one
-			cnf += [ [encode(metric, order, value) for value in range(Nsamp)] ]	
+			geo_cnf += [ [encode(metric, order, value) for value in range(Nsamp)] ]	
 			# Not more than one is on
 			# we do this by checking not ( v1 and v2) which is equivalent to 
 			# not v1 or not v2 by DeMorgan
-			cnf += [ [-encode(metric, order, v1), -encode(metric, order, v2)] 
+			geo_cnf += [ [-encode(metric, order, v1), -encode(metric, order, v2)] 
 						for v1, v2 in zip(*np.triu_indices(Nsamp,1)) ]
 
 		# Each equality constraint cannot be selected more than once
 		for value in range(Nsamp):
-			cnf += [ [-encode(metric, o1, value), -encode(metric, o2, value)] 
+			geo_cnf += [ [-encode(metric, o1, value), -encode(metric, o2, value)] 
 						for o1, o2 in zip(*np.triu_indices(Nsamp, 1)) ]
 
 	# To fix ordering of the samples, we fix the ordering of the first metric
-	cnf += [ [encode(0, value, value)]  for value in range(Nsamp)]
+	geo_cnf += [ [encode(0, value, value)]  for value in range(Nsamp)]
 
 
 	# Encode constraints from unsatisfiable points
 	# Note that since this traverses all combinations,
-	# this requires 
+	# this requires computation that scales with Nsamp^(# of Ls) 
 	if len(Ls) > 1:
 		for idx in itertools.product(range(Nsamp), repeat = len(Ls)):
 			dom = subdomain(idx)
 			if dom.empty:
-	#			print("empty", idx)
-				cnf += [ [-encode(metric, order, idx[metric]) for metric in range(len(Ls))] 
+				geo_cnf += [ [-encode(metric, order, idx[metric]) for metric in range(len(Ls))] 
 						for order in range(Nsamp)] 
 
+	#  
 	score_best = -np.inf
-	# Extract the random number generator seed https://stackoverflow.com/a/49749486
-	seed = np.uint16(np.random.get_state()[1][0]) 
-	
-	# Iterate through feasible permutation sets randomly (hence why using pylgl instead of pycosat)
-	solution_iterator = pylgl.itersolve(cnf,
-		randec = 1, 
-		randecint = 1,
-		randphase = 1,
-		randphaseint = 1,
-		seed = int(seed),
-		) 
- 
-	for it, sol in enumerate(itertools.islice(solution_iterator, maxiter)):
+
+	sol_cnf = []	# Constraints from existing solutions
+	dist_cnf = []	# 
+	kwargs = {'randec': True, 'randecint': True, 'randphase': True, 'simplify': True}
+	# The verbose flag doesn't seem to work
+	#kwargs['verbose'] = 100
+	for it in range(maxiter):
+		# Specify the seed for the random number generator for reproducability
+		kwargs['seed'] = np.int32(np.random.randint(np.iinfo(np.int32).min, np.iinfo(np.int32).max))
+		#kwargs['seed'] = 0
+		#sol = pylgl.solve(geo_cnf + sol_cnf + dist_cnf, **kwargs)
+		sol = pycosat.solve(geo_cnf + sol_cnf + dist_cnf, verbose = 0)
+		if not isinstance(sol, list):
+			# If we can't find a solution, remove the pairwise distance constraints
+			# and find a new solution
+			#sol = pylgl.solve(geo_cnf + sol_cnf, **kwargs)
+			sol = pycosat.solve(geo_cnf + sol_cnf)
+			dist_cnf = []
+			# If we still don't have a solution, stop
+			if not isinstance(sol, list):
+				print(sol)
+				print(geo_cnf)
+				print(sol_cnf)
+				break
+			
+			if verbose:
+				print('cleared distance constraints')	
+		
+		# don't select this soltuion again	
+		sol_cnf += [ [-x for x in sol]]	
+		
 		# Convert the solution format into a permutation matrix
 		sol = np.array(sol)
 		perms = -np.ones((len(Ls), Nsamp), dtype = np.int)
@@ -366,53 +387,50 @@ def lipschitz_sample(domain, Nsamp, Ls, xtol = 1e-5, maxiter = 100, verbose = Fa
 			metric, order, value = decode(sol[i])
 			perms[metric, order] = value
 
+		print(perms)
+
 		# Construct a series of domains from this set of constraints
 		doms = []
 		for order in range(Nsamp):
 			doms.append(subdomain(perms[:,order]))
 
-		# Pick initial guesses for the domain
-		if jiggle:	
-			X = np.vstack([dom.sample() for dom in doms])
+		# Compute Chebyshev centers to compute distance between boxes	
+		X_center= np.vstack([dom.center for dom in doms])
+	
+		D = squareform(pdist(X_center))
+		D += np.eye(D.shape[0])*np.max(D)*100
+		i,j = np.unravel_index(D.argmin(), D.shape)
+ 
+		# NOT AND selecting both of the regions yielding nearby points 
+		for o1, o2 in zip(*np.triu_indices(Nsamp,1)):
+			dist_cnf += [ [-encode(metric, o1, perms[metric, i]) for metric in range(len(Ls))]
+						+ [-encode(metric, o2, perms[metric, j]) for metric in range(len(Ls))]]
+	
+		# Now generate test solutions
+		if jiggle is False:
+			Xs = [X_center]
 		else:
-			# chebyshev center 
-			X = np.vstack([dom.center for dom in doms])
-			maxiter_maximin = 0
-		
-		# Use the block coordinate descent approach to 
-		# solve a maximin problem of placing each point inside its domain
-		mask = np.ones(Nsamp, dtype = np.bool)
-		for it2 in range(maxiter_maximin):
-			max_move = 0
-			x_move = 0
-			for i, dom in enumerate(doms):
-				# Remove the current iterate 
-				mask[i] = False
-				Xt = X[mask,:]
-				# Reset the mask
-				mask[i] = True 
-			
-				# Note in contrast to maximin 
-				# (1) we work in an unweighted metric
-				# (2) each point is constrained to the domain `dom` 	
-				x_new = voronoi_vertex(dom, Xt, X[i], L = None, randomize = False)
-				max_move = max(max_move, np.linalg.norm(X[i] - x_new, np.inf))
-				X[i] = x_new
-			if max_move < xtol:
-				break
-		
-		# Euclidean score			
-		score = np.min(pdist(X))
-		#for L in Ls:
-		#	Y = L.dot(X.T).T
-		#	score *= np.min(pdist(Y))
+			Xs = [ np.vstack([dom.sample() for dom in doms]) for it2 in range(10) ]	
 
-		if score > score_best:
-			score_best = score
-			X_best = X 	
+		updated = False
+		for X in Xs:
+			score = np.min(pdist(X))
+			for L in Ls:
+				Y = L.dot(X.T).T
+				score *= np.min(pdist(Y))
+			if score > score_best:
+				score_best = score
+				X_best = X
+				updated = True
+			
 		if verbose:
-			print("it %3d: best score %7.2e; current iterate %7.2e" % (it, score_best, score))
+			mess = "it %3d: best score %10.5e; current iterate %10.5e" % (it, score_best, score)
+			if updated:
+				mess += ' *updated*'
+			print(mess)
 	return X_best 
+
+
 
 def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.9):
 	r""" A multi-objective sequential maximin sampling 
