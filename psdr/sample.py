@@ -10,6 +10,12 @@ import itertools
 #import pylgl
 import pycosat
 
+try:
+    from functools import lru_cache
+except ImportError:
+    from backports.functools_lru_cache import lru_cache
+
+
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
 from .domains import LinIneqDomain, ConvexHullDomain, SolverError
@@ -314,6 +320,7 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 	def decode(idx):
 		return (idx-1) // Nsamp**2, ((idx-1) % Nsamp**2)// Nsamp, (idx-1) % Nsamp
 
+	@lru_cache(maxsize = int(1e6) )
 	def subdomain(idx):
 		A = np.vstack([As[metric][idx[metric]] for metric in range(len(Ls))])
 		b = np.hstack([bs[metric][idx[metric]] for metric in range(len(Ls))])
@@ -340,7 +347,6 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 
 	# To fix ordering of the samples, we fix the ordering of the first metric
 	geo_cnf += [ [encode(0, value, value)]  for value in range(Nsamp)]
-
 
 	# Encode constraints from unsatisfiable points
 	# Note that since this traverses all combinations,
@@ -380,7 +386,7 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 		# Construct a series of domains from this set of constraints
 		subdoms = []
 		for order in range(Nsamp):
-			subdoms.append(subdomain(perms[:,order]))
+			subdoms.append(subdomain(tuple(perms[:,order])))
 	
 		# Find domains that are empty and remove that combination
 		# This happens here so we don't need to iterate over all combinations

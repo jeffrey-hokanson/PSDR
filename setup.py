@@ -20,6 +20,8 @@ if sys.version_info[0] < 3:
 		'matplotlib<3.0.0',
 		# Required for python 2.7 from dask distributed
 		'tornado<6.0.0',
+		# LRU Cache
+		'backports.functools_lru_cache',
 		]
 else:
 	install_requires += [
