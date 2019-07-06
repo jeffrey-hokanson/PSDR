@@ -400,7 +400,7 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 
 		if all([ not subdom.empty for subdom in subdoms]):
 			# don't select this soltuion again	
-			sol_cnf += [ [-x for x in sol]]	
+			sol_cnf += [ [-int(x) for x in sol]]	
 			
 			# update iterator
 			it += 1
