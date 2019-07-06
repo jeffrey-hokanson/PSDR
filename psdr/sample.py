@@ -7,7 +7,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from scipy.spatial import Delaunay
 import cvxpy as cp
 import itertools
-import pylgl
+#import pylgl
 import pycosat
 
 from .vertex import voronoi_vertex 
