@@ -28,12 +28,12 @@ class NACA0012(Function):
 	----------
 	.. [SU2] https://su2code.github.io/	
 	"""
-	def __init__(self, n_lower = 10, n_upper = 10, fraction = 0.01, **kwargs):
+	def __init__(self, n_lower = 10, n_upper = 10, fraction = 0.01, dask_client = None, **kwargs):
 		domain = build_hicks_henne_domain(n_lower, n_upper, fraction = fraction)
 		kwargs.update({'n_lower':n_lower, 'n_upper':n_upper}) 
 		Function.__init__(self, naca0012_func, domain, vectorized = False,
 			kwargs = kwargs, 
-			return_grad = True)
+			return_grad = True, dask_client = dask_client)
 
 
 def build_hicks_henne_domain(n_lower = 10, n_upper = 10, fraction = 0.1):
