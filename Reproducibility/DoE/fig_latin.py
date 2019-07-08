@@ -1,5 +1,8 @@
 from __future__ import print_function
 
+import matplotlib
+matplotlib.use('Agg')
+
 import numpy as np
 from scipy.linalg import orth
 import matplotlib.pyplot as plt
@@ -85,7 +88,7 @@ if __name__ == '__main__':
 	#Ls = [orth(np.ones((2,1))).T, np.array([[1],[0]]).T]
 	#Ls = [np.array([[0],[1]]).T, np.array([[1],[0]]).T]
 	Ls = [np.array([[1,2]]), np.array([[2, 1]])]
-	X = psdr.lipschitz_sample(dom, M, Ls = Ls, verbose = True, maxiter = 100, jiggle = True, maxiter_maximin = 0)
+	X = psdr.lipschitz_sample(dom, M, Ls = Ls, verbose = True, maxiter = 1000, jiggle = 10)
 	pgf = PGF()
 	pgf.add('x', X[:,0])
 	pgf.add('y', X[:,1])
