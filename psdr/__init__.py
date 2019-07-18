@@ -1,3 +1,4 @@
+from .exceptions import *
 from .domains import *
 from .basis import *
 from .function import *
@@ -18,4 +19,6 @@ from .gn import *
 #from opt.shared import LinProgException, InfeasibleConstraints
 
 from .quadrature import *
-from .vertex import voronoi_vertex 
+from .vertex import voronoi_vertex
+
+

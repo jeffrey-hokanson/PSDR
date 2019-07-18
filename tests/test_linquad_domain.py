@@ -1,5 +1,6 @@
 from __future__ import print_function
 import numpy as np
+import psdr
 from psdr import LinQuadDomain, BoxDomain
 
 
@@ -103,6 +104,12 @@ def test_constrained_least_squares(m = 5):
 	assert np.all(np.isclose(x1,x2))
 
 
+	# Test on an empty domain
+	A = np.ones((2,m))
+	A[1,:] *= -1
+	dom = LinQuadDomain(A = A, b = np.ones(2))#, lb = -np.ones(m), ub = np.ones(m))
+	print(dom.sample())
+
 def test_sample(m = 5):
 	L = np.eye(m)
 	y = np.zeros(m)
@@ -131,4 +138,8 @@ def test_bad_scaling():
 	x2 = dom2.corner(p)
 	for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
 		print("x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_))
-	assert np.all(np.isclose(x1,x2))	
+	assert np.all(np.isclose(x1,x2))
+
+
+if __name__ == '__main__':
+	test_constrained_least_squares()	

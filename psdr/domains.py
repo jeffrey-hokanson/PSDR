@@ -22,6 +22,7 @@ TOL = 1e-5
 
 from .quadrature import *
 from .misc import *
+from .exceptions import *
 
 __all__ = ['Domain',
 		'EuclideanDomain',
@@ -38,6 +39,9 @@ __all__ = ['Domain',
 		'TensorProductDomain',
 	] 
 
+# NOTE: These three functions need to be defined outside of the classes
+# so we can call them on both LinQuadDomains and TensorProductDomains,
+# the latter of which may not necessarily be a LinQuadDomain.
 
 def closest_point(dom, x0, L, **kwargs):
 	r""" Solve the closest point problem given a domain
@@ -76,6 +80,16 @@ def constrained_least_squares(dom, A, b, **kwargs):
 	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
 
 def corner(dom, p, **kwargs):
+	# If we already know the domain is empty, error early
+	try:
+		if dom._empty:
+			raise EmptyDomainException
+	except AttributeError:
+		pass
+
+	# Find the corner using CVXPY
+
+	local_kwargs = merge(dom.kwargs, kwargs)		
 	x_norm = cp.Variable(len(dom))
 	D = dom._unnormalize_der() 	
 		
@@ -84,19 +98,25 @@ def corner(dom, p, **kwargs):
 		obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
 	else:
 		obj = x_norm*float(D.dot(p))
+
 	constraints = dom._build_constraints_norm(x_norm)
 	problem = cp.Problem(cp.Maximize(obj), constraints)
-	try:
-		local_kwargs = merge(dom.kwargs, kwargs)
-	except AttributeError:
-		local_kwargs = kwargs
+	
 	problem.solve(**local_kwargs)
 
-	if problem.status not in ['optimal', 'optimal_inaccurate']:
+	if problem.status in ['infeasible']:
+		dom._empty = True
+		raise EmptyDomainException	
+	elif problem.status in ['unbounded']:
+		dom._unbounded = True
+		raise UnboundedDomainException
+	elif problem.status not in ['optimal', 'optimal_inaccurate']:
+		print(problem.status)
 		raise SolverError
+
+	# If we have found a solution, then the domain is not empty
+	dom._empty = False
 	return dom.unnormalize(np.array(x_norm.value).reshape(len(dom)))
-
-
 
 class Domain(object):
 	r""" Abstract base class for arbitary domain shapes
@@ -212,6 +232,22 @@ class EuclideanDomain(Domain):
 				self._empty = True
 			
 			return self._empty
+	
+	def is_empty(self):
+		r""" Returns True if there are no points in the domain
+		"""
+		try:
+			return self._empty
+		except AttributeError:
+			try:
+				# Try to find at least one point inside the domain
+				self.corner(np.ones(len(self)))
+				self._empty = False
+			except EmptyDomainException:
+				# Corner actually sets this value, but we do it here again for clairity
+				self._empty = True
+			
+			return self._empty
 		
 	def is_point(self):
 		try:
@@ -236,6 +272,23 @@ class EuclideanDomain(Domain):
 			self._empty = True
 			self._point = False
 			return self._point
+
+
+	def is_unbounded(self):
+		try:
+			return self._unbounded
+		except AttributeError:
+			try: 
+				U = ortho_group.rvs(len(self))
+				for u in U:
+					self.corner(u)
+					self.corner(-u)
+				self._unbounded = False
+			except UnboundedDomainException:
+				self._unbounded = True
+				
+			return self._unbounded
+
 
 	# To define the documentation once for all domains, these functions call internal functions
 	# to each subclass
@@ -303,6 +356,19 @@ class EuclideanDomain(Domain):
 			Direction in which to search for furthest point
 		kwargs: dict, optional
 			Additional parameters to be passed to cvxpy solve
+
+		Returns
+		-------
+		x: np.ndarray (m,)
+			Point on the boundary of the domain with :math:`m` active constraints
+
+		Raises
+		------
+		EmptyDomainException
+			If there is no point inside the domain
+
+		SolverError
+			If the solver errors for another reason, such as ill-conditioning			
 		"""
 		try:
 			p = np.array(p).reshape(len(self))
@@ -1426,7 +1492,7 @@ class LinQuadDomain(EuclideanDomain):
 
 
 	def _corner(self, p, **kwargs):
-		return corner(self, p, **merge(self.kwargs, kwargs))
+		return corner(self, p, **kwargs)
 
 	def _constrained_least_squares(self, A, b, **kwargs):
 		return constrained_least_squares(self, A, b, **merge(self.kwargs, kwargs) )
@@ -1993,6 +2059,8 @@ class TensorProductDomain(EuclideanDomain):
 	----------
 	domains: list of domains
 		Domains to combine into a single domain
+	**kwargs
+		Additional keyword arguments to pass to CVXPY
 	"""
 	def __init__(self, domains = None, **kwargs):
 		self._domains = []
@@ -2088,13 +2156,22 @@ class TensorProductDomain(EuclideanDomain):
 
 	# TODO: There needs to be some way to inherit solver arguments from sub-domains
 	def _closest_point(self, x0, L = None, **kwargs):
-		return closest_point(self, x0, L = L, **kwargs)
+		if self._is_linquad():
+			return closest_point(self, x0, L = L, **kwargs)
+		else:
+			raise NotImplementedError("Cannot find closest point on domains that are not LinQuadDomains")
 
 	def _corner(self, p, **kwargs):
-		return corner(self, p,  **kwargs)
+		if self._is_linquad():
+			return corner(self, p, **kwargs)
+		else:
+			raise NotImplementedError("Cannot find corners on domains that are not LinQuadDomains")
 	
 	def _constrained_least_squares(self, A, b, **kwargs):
-		return constrained_least_squares(self, A, b,  **kwargs)
+		if self._is_linquad():
+			return constrained_least_squares(self, A, b, **kwargs)
+		else:
+			raise NotImplementedError("Cannot solve constrained least squares problems on domains that are not LinQuadDomains")
 
 
 	################################################################################		

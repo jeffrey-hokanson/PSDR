@@ -277,6 +277,7 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 	for i, L in enumerate(Ls):
 		X = maximin_sample(domain, Nsamp, L)
 		y = L.dot(X.T).T
+		ys.append(y)
 
 		# Construct the set of neighbors for each point
 		if y.shape[1] == 1:
@@ -327,7 +328,15 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 		A = np.vstack([As[metric][idx[metric]] for metric in range(len(Ls))])
 		b = np.hstack([bs[metric][idx[metric]] for metric in range(len(Ls))])
 		return domain.add_constraints(A = A, b = b)
-		
+	
+	@lru_cache(maxsize = int(1e6))
+	def subdomain_sample(idx):
+		# The point in the domain that is nearest to the target position
+		subdom = subdomain(idx)
+		A = np.vstack([Ls])
+		b = np.hstack([y[i] for y, i in zip(ys, idx)])
+		return subdom.constrained_least_squares(A, b)
+			
 
 	# Construct the geometric constraints we enforce with the SAT solver
 	# i.e., no repetition	
@@ -350,24 +359,15 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 	# To fix ordering of the samples, we fix the ordering of the first metric
 	geo_cnf += [ [encode(0, value, value)]  for value in range(Nsamp)]
 
-	# Encode constraints from unsatisfiable points
-	# Note that since this traverses all combinations,
-	# this requires computation that scales with Nsamp^(# of Ls) 
-	#if len(Ls) > 1:
-	#	for idx in itertools.product(range(Nsamp), repeat = len(Ls)):
-	#		dom = subdomain(idx)
-	#		if dom.empty:
-	#			geo_cnf += [ [-encode(metric, order, idx[metric]) for metric in range(len(Ls))] 
-	#					for order in range(Nsamp)] 
 
-	score_best = -np.inf
-	sol_cnf = []	# Constraints from existing solutions
-	dist_cnf = []	# 
+	score_best = tuple([0. for i in range(Nsamp)])
+	perms_best = []
+	X_best = None
 
+	# Initialize the solver and tie its random seed to numpy's random state
 	sat_iter = picosat.itersolve(geo_cnf, initialization = 'random', seed = np.random.randint(2**16))
-	it = 0
 
-	keep = []
+	it = 0
 	while True:
 		try:
 			sol = sat_iter.next()
@@ -376,7 +376,7 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 		except StopIteration:
 			try:
 				# This automatically releases previous assumptions
-				print("assumptions failed")
+				if verbose: print("assumptions failed")
 				sol = sat_iter.next()
 			except (KeyboardInterrupt, SystemExit):
 				raise
@@ -401,7 +401,7 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 		# fraction of subdomains are invalid
 		new_geo_cnf = []
 		for order, subdom in enumerate(subdoms):
-			if subdom.empty:
+			if subdom.is_empty():
 				# If the subdomain is empty, block future samples from using this one
 				new_geo_cnf += [ [-encode(metric, o, perms[metric, order]) for metric in range(len(Ls))] 
 						for o in range(Nsamp)] 
@@ -412,59 +412,34 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 		if all([ not subdom.empty for subdom in subdoms]):
 			print(perms[1:,:])
 			it += 1		
-			# Compute Chebyshev centers to compute distance between boxes	
-			X_center= np.vstack([subdom.center for subdom in subdoms])
+			# 
+			X = np.vstack([subdomain_sample(tuple(perms[:,order])) for order in range(Nsamp)])
 	
-			#D = squareform(pdist(X_center))
-			#D += np.eye(D.shape[0])*np.max(D)*100
-			#i,j = np.unravel_index(D.argmin(), D.shape)
-	 
-			# NOT AND selecting both of the regions yielding nearby points 
-			#for o1, o2 in zip(*np.triu_indices(Nsamp,1)):
-			#	dist_cnf += [ [-encode(metric, o1, perms[metric, i]) for metric in range(len(Ls))]
-			#				+ [-encode(metric, o2, perms[metric, j]) for metric in range(len(Ls))]]
-		
-			# Now generate test solutions
-			if jiggle is False:
-				Xs = [X_center]
-			else:
-				Xs = [X_center] + [ np.vstack([subdom.sample() for subdom in subdoms]) for it2 in range(jiggle) ]	
-
-			updated = False
-			for X in Xs:
-				pdistX = pdist(X)
-				# Score for the whole design
-				score = np.min(pdistX)
-				# Score for each point for the 
-				D = squareform(pdistX)
-				D += np.max(D)*np.eye(D.shape[0])
-				score_i = np.min(D, axis = 0)
-				
-				for L in Ls:
-					Y = L.dot(X.T).T
-					pdistY = pdist(Y)
-					score *= np.min(pdistY)
-					D = squareform(pdistY)
-					D += np.max(D)*np.eye(D.shape[0])
-					score_i *= np.min(D, axis = 0)
-				if score > score_best:
-					score_best = score
-					X_best = X
-					updated = True
-					# Force solver to keep best 
-					keep = np.argsort(-score_i)[0:-10]
-					assumptions = []
-					for k in keep:
-						assumptions += [encode(metric, k, perms[metric,k]) for metric in range(len(Ls))]
+			D = squareform(pdist(X))
+			D += np.max(D)*np.eye(D.shape[0])
+			min_dist = np.min(D, axis = 0)
+			score = tuple(np.sort(min_dist))
+			
+			if score > score_best:
+				X_best = X
+				score_best = score
+				perms_best = perms
+				updated = True
+			
+				# Force solver to keep best
+				keep = np.argsort(-min_dist)[0:-len(Ls)*2]
+				assumptions = []
+				for k in keep:
+					assumptions += [encode(metric, k, perms[metric,k]) for metric in range(len(Ls))]
+			else: 
+				updated = False
 
 			sat_iter.assume(assumptions)
-			#if score_best > 1e-2 or np.random.rand() < 0.9:
-			#	sat_iter.assume(assumptions)	
-			#if np.random.rand() < 0.99:	
-			#	sat_iter.assume(assumptions)
 			
 			if verbose:
-				mess = "it %3d: best score %10.5e; current iterate %10.5e" % (it, score_best, score)
+				mess = "it %4d:" % (it,) 
+				mess += 'best: '
+				mess += ' '.join(['%3.2f' % s for s in score_best])
 				if updated:
 					mess += ' *updated*'
 				print(mess)
