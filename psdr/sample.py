@@ -8,7 +8,9 @@ from scipy.spatial import Delaunay
 import cvxpy as cp
 import itertools
 #import pylgl
-import pycosat
+#import pycosat
+from satyrn import picosat
+
 
 try:
     from functools import lru_cache
@@ -361,86 +363,116 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 	score_best = -np.inf
 	sol_cnf = []	# Constraints from existing solutions
 	dist_cnf = []	# 
+
+	sat_iter = picosat.itersolve(geo_cnf, initialization = 'random', seed = np.random.randint(2**16))
 	it = 0
-	while it < maxiter:
-		sol = pycosat.solve(geo_cnf + sol_cnf + dist_cnf)
-		if not isinstance(sol, list):
-			# If we can't find a solution, remove the pairwise distance constraints
-			# and find a new solution
-			if len(dist_cnf) != 0:
-				if verbose: print('cleared distance constraints')	
-				dist_cnf = []
-			# If we still don't have a solution, stop
-			else:
-				if verbose:	print('no more solutions found')
+
+	keep = []
+	while True:
+		try:
+			sol = sat_iter.next()
+		except (KeyboardInterrupt, SystemExit):
+			raise
+		except StopIteration:
+			try:
+				# This automatically releases previous assumptions
+				print("assumptions failed")
+				sol = sat_iter.next()
+			except (KeyboardInterrupt, SystemExit):
+				raise
+			except:
 				break
+	
+		# Convert the solution format into a permutation matrix
+		sol = np.array(sol)
+		perms = -np.ones((len(Ls), Nsamp), dtype = np.int)
+		for i in np.argwhere(sol > 0).flatten():
+			metric, order, value = decode(sol[i])
+			perms[metric, order] = value
 
-		else:
-			# Convert the solution format into a permutation matrix
-			sol = np.array(sol)
-			perms = -np.ones((len(Ls), Nsamp), dtype = np.int)
-			for i in np.argwhere(sol > 0).flatten():
-				metric, order, value = decode(sol[i])
-				perms[metric, order] = value
+		# Construct a series of domains from this set of constraints
+		subdoms = []
+		for order in range(Nsamp):
+			subdoms.append(subdomain(tuple(perms[:,order])))
+	
+		# Find domains that are empty and remove that combination
+		# This happens here so we don't need to iterate over all combinations
+		# at the start---something that is expensive in cases where only a small 
+		# fraction of subdomains are invalid
+		new_geo_cnf = []
+		for order, subdom in enumerate(subdoms):
+			if subdom.empty:
+				# If the subdomain is empty, block future samples from using this one
+				new_geo_cnf += [ [-encode(metric, o, perms[metric, order]) for metric in range(len(Ls))] 
+						for o in range(Nsamp)] 
 
-			# Construct a series of domains from this set of constraints
-			subdoms = []
-			for order in range(Nsamp):
-				subdoms.append(subdomain(tuple(perms[:,order])))
+		sat_iter.add_clauses(new_geo_cnf)
+		geo_cnf += new_geo_cnf
+
+		if all([ not subdom.empty for subdom in subdoms]):
+			print(perms[1:,:])
+			it += 1		
+			# Compute Chebyshev centers to compute distance between boxes	
+			X_center= np.vstack([subdom.center for subdom in subdoms])
+	
+			#D = squareform(pdist(X_center))
+			#D += np.eye(D.shape[0])*np.max(D)*100
+			#i,j = np.unravel_index(D.argmin(), D.shape)
+	 
+			# NOT AND selecting both of the regions yielding nearby points 
+			#for o1, o2 in zip(*np.triu_indices(Nsamp,1)):
+			#	dist_cnf += [ [-encode(metric, o1, perms[metric, i]) for metric in range(len(Ls))]
+			#				+ [-encode(metric, o2, perms[metric, j]) for metric in range(len(Ls))]]
 		
-			# Find domains that are empty and remove that combination
-			# This happens here so we don't need to iterate over all combinations
-			# at the start---something that is expensive in cases where only a small 
-			# fraction of subdomains are invalid
-			for order, subdom in enumerate(subdoms):
-				if subdom.empty:
-					# If the subdomain is empty, block future samples from using this one
-					geo_cnf += [ [-encode(metric, o, perms[metric, order]) for metric in range(len(Ls))] 
-							for o in range(Nsamp)] 
-
-			if all([ not subdom.empty for subdom in subdoms]):
-				# don't select this soltuion again	
-				sol_cnf += [ [-int(x) for x in sol]]	
-				
-				# update iterator
-				it += 1
-				# Compute Chebyshev centers to compute distance between boxes	
-				X_center= np.vstack([subdom.center for subdom in subdoms])
-			
-				D = squareform(pdist(X_center))
-				D += np.eye(D.shape[0])*np.max(D)*100
-				i,j = np.unravel_index(D.argmin(), D.shape)
-		 
-				# NOT AND selecting both of the regions yielding nearby points 
-				for o1, o2 in zip(*np.triu_indices(Nsamp,1)):
-					dist_cnf += [ [-encode(metric, o1, perms[metric, i]) for metric in range(len(Ls))]
-								+ [-encode(metric, o2, perms[metric, j]) for metric in range(len(Ls))]]
-			
-				# Now generate test solutions
-				if jiggle is False:
-					Xs = [X_center]
-				else:
-					Xs = [X_center] + [ np.vstack([subdom.sample() for subdom in subdoms]) for it2 in range(jiggle) ]	
-
-				updated = False
-				for X in Xs:
-					score = np.min(pdist(X))
-					for L in Ls:
-						Y = L.dot(X.T).T
-						score *= np.min(pdist(Y))
-					if score > score_best:
-						score_best = score
-						X_best = X
-						updated = True
-					
-				if verbose:
-					mess = "it %3d: best score %10.5e; current iterate %10.5e" % (it, score_best, score)
-					if updated:
-						mess += ' *updated*'
-					print(mess)
+			# Now generate test solutions
+			if jiggle is False:
+				Xs = [X_center]
 			else:
-				if verbose:
-					print('found invalid domain')
+				Xs = [X_center] + [ np.vstack([subdom.sample() for subdom in subdoms]) for it2 in range(jiggle) ]	
+
+			updated = False
+			for X in Xs:
+				pdistX = pdist(X)
+				# Score for the whole design
+				score = np.min(pdistX)
+				# Score for each point for the 
+				D = squareform(pdistX)
+				D += np.max(D)*np.eye(D.shape[0])
+				score_i = np.min(D, axis = 0)
+				
+				for L in Ls:
+					Y = L.dot(X.T).T
+					pdistY = pdist(Y)
+					score *= np.min(pdistY)
+					D = squareform(pdistY)
+					D += np.max(D)*np.eye(D.shape[0])
+					score_i *= np.min(D, axis = 0)
+				if score > score_best:
+					score_best = score
+					X_best = X
+					updated = True
+					# Force solver to keep best 
+					keep = np.argsort(-score_i)[0:-10]
+					assumptions = []
+					for k in keep:
+						assumptions += [encode(metric, k, perms[metric,k]) for metric in range(len(Ls))]
+
+			sat_iter.assume(assumptions)
+			#if score_best > 1e-2 or np.random.rand() < 0.9:
+			#	sat_iter.assume(assumptions)	
+			#if np.random.rand() < 0.99:	
+			#	sat_iter.assume(assumptions)
+			
+			if verbose:
+				mess = "it %3d: best score %10.5e; current iterate %10.5e" % (it, score_best, score)
+				if updated:
+					mess += ' *updated*'
+				print(mess)
+		else:
+			if verbose:
+				print('found invalid domain')
+		if it >= maxiter:
+			break
 	return X_best 
 
 
