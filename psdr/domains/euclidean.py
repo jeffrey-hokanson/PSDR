@@ -11,7 +11,7 @@ import cvxpy as cp
 from .domain import Domain
 from ..exceptions import SolverError, EmptyDomainException, UnboundedDomainException
 from ..misc import merge
-
+from ..quadrature import gauss
 TOL = 1e-5
 
 class EuclideanDomain(Domain):
@@ -686,7 +686,7 @@ class EuclideanDomain(Domain):
 		.. [Sobol_wiki] (Sobol Sequence)[https://en.wikipedia.org/wiki/Sobol_sequence]	
 		.. [sobol_seq] https://github.com/naught101/sobol_seq
 		"""
-	
+		from .random import RandomDomain	
 		assert len(self.A_eq) == 0, "Currently equality constraints on the domain are not supported"
 		assert not isinstance(self, RandomDomain), "Currently does not support random domains"
 
@@ -739,7 +739,7 @@ class EuclideanDomain(Domain):
 		"""
 
 		# If we have a single point in the domain, we can't really integrate
-		if self.is_point():
+		if self.is_point:
 			return self.sample().reshape(1,-1), np.ones(1) 
 	
 		N = int(N)
@@ -812,15 +812,13 @@ class EuclideanDomain(Domain):
 
 			# However, we need to include a correction to account for the 
 			# volume of this domain
-			if isinstance(self, BoxDomain) or \
-				(len(self.b_eq) == 0 and len(self.b) == 0 and len(self.rhos) == 0 and not isinstance(self, ConvexHullDomain)):
+			if self.is_box_domain:
 				# if the domain is a box domain, this is simple
 				vol = np.prod(self.ub - self.lb)
 			else:
 				# Otherwise we estimate the volume of domain using Monte-Carlo
-				dom = BoxDomain(self.norm_lb, self.norm_ub)
-				Xt = dom.sample(10*N)
-				vol = np.prod(dom.ub - dom.lb)*(np.sum(self.isinside(Xt))/(10.*N))
+				Xt = np.random.uniform(self.norm_lb, self.norm_ub, size = (10*N, len(self)))
+				vol = np.prod(self.norm_ub - self.norm_lb)*(np.sum(self.isinside(Xt))/(10.*N))
 			w *= vol
 			return X, w
 

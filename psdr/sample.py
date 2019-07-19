@@ -78,7 +78,7 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 
 	# If there is only one point in the domain,
 	# we simply return that one point
-	if domain.is_point():
+	if domain.is_point:
 		return domain.sample(1)	
 
 	# An explicit, low-rank version of L
@@ -404,7 +404,7 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 		# fraction of subdomains are invalid
 		new_geo_cnf = []
 		for order, subdom in enumerate(subdoms):
-			if subdom.is_empty():
+			if subdom.is_empty:
 				# If the subdomain is empty, block future samples from using this one
 				new_geo_cnf += [ [-encode(metric, o, perms[metric, order]) for metric in range(len(Ls))] 
 						for o in range(Nsamp)] 
@@ -412,7 +412,7 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 		sat_iter.add_clauses(new_geo_cnf)
 		geo_cnf += new_geo_cnf
 
-		if all([ not subdom.empty for subdom in subdoms]):
+		if all([ not subdom.is_empty for subdom in subdoms]):
 			print(perms[1:,:])
 			it += 1	
 
@@ -620,7 +620,7 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 				L = Ls[k]
 				vert = vertices[k][idx_i[k]]
 				domain_test = domain_samp.add_constraints(A_eq = L, b_eq = L.dot(vert) )
-				if domain_test.empty:
+				if domain_test.is_empty:
 					#print("empty after %d constraints" % k)
 					break
 				else:
