@@ -7,3 +7,9 @@ class EmptyDomainException(Exception):
 class UnboundedDomainException(Exception):
 	r""" Raised when trying to preform an operation on a domain that is ill-posed on an unbounded domain
 	"""
+	pass
+
+class SolverError(Exception):
+	r""" A problem with the solver
+	"""
+	pass	

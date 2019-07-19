@@ -1,8 +1,7 @@
 from __future__ import print_function
 import numpy as np
 import psdr
-from psdr import LinQuadDomain, BoxDomain
-
+from psdr import LinQuadDomain, BoxDomain, EmptyDomainException
 
 def test_isinside():
 	m = 5
@@ -107,8 +106,13 @@ def test_constrained_least_squares(m = 5):
 	# Test on an empty domain
 	A = np.ones((2,m))
 	A[1,:] *= -1
-	dom = LinQuadDomain(A = A, b = np.ones(2))#, lb = -np.ones(m), ub = np.ones(m))
-	print(dom.sample())
+	dom = LinQuadDomain(A = A, b = -np.ones(2), lb = -np.ones(m), ub = np.ones(m))
+	try:
+		dom.constrained_least_squares(np.random.randn(m, m), np.random.randn(m))
+		assert False, "Should have errored"
+	except EmptyDomainException:
+		pass 
+	#print(dom.sample())
 
 def test_sample(m = 5):
 	L = np.eye(m)

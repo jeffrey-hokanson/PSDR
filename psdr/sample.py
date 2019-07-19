@@ -20,7 +20,7 @@ except ImportError:
 
 from .vertex import voronoi_vertex 
 from .geometry import sample_sphere, unique_points, sample_simplex
-from .domains import LinIneqDomain, ConvexHullDomain, SolverError
+from .domains import LinIneqDomain, ConvexHullDomain
 
 __all__ = ['seq_maximin_sample', 'fill_distance_estimate', 'initial_sample', 'Sampler', 'SequentialMaximinSampler',
 	'StretchedSampler', 'maximin_sample', 'lipschitz_sample']
