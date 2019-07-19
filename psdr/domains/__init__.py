@@ -11,6 +11,7 @@ from .point import *
 
 # Random domains
 from .random import *
+from .uniform import *
 from .normal import *
 from .lognormal import *
 
