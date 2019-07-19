@@ -44,13 +44,13 @@ install:
  - pip install pytest-cov
  - pip install coveralls
  - python setup.py install 
+
+script:
+ - pip freeze --local 
 # Pre-pull docker images
  - docker pull jeffreyhokanson/oas:v1
  - docker pull jeffreyhokanson/multif:v25
  - docker pull jeffreyhokanson/naca0012
-
-script:
- - pip freeze --local 
  - pytest --cov=psdr --cov-branch --cov-config=.coveragerc tests/
 
 after_success:
