@@ -22,6 +22,10 @@ class UnboundedDomain(EuclideanDomain):
 		self._dimension = dimension
 		self._init_names(names)
 
+		self._unbounded = True
+		self._empty = False
+		self._point = False
+
 	def __str__(self):
 		return u"<UnboundedDomain on R^%d>" % (len(self),)
 	
