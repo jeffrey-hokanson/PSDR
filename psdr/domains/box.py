@@ -1,3 +1,10 @@
+from __future__ import division
+
+import numpy as np
+
+from .domain import TOL
+from .linineq import LinIneqDomain
+
 
 class BoxDomain(LinIneqDomain):
 	r""" Implements a domain specified by box constraints
@@ -16,7 +23,7 @@ class BoxDomain(LinIneqDomain):
 		Upper bounds
 	"""
 	def __init__(self, lb, ub, names = None):
-		LinQuadDomain.__init__(self, lb = lb, ub = ub, names = names)	
+		LinIneqDomain.__init__(self, lb = lb, ub = ub, names = names)	
 		assert np.all(np.isfinite(lb)) and np.all(np.isfinite(ub)), "Both lb and ub must be finite to construct a box domain"
 
 	# Due to the simplicity of this domain, we can use a more efficient sampling routine
@@ -24,7 +31,7 @@ class BoxDomain(LinIneqDomain):
 		x_sample = np.random.uniform(self.lb, self.ub, size = (draw, len(self)))
 		return x_sample
 
-	def _corner(self, p):
+	def _corner(self, p, **kwargs):
 		# Since the domain is a box, we can find the corners simply by looking at the sign of p
 		x = np.copy(self.lb)
 		I = (p>=0)
@@ -53,7 +60,8 @@ class BoxDomain(LinIneqDomain):
 	@property
 	def b_eq(self): return np.zeros((0))
 	
-	
+
+	# TODO: Move into sampling directory	
 	def latin_hypercube(self, N, metric = 'maximin', maxiter = 100, jiggle = False):
 		r""" Generate a Latin-Hypercube design
 

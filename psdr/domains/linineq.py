@@ -1,3 +1,13 @@
+from __future__ import division
+
+import numpy as np
+
+import cvxpy as cp
+
+from .domain import TOL
+from .linquad import LinQuadDomain
+
+from ..misc import merge
 
 class LinIneqDomain(LinQuadDomain):
 	r"""A domain specified by a combination of linear equality and inequality constraints.

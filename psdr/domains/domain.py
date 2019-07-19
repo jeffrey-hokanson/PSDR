@@ -1,3 +1,15 @@
+
+TOL = 1e-5
+
+DEFAULT_CVXPY_KWARGS = {
+	'solver': 'CVXOPT',
+	'reltol': 1e-10,
+	'abstol' : 1e-10,
+	'verbose': False,
+	'kktsolver': 'robust', 
+	'warm_start': True,
+}
+
 class Domain(object):
 	r""" Abstract base class for arbitary domain shapes
 	"""

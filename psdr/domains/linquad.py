@@ -1,3 +1,11 @@
+from __future__ import division
+
+import numpy as np
+import cvxpy as cp
+from .domain import TOL, DEFAULT_CVXPY_KWARGS
+from .euclidean import EuclideanDomain
+
+from ..misc import merge
 
 class LinQuadDomain(EuclideanDomain):
 	r"""A domain specified by a combination of linear (in)equality constraints and convex quadratic constraints
@@ -300,16 +308,6 @@ class LinQuadDomain(EuclideanDomain):
 		return constraints
 	
 
-	def _closest_point(self, x0, L = None, **kwargs):
-		return closest_point(self, x0, L = L, **merge(self.kwargs, kwargs))
-
-
-	def _corner(self, p, **kwargs):
-		return corner(self, p, **kwargs)
-
-	def _constrained_least_squares(self, A, b, **kwargs):
-		return constrained_least_squares(self, A, b, **merge(self.kwargs, kwargs) )
-
 	################################################################################		
 	# 
 	################################################################################		
@@ -342,8 +340,10 @@ class LinQuadDomain(EuclideanDomain):
 			return LinQuadDomain(lb = lb, ub = ub, A = A, b = b, A_eq = A_eq, b_eq = b_eq,
 				 Ls = Ls, ys = ys, rhos = rhos, names = self.names)
 		elif len(b) > 0 or len(b_eq) > 0:
+			from .linineq import LinIneqDomain
 			return LinIneqDomain(lb = lb, ub = ub, A = A, b = b, A_eq = A_eq, b_eq = b_eq, names = self.names)
 		else:
+			from .box import BoxDomain
 			return BoxDomain(lb = lb, ub = ub, names = self.names)
 
 	def __and__(self, other):

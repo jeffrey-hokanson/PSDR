@@ -6,6 +6,8 @@ from scipy.stats import ortho_group
 from scipy.linalg import orth
 from scipy.spatial.distance import pdist
 
+import cvxpy as cp
+
 from .domain import Domain
 from ..exceptions import SolverError, EmptyDomainException, UnboundedDomainException
 from ..misc import merge
@@ -156,7 +158,13 @@ class EuclideanDomain(Domain):
 	################################################################################
 	# Primative operations on the domain
 	################################################################################
-	
+
+	def _build_constraints(self, x):
+		raise NotImplementedError
+
+	def _build_constraints_norm(self, x_norm):
+		raise NotImplementedError
+
 	def closest_point(self, x0, L = None, **kwargs):
 		r"""Given a point, find the closest point in the domain to it.
 
@@ -282,10 +290,52 @@ class EuclideanDomain(Domain):
 		except ValueError:
 			raise ValueError("Dimension of search direction doesn't match the domain dimension")
 
-		return self._corner(p, **kwargs)
+		local_kwargs = merge(self.kwargs, kwargs)
+		return self._corner(p, **local_kwargs)
 	
 	def _corner(self, p, **kwargs):
-		raise NotImplementedError	
+		if not self.is_linquad_domain:
+			raise NotImplementedError
+
+		# Error out if we've already determined the domain is empty
+		try:
+			if self._empty: raise EmptyDomainException
+		except AttributeError:
+			pass
+	
+		# Setup the problem in CVXPY	
+		x_norm = cp.Variable(len(self))
+		D = self._unnormalize_der() 	
+			
+		# p.T @ x
+		if len(self) > 1:
+			obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
+		else:
+			obj = x_norm*float(D.dot(p))
+
+		constraints = self._build_constraints_norm(x_norm)
+		problem = cp.Problem(cp.Maximize(obj), constraints)
+		
+		problem.solve(**kwargs)
+
+		if problem.status in ['infeasible']:
+			self._empty = True
+			self._unbounded = False
+			self._point = False
+			raise EmptyDomainException	
+		elif problem.status in ['unbounded']:
+			self._unbounded = True
+			self._empty = False
+			self._point = False
+			raise UnboundedDomainException
+		elif problem.status not in ['optimal', 'optimal_inaccurate']:
+			raise SolverError("CVXPY exited with status '%s'" % problem.status)
+
+		# If we have found a solution, then the domain is not empty
+		self._empty = False
+		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+		
+
 
 	def constrained_least_squares(self, A, b, **kwargs):
 		r"""Solves a least squares problem constrained to the domain
@@ -319,9 +369,45 @@ class EuclideanDomain(Domain):
 
 		return self._constrained_least_squares(A, b, **kwargs)	
 	
-	def _constrained_least_squares(A, b, **kwargs):
-		raise NotImplementedError
+	def _constrained_least_squares(self, A, b, **kwargs):
+		if not self.is_linquad_domain:
+			raise NotImplementedError
 
+		# Error out if we've already determined the domain is empty
+		try:
+			if self._empty: raise EmptyDomainException
+		except AttributeError:
+			pass
+		
+		# Setup the problem in CVXPY	
+		x_norm = cp.Variable(len(self))
+		D = self._unnormalize_der() 
+		c = self._center()	
+			
+		# \| A x - b\|_2 
+		obj = cp.norm(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
+		constraints = self._build_constraints_norm(x_norm)
+		problem = cp.Problem(cp.Minimize(obj), constraints)
+		problem.solve(**kwargs)
+		
+		if problem.status in ['infeasible']:
+			self._empty = True
+			self._unbounded = False
+			self._point = False
+			raise EmptyDomainException	
+		elif problem.status in ['unbounded']:
+			self._unbounded = True
+			self._empty = False
+			self._point = False
+			raise UnboundedDomainException
+		elif problem.status not in ['optimal', 'optimal_inaccurate']:
+			raise SolverError("CVXPY exited with status '%s'" % problem.status)
+
+		# If we have found a solution, then the domain is not empty
+		self._empty = False
+		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+
+		
 	
 	################################################################################
 	# Utility functions for the domain
@@ -503,11 +589,13 @@ class EuclideanDomain(Domain):
 	def __mul__(self, other):
 		""" Combine two domains
 		"""
+		from .tensor import TensorProductDomain
 		return TensorProductDomain([self, other])
 	
 	def __rmul__(self, other):
 		""" Combine two domains
 		"""
+		from .tensor import TensorProductDomain
 		return TensorProductDomain([self, other])
 	
 
@@ -568,6 +656,7 @@ class EuclideanDomain(Domain):
 		I = self.isinside(Xgrid)
 		return Xgrid[I]	
 
+	# TODO: Move this into the sampling techniques
 	def sobol_sequence(self, n):
 		r""" Generate samples from a Sobol sequence on this domain
 
@@ -794,7 +883,7 @@ class EuclideanDomain(Domain):
 			self._hit_and_run_state = x0
 			
 		# If we are point domain, there is no need go any further
-		if self.is_point():
+		if self.is_point:
 			return self._hit_and_run_state.copy()
 	
 		# See if there is an orthongonal basis for the equality constraints

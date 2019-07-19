@@ -1,4 +1,8 @@
+from __future__ import division
 
+import numpy as np
+
+from .euclidean import EuclideanDomain
 
 class UnboundedDomain(EuclideanDomain):
 	r""" A domain without any constraints
