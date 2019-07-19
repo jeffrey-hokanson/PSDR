@@ -269,6 +269,9 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 	
 	if jiggle is True:
 		jiggle = 20
+
+
+	Lall = np.vstack(Ls)
 	
 	# Construct maximin points for each metric L
 	ys = []
@@ -411,10 +414,35 @@ def lipschitz_sample(domain, Nsamp, Ls, maxiter = 100, verbose = False, jiggle =
 
 		if all([ not subdom.empty for subdom in subdoms]):
 			print(perms[1:,:])
-			it += 1		
-			# 
-			X = np.vstack([subdomain_sample(tuple(perms[:,order])) for order in range(Nsamp)])
+			it += 1	
+
 	
+			X = np.vstack([subdomain_sample(tuple(perms[:,order])) for order in range(Nsamp)])
+			
+			if Lall.shape[0] < len(domain):
+				# If the Ls do not completely fix each of the samples, iterate to find maximin design
+				consubdoms = [subdom.add_constraints(A_eq = Lall, b_eq = Lall.dot(x)) for subdom, x in zip(subdoms, X)]
+				X = np.vstack([consubdom.sample() for consubdom in consubdoms])
+				mask = np.ones(Nsamp, dtype = np.bool)
+				for it2 in range(100):
+					max_move = 0
+					for i in range(Nsamp):
+						# Remove the current iterate 
+						mask[i] = False
+						Xt = X[mask,:]
+						# Reset the mask
+						mask[i] = True 
+						x = voronoi_vertex(consubdoms[i], Xt, X[i])	
+	
+						# Compute movement of this point
+						move = np.linalg.norm(X[i] - x.flatten(), np.inf)
+						max_move = max(max_move, move)
+						
+						# update this point
+						X[i] = x
+					if max_move < 1e-6:
+						break
+			
 			D = squareform(pdist(X))
 			D += np.max(D)*np.eye(D.shape[0])
 			min_dist = np.min(D, axis = 0)
