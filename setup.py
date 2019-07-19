@@ -12,7 +12,6 @@ install_requires = [
 		'dask',
 		'distributed',
 		'sobol_seq',
-		'pycosat',
 		'satyrn>=0.3.2',
 	]
 
