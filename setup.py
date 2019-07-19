@@ -32,7 +32,7 @@ else:
 
 
 setup(name='psdr',
-	version = '0.1',
+	version = '0.2',
 	description = 'Parameter Space Dimension Reduction Toolbox',
 	author = 'Jeffrey M. Hokanson',
 	packages = ['psdr', 'psdr.demos'],
