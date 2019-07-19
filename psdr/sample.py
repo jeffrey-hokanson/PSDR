@@ -7,8 +7,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from scipy.spatial import Delaunay
 import cvxpy as cp
 import itertools
-#import pylgl
-#import pycosat
+
 from satyrn import picosat
 
 
