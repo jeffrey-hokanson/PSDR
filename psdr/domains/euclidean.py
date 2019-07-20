@@ -14,6 +14,7 @@ from .domain import Domain
 from ..exceptions import SolverError, EmptyDomainException, UnboundedDomainException
 from ..misc import merge
 from ..quadrature import gauss
+
 TOL = 1e-5
 
 class EuclideanDomain(Domain):
@@ -852,8 +853,11 @@ class EuclideanDomain(Domain):
 				# at the Chebyshev center of the domain.  This value is cached 
 				# and so will not require recomputation if reinitialized
 				x0, r = self.chebyshev_center()
-			
-			except AttributeError:
+	
+				# TODO: chebyshev_center breaks when running test_lipschitz_sample yielding a SolverError
+				# It really shouldn't error
+	
+			except AttributeError, SolverError:
 				# Otherwise we pick points on the boundary and then initialize
 				# at the center of the domain.
 
