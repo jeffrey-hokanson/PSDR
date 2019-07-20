@@ -3,6 +3,8 @@ from __future__ import print_function, division
 import numpy as np
 from scipy.spatial.distance import cdist
 
+from .vertex import voronoi_vertex
+
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):
 	r""" Estimate the fill distance of the points Xhat in the domain
 
@@ -49,6 +51,7 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None )
 		L = np.eye(len(domain))
 	
 	if X0 is None:
+		from ..sample import initial_sample
 		X0 = initial_sample(domain, L, Nsamp = Nsamp)
 
 	# Since we only care about distance in L, we can terminate early if L is rank-deficient

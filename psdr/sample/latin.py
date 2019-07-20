@@ -3,6 +3,7 @@ from __future__ import division, print_function
 
 import numpy as np
 from scipy.spatial.distance import squareform, pdist
+from .projection import projection_sample 
 
 def _score_maximin(X):
 	D = squareform(pdist(X))
@@ -12,14 +13,20 @@ def _score_maximin(X):
 
 
 def latin_hypercube_maximin(domain, N, maxiter = 1000):
+	r""" Construct a maximin distance Latin hypercube design
+
+	Parameters
+	----------
+	domain: Domain
+		Domain on which to construct the design
+	"""
 	if domain.is_box_domain:
 		return latin_hypercube_maximin_box(domain, N, maxiter = maxiter)
 	else:
-		raise NotImplementedError
+		return projection_sample(domain, N, None, maxiter = maxiter, _lhs = True) 
 
 
-
-def latin_hypercube_maximin_box(domain, N, maxiter = 1000):
+def _latin_hypercube_maximin_box(domain, N, maxiter = 1000):
 	r""" Construct a maximin distance Latin hypercube design
 
 	Parameters
