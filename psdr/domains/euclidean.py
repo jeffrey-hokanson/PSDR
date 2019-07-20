@@ -657,58 +657,6 @@ class EuclideanDomain(Domain):
 		I = self.isinside(Xgrid)
 		return Xgrid[I]	
 
-	# TODO: Move this into the sampling techniques
-	def sobol_sequence(self, n):
-		r""" Generate samples from a Sobol sequence on this domain
-
-		A Sobol sequence is a low-discrepancy sequence [Sobol_wiki]_;
-		here we generate this sequence using a library descended from 
-		ACM TOMS algorithms 647 and 659 [sobol_seq]_. 
-		Although Sobol sequences generated on :math:`[0,1]^m`, for domains 
-		that are not a simple box, here we simply reject those samples
-		falling outside the domain (after scaling). 
-
-		*Warning*: when the domain occupies only a small fraction of its enclosing
-		hypercube, this function can take a while to execute.
-
-
-		Parameters
-		----------
-		n: int
-			Number of elements from the Sobol sequence to return
-
-		Returns
-		-------
-		np.array (n, len(self))
-			The samples from the Sobol sequence inside the domain	
-
-		References
-		----------
-		.. [Sobol_wiki] (Sobol Sequence)[https://en.wikipedia.org/wiki/Sobol_sequence]	
-		.. [sobol_seq] https://github.com/naught101/sobol_seq
-		"""
-		from .random import RandomDomain	
-		assert len(self.A_eq) == 0, "Currently equality constraints on the domain are not supported"
-		assert not isinstance(self, RandomDomain), "Currently does not support random domains"
-
-		skip = 1
-		Xsamp = np.zeros((0, len(self)))
-		while True:
-			# Generate a Sobol sequence on the cube [0,1]^m
-			X_norm = sobol_seq.i4_sobol_generate(len(self), n, skip = skip) 
-			skip += n
-			
-			# Scale into the domain
-			X = (self.norm_ub - self.norm_lb)*X_norm + self.norm_lb	
-			
-			# Remove those falling outside the domain
-			X = X[self.isinside(X)]
-			Xsamp = np.vstack([Xsamp, X])
-			if Xsamp.shape[0] >= n:	
-				break
-
-		return Xsamp[0:n]
-
 	def quadrature_rule(self, N, method = 'auto'):
 		r""" Constructs quadrature rule for the domain
 
