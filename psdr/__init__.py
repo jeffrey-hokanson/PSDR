@@ -19,6 +19,7 @@ from .gn import *
 #from opt.shared import LinProgException, InfeasibleConstraints
 
 from .quadrature import *
-from .sample.vertex import voronoi_vertex
+from .geometry.vertex import voronoi_vertex
+
 
 
