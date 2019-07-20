@@ -8,6 +8,8 @@ from scipy.spatial.distance import pdist
 
 import cvxpy as cp
 
+import sobol_seq
+
 from .domain import Domain
 from ..exceptions import SolverError, EmptyDomainException, UnboundedDomainException
 from ..misc import merge
