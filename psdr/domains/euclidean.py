@@ -188,8 +188,6 @@ class EuclideanDomain(Domain):
 			if not provided, the standard 2-norm is used.
 		kwargs: dict, optional
 			Additional arguments to pass to the optimizer
-		def _sample(self, draw = 1):
-		return self.domain_norm._sample(draw)
 	
 		Returns
 		-------
