@@ -24,7 +24,7 @@ from .misc import merge
 from .subspace import SubspaceBasedDimensionReduction
 from .coord import CoordinateBasedDimensionReduction
 from .sample import initial_sample
-from .sample.vertex import voronoi_vertex
+from .geometry import voronoi_vertex
 from .geometry import unique_points
 from .minimax import minimax
 from .function import BaseFunction
