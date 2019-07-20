@@ -19,7 +19,5 @@ from .gn import *
 #from opt.shared import LinProgException, InfeasibleConstraints
 
 from .quadrature import *
-from .geometry.vertex import voronoi_vertex
-
-
+from .geometry import voronoi_vertex, fill_distance_estimate
 
