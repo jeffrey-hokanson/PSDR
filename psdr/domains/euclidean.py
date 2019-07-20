@@ -857,7 +857,7 @@ class EuclideanDomain(Domain):
 				# TODO: chebyshev_center breaks when running test_lipschitz_sample yielding a SolverError
 				# It really shouldn't error
 	
-			except AttributeError, SolverError:
+			except (AttributeError, SolverError):
 				# Otherwise we pick points on the boundary and then initialize
 				# at the center of the domain.
 
