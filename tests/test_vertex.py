@@ -3,7 +3,6 @@ import numpy as np
 from scipy.spatial.distance import cdist 
 from psdr import voronoi_vertex, BoxDomain
 
-np.random.seed(0)
 
 def check_vertex(dom, Xhat, X0, L = None, randomize = True):
 	X = voronoi_vertex(dom, Xhat, X0, L = L, randomize = randomize )
@@ -38,12 +37,14 @@ def check_vertex(dom, Xhat, X0, L = None, randomize = True):
 		assert n_hyper + n_eq + n_ineq >= m_constraints
 
 def test_vertex_box(m = 5):
+	np.random.seed(0)
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	Xhat = dom.sample(10)
 	X0 = dom.sample(100)
 	check_vertex(dom, Xhat, X0)
 
 def test_vertex_weight(m = 5):
+	np.random.seed(0)
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	Xhat = dom.sample(10)
 	X0 = dom.sample(100)
@@ -51,6 +52,7 @@ def test_vertex_weight(m = 5):
 	check_vertex(dom, Xhat, X0, L = L)
 
 def test_vertex_low_rank(m = 5):
+	np.random.seed(0)
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	Xhat = dom.sample(10)
 	X0 = dom.sample(100)
@@ -59,6 +61,7 @@ def test_vertex_low_rank(m = 5):
 	check_vertex(dom, Xhat, X0, L = L)
 
 def test_vertex_low_rank_nonrandomize(m = 5):
+	np.random.seed(0)
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	Xhat = dom.sample(10)
 	X0 = dom.sample(100)
@@ -67,6 +70,7 @@ def test_vertex_low_rank_nonrandomize(m = 5):
 	check_vertex(dom, Xhat, X0, L = L, randomize = False)
 
 def test_vertex_rectangular(m = 5):
+	np.random.seed(0)
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	Xhat = dom.sample(10)
 	X0 = dom.sample(100)
@@ -74,6 +78,7 @@ def test_vertex_rectangular(m = 5):
 	check_vertex(dom, Xhat, X0, L = L)
 
 def test_vertex_eq(m = 5):
+	np.random.seed(0)
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	dom = dom.add_constraints(A_eq = np.ones(m), b_eq = [0])
 	Xhat = dom.sample(10)
