@@ -1,5 +1,8 @@
 from __future__ import print_function
 
+import matplotlib
+matplotlib.use('Agg')
+
 import numpy as np
 from scipy.linalg import orth
 import matplotlib.pyplot as plt
@@ -84,8 +87,8 @@ if __name__ == '__main__':
 	ax = axes[1]
 	#Ls = [orth(np.ones((2,1))).T, np.array([[1],[0]]).T]
 	#Ls = [np.array([[0],[1]]).T, np.array([[1],[0]]).T]
-	Ls = [np.array([[-1,2]]), np.array([[3, 1]])]
-	X = psdr.lipschitz_sample(dom, M, Ls = Ls, verbose = True, maxiter = 1000, jiggle = False, maxiter_maximin = 0)
+	Ls = [np.array([[1,2]]), np.array([[2, 1]])]
+	X = psdr.lipschitz_sample(dom, M, Ls = Ls, verbose = True, maxiter = 1000, jiggle = 10)
 	pgf = PGF()
 	pgf.add('x', X[:,0])
 	pgf.add('y', X[:,1])
@@ -95,12 +98,12 @@ if __name__ == '__main__':
 	ax.set_title('Lipschitz')
 
 	L = Ls[0]
-	center = np.array([1.1,1.1])
+	center = np.array([1.1,-1.1])
 	plot_projection(X, L, center, ax, 'data/fig_latin_lip0', stretch = 1.2, color = 'r')
 	
 	L = Ls[1]
 	center = np.array([1.1,-1.1])
-	plot_projection(X, L, center, ax, 'data/fig_latin_lip0', stretch = 1.2, color = 'b')
+	plot_projection(X, L, center, ax, 'data/fig_latin_lip1', stretch = 1.2, color = 'b')
 
 	
 	for ax in axes:
@@ -108,5 +111,5 @@ if __name__ == '__main__':
 		ax.set_ylim(-2.5,1.5)
 		ax.add_patch(Rectangle((-1,-1), 2, 2, alpha = 1, fill = None, edgecolor = 'black'))
 		ax.axis('off')
-	plt.show()
+	#plt.show()
 

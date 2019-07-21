@@ -5,7 +5,7 @@ from itertools import product
 import psdr
 
 
-def test_lhs(m = 2):
+def no_test_lhs(m = 2):
 	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
 
 	N = 10

@@ -12,7 +12,7 @@ install_requires = [
 		'dask',
 		'distributed',
 		'sobol_seq',
-		'pylgl',
+		'satyrn>=0.3.2',
 	]
 
 if sys.version_info[0] < 3:
@@ -20,6 +20,8 @@ if sys.version_info[0] < 3:
 		'matplotlib<3.0.0',
 		# Required for python 2.7 from dask distributed
 		'tornado<6.0.0',
+		# LRU Cache
+		'backports.functools_lru_cache',
 		]
 else:
 	install_requires += [
@@ -29,9 +31,9 @@ else:
 
 
 setup(name='psdr',
-	version = '0.1',
+	version = '0.2',
 	description = 'Parameter Space Dimension Reduction Toolbox',
 	author = 'Jeffrey M. Hokanson',
-	packages = ['psdr', 'psdr.demos'],
+	packages = ['psdr', 'psdr.demos', 'psdr.domains', 'psdr.sample', 'psdr.geometry'],
 	install_requires = install_requires,
 	)
