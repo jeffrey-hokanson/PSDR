@@ -20,7 +20,7 @@ def latin_hypercube_maximin(domain, N, maxiter = 1000):
 		Domain on which to construct the design
 	"""
 	if domain.is_box_domain:
-		return latin_hypercube_maximin_box(domain, N, maxiter = maxiter)
+		return _latin_hypercube_maximin_box(domain, N, maxiter = maxiter)
 	else:
 		from .projection import projection_sample 
 		return projection_sample(domain, N, None, maxiter = maxiter, _lhs = True) 
