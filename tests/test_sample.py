@@ -6,11 +6,6 @@ from psdr import BoxDomain, seq_maximin_sample, fill_distance_estimate, initial_
 from psdr import SequentialMaximinSampler 
 from psdr.demos import Borehole, GolinskiGearbox
 
-def test_seq_maximin_sample(m = 3):
-	dom = BoxDomain(-np.ones(m), np.ones(m))
-	Xhat = dom.sample(10)
-	x = seq_maximin_sample(dom, Xhat, Nsamp = 100)
-	assert dom.isinside(x)
 
 def test_fill_distance(m = 5):
 	dom = BoxDomain(-np.ones(m), np.ones(m))

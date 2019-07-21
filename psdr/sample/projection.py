@@ -1,9 +1,17 @@
 from __future__ import print_function
 
 import numpy as np
+from scipy.spatial.distance import pdist, squareform
 from satyrn import picosat
 
+try:
+    from functools import lru_cache
+except ImportError:
+    from backports.functools_lru_cache import lru_cache
+
 from .util import low_rank_L
+from .maximin import maximin_sample
+from .latin import _score_maximin
 
 def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs = False):
 	r""" Construct a maximin design with respect to multiple projections
@@ -187,9 +195,7 @@ def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs =
 		geo_cnf += new_geo_cnf
 
 		if all([ not subdom.is_empty for subdom in subdoms]):
-			print(perms[1:,:])
 			it += 1	
-
 	
 			X = np.vstack([subdomain_sample(tuple(perms[:,order])) for order in range(Nsamp)])
 			
@@ -216,12 +222,16 @@ def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs =
 						X[i] = x
 					if max_move < 1e-6:
 						break
+		
+			# We should use this method	
+			#score = _score_maximin(X)
 			
+			# But the current implemention needs the min_dist to choose which points to keep
 			D = squareform(pdist(X))
 			D += np.max(D)*np.eye(D.shape[0])
 			min_dist = np.min(D, axis = 0)
-			score = tuple(np.sort(min_dist))
-			
+			score = tuple(np.sort(min_dist))	
+
 			if score > score_best:
 				X_best = X
 				score_best = score
