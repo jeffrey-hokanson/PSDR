@@ -62,7 +62,7 @@ if __name__ == '__main__':
 	M = 20
 
 	# Latin Hypercube sampling
-	X = dom.latin_hypercube(M)
+	X = psdr.latin_hypercube_maximin(dom, M, maxiter = 1000)
 
 	pgf = PGF()
 	pgf.add('x', X[:,0])
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 	#Ls = [orth(np.ones((2,1))).T, np.array([[1],[0]]).T]
 	#Ls = [np.array([[0],[1]]).T, np.array([[1],[0]]).T]
 	Ls = [np.array([[1,2]]), np.array([[2, 1]])]
-	X = psdr.lipschitz_sample(dom, M, Ls = Ls, verbose = True, maxiter = 1000, jiggle = 10)
+	X = psdr.projection_sample(dom, M, Ls = Ls, verbose = True, maxiter = 1000)
 	pgf = PGF()
 	pgf.add('x', X[:,0])
 	pgf.add('y', X[:,1])
