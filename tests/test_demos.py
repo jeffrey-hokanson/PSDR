@@ -1,5 +1,5 @@
 from __future__ import print_function
-from psdr.demos import GolinskiGearbox, Borehole, OTLCircuit, Piston, RobotArm, WingWeight, NowackiBeam
+from psdr.demos import GolinskiGearbox, Borehole, OTLCircuit, Piston, RobotArm, WingWeight, NowackiBeam, HartmannMHD
 from checkder import check_derivative
 import numpy as np
 
@@ -12,8 +12,9 @@ def test_grad():
 	robotarm = RobotArm()
 	wing = WingWeight()
 	beam = NowackiBeam()
+	mhd = HartmannMHD()
 	
-	for fun in [borehole, gb, otl, piston, robotarm, wing, beam]:
+	for fun in [borehole, gb, otl, piston, robotarm, wing, beam, mhd]:
 		x = fun.domain.sample(1)
 		grad = lambda x: fun.grad(x).T
 		print(fun(x))
