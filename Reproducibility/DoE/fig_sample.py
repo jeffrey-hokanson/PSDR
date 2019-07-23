@@ -13,7 +13,8 @@ L = lip.L
 
 
 # Construct the testing dataset
-Xt = fun.domain.sample_grid(5)
+Xt = fun.domain.sample_grid(10)
+print(Xt.shape)
 ft = fun(Xt).flatten()
 scale = np.max(ft) - np.min(ft)
 samplers = {
@@ -21,44 +22,56 @@ samplers = {
 	'random': psdr.random_sample,
 	'maximin': lambda dom, N : psdr.maximin_sample(dom, N),
 	'maximin_lip': lambda dom, N : psdr.maximin_sample(dom, N, L = lip.L),
+	'latin': lambda dom, N: psdr.latin_hypercube_maximin(dom, N),
+	'sobol': psdr.sobol_sequence, 
 }
 
 responses = {
 	# Response surfaces to try out
-	'pra': psdr.PolynomialRidgeApproximation(subspace_dimension = 1, degree = 5),
+	'pra_1_5': psdr.PolynomialRidgeApproximation(subspace_dimension = 1, degree = 5),
+	'pra_2_5': psdr.PolynomialRidgeApproximation(subspace_dimension = 2, degree = 5),
 	'gp_iso': psdr.GaussianProcess(degree = 0),
+	'gp_iso_lin': psdr.GaussianProcess(degree = 1),
+	'gp_mat': psdr.GaussianProcess(structure = 'tril', degree = 0),
+	'gp_mat_lin': psdr.GaussianProcess(structure = 'tril', degree = 0),	
 }
 
-np.random.seed(0)
 
 Nvec = [10,20,30,40,50,60,70,80,90,100]
-Niter = 20
+Niter = 4
 for samp_name in samplers:
 	samp = samplers[samp_name]
 	print("Sampler: %s" % samp_name)	
 	# Place to store the data
-	data = {key: np.zeros((len(Nvec), Niter)) for key in responses}
+	data = {key: np.nan * np.zeros((len(Nvec), Niter)) for key in responses}
 
 	for i, N in enumerate(Nvec):
 		for it in range(Niter):
 			# Construct sampling scheme
+			np.random.seed(it)
 			print("Building %4d point %15s design, iteration %3d" % (N, samp_name, it))
 			X = samp(fun.domain, N)
-			fX = fun(X)
+			fX = fun(X).flatten()
 			for resp_name in responses:	
 				resp = responses[resp_name]
 				# Now fit and test response surface
-				resp.fit(X, fX)
-				# Record the sup norm error
-				data[resp_name][i, it] = np.max(np.abs(resp(Xt).flatten() - ft.flatten() ))/scale
+				try:
+					resp.fit(X, fX)	
+					# Record the sup norm error
+					data[resp_name][i, it] = np.max(np.abs(resp(Xt).flatten() - ft.flatten() ))/scale
+				except (KeyboardInterrupt, SystemExit):
+					raise
+				except:
+					pass 
+
 				print("\t err %10s: %8.2e" % (resp_name, data[resp_name][i,it]))
 
 		# Now save the data
 		for resp_name in data:
 			fname = 'fig_sample_%s_%s.dat' % (samp_name, resp_name)
 			pgf = PGF()
-			pgf.add('N', Nvec[:i+1])
-			p0, p25, p50, p75, p100 = np.percentile(data[resp_name][:i+1], [0, 25, 50, 75, 100], axis =0)
+			pgf.add('N', Nvec)
+			p0, p25, p50, p75, p100 = np.percentile(data[resp_name], [0, 25, 50, 75, 100], axis =1)
 			pgf.add('p0', p0)
 			pgf.add('p25', p25)
 			pgf.add('p50', p50)
