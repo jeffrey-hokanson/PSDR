@@ -4,7 +4,7 @@ from setuptools import setup
 
 install_requires = [
 		'numpy>=1.15', 
-		'scipy', 
+		'scipy>=1.0.0', 
 		'redis',
 		'cvxpy',
 		'cvxopt',

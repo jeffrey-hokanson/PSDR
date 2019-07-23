@@ -3,7 +3,7 @@
 
 import numpy as np
 import scipy.linalg
-import scipy.misc
+import scipy.special
 import cvxpy as cp
 import warnings
 from copy import deepcopy, copy
@@ -334,7 +334,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		m = X.shape[1]
 		n = self.subspace_dimension
 		d = self.degree
-		n_param  = scipy.misc.comb(n+d, d)		# Polynomial contribution
+		n_param  = scipy.special.comb(n+d, d)		# Polynomial contribution
 		n_param += m*n - (n*(n+1))//2			# Number of parameters in Grassmann manifold
 		if len(fX) < n_param:
 			mess = "A polynomial ridge approximation of degree %d and subspace dimension %d of a %d-dimensional function " % (d, n, m)
