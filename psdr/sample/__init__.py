@@ -7,4 +7,5 @@ from .sobol import *
 from .latin import *
 from .seqmaximin import *
 from .projection import *
+from .random import *
 from .sample import *
