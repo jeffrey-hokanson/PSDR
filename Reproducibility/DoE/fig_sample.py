@@ -14,7 +14,7 @@ L = lip.L
 
 # Construct the testing dataset
 Xt = fun.domain.sample_grid(5)
-ft = fun(Xt)
+ft = fun(Xt).flatten()
 scale = np.max(ft) - np.min(ft)
 samplers = {
 	# should all take two arguments: the domain and the number of samples
@@ -29,6 +29,7 @@ responses = {
 	'gp_iso': psdr.GaussianProcess(degree = 0),
 }
 
+np.random.seed(0)
 
 Nvec = [10,20,30,40,50,60,70,80,90,100]
 Niter = 20
