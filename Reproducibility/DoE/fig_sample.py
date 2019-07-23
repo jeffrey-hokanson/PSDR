@@ -33,7 +33,9 @@ responses = {
 	'gp_iso': psdr.GaussianProcess(degree = 0),
 	'gp_iso_lin': psdr.GaussianProcess(degree = 1),
 	'gp_mat': psdr.GaussianProcess(structure = 'tril', degree = 0),
-	'gp_mat_lin': psdr.GaussianProcess(structure = 'tril', degree = 0),	
+	'gp_mat_lin': psdr.GaussianProcess(structure = 'tril', degree = 0),
+	'gp_lip': psdr.GaussianProcess(degree = 0, structure = 'scalar_mult', Lfixed = np.copy(lip.L)),  	
+	'gp_lip_lin': psdr.GaussianProcess(degree = 1, structure = 'scalar_mult', Lfixed = np.copy(lip.L)),  	
 }
 
 
@@ -70,8 +72,8 @@ for samp_name in samplers:
 		for resp_name in data:
 			fname = 'fig_sample_%s_%s.dat' % (samp_name, resp_name)
 			pgf = PGF()
-			pgf.add('N', Nvec)
-			p0, p25, p50, p75, p100 = np.percentile(data[resp_name], [0, 25, 50, 75, 100], axis =1)
+			pgf.add('N', Nvec[:i+1])
+			p0, p25, p50, p75, p100 = np.percentile(data[resp_name][:i+1,:], [0, 25, 50, 75, 100], axis =1)
 			pgf.add('p0', p0)
 			pgf.add('p25', p25)
 			pgf.add('p50', p50)
