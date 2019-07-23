@@ -1078,9 +1078,15 @@ class EuclideanDomain(Domain):
 	# Bound checking
 	################################################################################		
 	def _isinside_bounds(self, X, tol = None):
+		X = np.array(X)
 		if tol is None: tol = self.tol
-		lb_check = np.array([np.all(x >= self.lb-tol) for x in X], dtype = np.bool)
-		ub_check = np.array([np.all(x <= self.ub+tol) for x in X], dtype = np.bool)
+		#lb_check = np.array([np.all(x >= self.lb-tol) for x in X], dtype = np.bool)
+		#ub_check = np.array([np.all(x <= self.ub+tol) for x in X], dtype = np.bool)
+		lb_check = np.ones(len(X), dtype = np.bool)
+		ub_check = np.ones(len(X), dtype = np.bool)
+		for i in range(len(self)):
+			lb_check &= X[:,i] >= self.lb[i] - tol
+			ub_check &= X[:,i] <= self.ub[i] + tol
 		#print("bounds check", lb_check & ub_check, self.names)
 		return lb_check & ub_check
 
