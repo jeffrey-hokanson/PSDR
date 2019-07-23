@@ -13,3 +13,6 @@ class SolverError(Exception):
 	r""" A problem with the solver
 	"""
 	pass	
+
+class UnderdeterminedException(Exception):
+	pass

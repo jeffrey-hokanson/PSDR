@@ -50,18 +50,18 @@ for samp_name in samplers:
 				# Now fit and test response surface
 				resp.fit(X, fX)
 				# Record the sup norm error
-				data[resp_name][i, it] = np.max(np.abs(resp(Xt) - ft))/scale
+				data[resp_name][i, it] = np.max(np.abs(resp(Xt).flatten() - ft.flatten() ))/scale
 				print("\t err %10s: %8.2e" % (resp_name, data[resp_name][i,it]))
 
-	# Now save the data
-	for resp_name in data:
-		fname = 'fig_sample_%s_%s.dat' % (samp_name, resp_name)
-		pgf = PGF()
-		pgf.add('N', Nvec)
-		p0, p25, p50, p75, p100 = np.percentile(data[resp_name], [0, 25, 50, 75, 100], axis =0)
-		pgf.add('p0', p0)
-		pgf.add('p25', p25)
-		pgf.add('p50', p50)
-		pgf.add('p75', p75)
-		pgf.add('p100', p100)
-		pgf.write('data/'+fname)
+		# Now save the data
+		for resp_name in data:
+			fname = 'fig_sample_%s_%s.dat' % (samp_name, resp_name)
+			pgf = PGF()
+			pgf.add('N', Nvec[:i+1])
+			p0, p25, p50, p75, p100 = np.percentile(data[resp_name][:i+1], [0, 25, 50, 75, 100], axis =0)
+			pgf.add('p0', p0)
+			pgf.add('p25', p25)
+			pgf.add('p50', p50)
+			pgf.add('p75', p75)
+			pgf.add('p100', p100)
+			pgf.write('data/'+fname)

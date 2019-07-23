@@ -3,6 +3,7 @@
 
 import numpy as np
 import scipy.linalg
+import scipy.misc
 import cvxpy as cp
 import warnings
 from copy import deepcopy, copy
@@ -14,6 +15,8 @@ from .ridge import RidgeFunction
 from .basis import *
 from .gn import gauss_newton 
 from .seqlp import sequential_lp
+from .exceptions import UnderdeterminedException
+
 
 class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function
@@ -327,6 +330,16 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 		assert X.shape[0] == fX.shape[0], "Dimensions of input do not match"
 
+		# Check if we have enough data to make problem overdetermined
+		m = X.shape[1]
+		n = self.subspace_dimension
+		d = self.degree
+		n_param  = scipy.misc.comb(n+d, d)		# Polynomial contribution
+		n_param += m*n - (n*(n+1))//2			# Number of parameters in Grassmann manifold
+		if len(fX) < n_param:
+			mess = "A polynomial ridge approximation of degree %d and subspace dimension %d of a %d-dimensional function " % (d, n, m)
+			mess += "requires at least %d samples to not be underdetermined" % (n_param, )
+			raise UnderdeterminedException(mess) 	
 
 		# Check that U0 has the right shape
 		if U0 is not None:
