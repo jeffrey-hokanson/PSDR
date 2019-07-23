@@ -320,7 +320,7 @@ class GaussianProcess(BaseFunction):
 			y[i] is the output at X[i]
 		"""
 		X = np.array(X)
-		y = np.array(y)
+		y = np.array(y).flatten()
 	
 		# Initialized cached values for fit
 		self._fit_init(X, y)	
