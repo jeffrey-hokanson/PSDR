@@ -20,7 +20,8 @@ if True:
 	L1 = np.random.randn(2,len(domain))
 	L2 = np.random.randn(1,len(domain))
 
-	psdr.minimax_cluster(domain, 10, L = L2, N0 = 100)
+	I = np.eye(len(domain))
+	psdr.minimax_cluster(domain, 10, L = I, N0 = 100)
 	
 	
 	#L1 = np.ones((1, len(domain)))
