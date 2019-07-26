@@ -2,3 +2,14 @@
 .ipynb_checkpoints
 *.swp
 docs/build
+Reproducibility/*/data/
+*dask-worker-space*
+.DS_Store
+*.prof
+*.log
+psdr.egg-info
+build
+dist
+var
+y
+tests/*.dat
