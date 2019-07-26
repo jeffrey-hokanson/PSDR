@@ -657,6 +657,33 @@ class EuclideanDomain(Domain):
 		I = self.isinside(Xgrid)
 		return Xgrid[I]	
 
+	def random_direction(self, x):
+		r""" Returns a random direction that can be moved and still remain in the domain
+
+		Parameters
+		----------
+		x: array-like
+			Point in the domain
+		
+		Returns
+		-------
+		p: np.ndarray (m,)
+			Direction that stays inside the domain
+		"""
+
+		if not self.is_linquad_domain:
+			raise NotImplementedError
+
+		Qeq = self._A_eq_basis
+		while True:
+			# Generate a random direction inside 
+			p = np.random.normal(size = (len(self),))
+			# Orthogonalize against equality constarints constraints
+			p = p - Qeq.dot(Qeq.T.dot(p))
+			if self.extent(x, p) > 0:
+				break
+		return p	
+
 	def quadrature_rule(self, N, method = 'auto'):
 		r""" Constructs quadrature rule for the domain
 
