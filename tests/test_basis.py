@@ -15,6 +15,7 @@ def test_equivalence(m = 3, p = 5):
 	""" Check that these bases all express the same thing 
 	by checking the range of their Vandermonde matrices coincide
 	"""
+	np.random.seed(0)
 	M = 100
 	X = np.random.randn(M, m)
 	bases = [MonomialTensorBasis(m, p),
@@ -33,6 +34,7 @@ def test_equivalence(m = 3, p = 5):
 			assert np.all(np.isclose(scipy.linalg.svdvals(U1.T.dot(U2)), 1.))
 
 def test_VC(m = 3, p = 5):
+	np.random.seed(0)
 	M = 100
 	X = np.random.randn(M, m)
 	bases = [MonomialTensorBasis(m, p),
@@ -58,6 +60,7 @@ def test_VC(m = 3, p = 5):
 
 
 def test_der(m = 3, p = 5, M = 10):
+	np.random.seed(0)
 	X = np.random.randn(M, m)
 		
 
@@ -79,6 +82,7 @@ def test_der(m = 3, p = 5, M = 10):
 		assert check_jacobian(X[0], obj, grad) < 1e-7
 
 def test_hessian(m = 2, p = 5):
+	np.random.seed(0)
 	X = np.random.randn(10, m)
 		
 
