@@ -82,6 +82,6 @@ def test_gp_fit(m = 3, M = 100):
 			assert np.all(np.isclose(cov, 0, atol = 1e-3)), "Covariance should be small at samples"
 
 if __name__ == '__main__':
-	test_gp_fit()
-
+	#test_gp_fit()
+	test_gp_der()
 
