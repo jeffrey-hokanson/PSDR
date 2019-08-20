@@ -21,9 +21,12 @@ if True:
 	L2 = np.random.randn(1,len(domain))
 
 	I = np.eye(len(domain))
-	psdr.minimax_cluster(domain, 10, L = I, N0 = 100)
-	
-	
+	#psdr.minimax_cluster(domain, 10, L = I, N0 = 100)
+	X = psdr.poisson_disk_sample(domain, 0.5)
+	print(X)
+	D = squareform(pdist(X))
+	D += np.diag(np.nan*np.ones(D.shape[0]))
+	print(np.nanmin(D, axis = 1))	
 	#L1 = np.ones((1, len(domain)))
 	#L1 = None
 	#X = psdr.lipschitz_sample(domain, 7, [L1,L2], verbose =True)
