@@ -38,7 +38,7 @@ def poisson_disk_sample(domain, r, L = None, Ntries = 100, grid = False):
 			grid_dims[i] = int(np.ceil((L[i,:].dot(c2) - L[i,:].dot(c1))/grid_size))
 
 		grid = np.zeros(grid_dims, dtype = np.uint32)
-	except MemoryError, ValueError:
+	except (MemoryError, ValueError):
 		grid = None	
 
 	def grid_coord(x):
