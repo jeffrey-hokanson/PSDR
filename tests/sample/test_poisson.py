@@ -9,7 +9,9 @@ def test_poisson_disk_sample(m = 2, r = 0.3):
 	D = squareform(pdist(X))
 	D += np.diag(np.nan*np.ones(D.shape[0]))
 	d = np.nanmin(D, axis = 1)
+	print(d)
 	assert np.all(d >= r) and np.all(d <= 2*r)
 	
 
-	
+if __name__ == '__main__':
+	test_poisson_disk_sample()	
