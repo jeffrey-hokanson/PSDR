@@ -137,21 +137,52 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 	return Xhat
 
 def minimax_covering(domain, r, L = None, **kwargs):
-	r""" Find an approximate minimax design by solving a covering problem on a discrete approximation of the domain
+	r"""Approximate a minimax design using a discrete approximation of the domain.
 
-	This is mainly a utility wrapper around minimax_covering_discrete
-	that automatically discretizes the domain
+	This function is a convience wrapper around :meth:`psdr.minimax_covering_discrete`:
+	it constructs a discrete approximation of the domain using Poisson disk sampling
+	and then selects from those samples points such that the maximum distance between
+	any point in the domain and the samples is at most :math:`r`.
+
+	*Note* This method will solve an expensive 0-1 linear program and will not scale well
+	if more than a few hundred Poisson disk samples are taken
+
+	Parameters
+	----------
+	domain: Domain
+		Domain from which to sample
+	r: float
+		The target maximum distance between any point in the domain and
+		the returned sample set.
+	L: array-like (?,m)
+		Weighting matrix on the two-norm
+	**kwargs: dictionary
+		Additional parameters for :meth:`psdr.minimax_covering_discrete`
 	
-	This follows Tan13
+	Returns
+	-------
+	X: np.array
+		Samples from the domain approximating a minimax sampling
 	"""
-	X = poisson_disk_sample(domain, r/2., L = L)
-	I = minimax_covering_discrete(X, r, L = L, **kwargs)
+	# This ensures that no point in the domain is more than r/2 away from one of these samples
+	X = poisson_disk_sample(domain, r/4., L = L)
+	# This then selects 
+	I = minimax_covering_discrete(X, r/2., L = L, **kwargs)
 	return X[I]
 
 
 def minimax_covering_discrete(X, r, L = None, **kwargs):
-	r"""
+	r""" Constructs a minimax design on discrete domain by solving a covering problem
+
+	This implements an algorithm due to Tan [Tan13]_ which, given a finite number of points,
 	
+	
+	References
+	----------
+	.. [Tan13] Minimax Designs for Finite Design Regions
+		Matthias H. Y. Tan. 
+		Technometrics 55:3, 346-358
+		https://doi.org/10.1080/00401706.2013.804439
 	"""
 	X = np.array(X)
 	if L is None:
