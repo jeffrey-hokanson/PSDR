@@ -98,7 +98,7 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 
 	# Initial cluster centers
 	# We use the first N random points so that we don't end up with 
-	# empty 
+	# empty regions 
 	Xhat = X[0:N]
 	#Xhat = domain.sample(N)
 
