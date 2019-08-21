@@ -2,9 +2,19 @@ import numpy as np
 import psdr
 import psdr.demos
 from scipy.spatial.distance import pdist, squareform
-fun = psdr.demos.OTLCircuit()
+
+if True:
+	m = 3
+	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
+	X = dom.sample(500)
+	
+	r = 0.5
+	psdr.minimax_covering_discrete(X, 0.5)
+	
+
 
 if False:
+	fun = psdr.demos.OTLCircuit()
 	X = fun.domain.sample_grid(2)
 	X = np.vstack([X, fun.domain.sample(5)])
 	L1 = np.ones((1, len(fun.domain)))
@@ -14,7 +24,7 @@ if False:
 
 	x = psdr.seq_maximin_sample(fun.domain, X, Ls = Ls)
 
-if True:
+if False:
 	#domain = fun.domain
 	domain = psdr.BoxDomain([-1, -1, -1], [1, 1, 1])
 	L1 = np.random.randn(2,len(domain))

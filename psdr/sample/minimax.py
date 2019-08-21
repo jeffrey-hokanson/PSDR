@@ -6,6 +6,9 @@ from scipy.spatial.distance import cdist, pdist, squareform
 
 from ..domains.domain import DEFAULT_CVXPY_KWARGS
 
+from .poisson import poisson_disk_sample
+
+
 def _cq_center_cvxpy(Y, L, q = 10):
 	xhat = cp.Variable(L.shape[1])
 	obj = cp.sum([cp.norm(L*xhat - y)**q for y in Y])
@@ -132,3 +135,38 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 		I_old = I
 
 	return Xhat
+
+def minimax_covering(domain, r, L = None, **kwargs):
+	r""" Find an approximate minimax design by solving a covering problem on a discrete approximation of the domain
+
+	This is mainly a utility wrapper around minimax_covering_discrete
+	that automatically discretizes the domain
+	
+	This follows Tan13
+	"""
+	X = poisson_disk_sample(domain, r/2., L = L)
+	I = minimax_covering_discrete(X, r, L = L, **kwargs)
+	return X[I]
+
+
+def minimax_covering_discrete(X, r, L = None, **kwargs):
+	r"""
+	
+	"""
+	X = np.array(X)
+	if L is None:
+		L = np.eye(X.shape[1])
+	# Index set - 1/true if the node is selected
+	I = cp.Variable(len(X), boolean = True) 
+
+	# compute the pairwise distance matrix
+	D = squareform(pdist(L.dot(X.T).T))
+	# we require that every 
+	constraints = [ I.__rmatmul__(D < r) >= np.ones(len(X)) ]
+
+	prob = cp.Problem(cp.Minimize(cp.sum(I)), constraints)
+	prob.solve(**kwargs)
+
+	# Convert to a boolean array
+	I = np.array(I.value > 0.5, dtype = np.bool)
+	return I
