@@ -167,7 +167,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		U = U[:,::-1]
 		ew = ew[::-1]
 		# Fix the signs for the subspace directions 
-		#U = self._fix_subspace_signs(U[:,::-1], X, fX/scale, grads/scale)
+		U = self._fix_subspace_signs(U, X, fX/scale, grads/scale)
 		self._U = U	
 		# Force to be SPD
 		self._H = scale**2 * U.dot(np.diag(np.maximum(ew,0)).dot(U.T))

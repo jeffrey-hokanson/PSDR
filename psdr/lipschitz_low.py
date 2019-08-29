@@ -52,6 +52,7 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 		ev = ev[:,::-1]
 		J = np.diag(ew)
 		U = U.dot(ev)
+		U = self._fix_subspace_signs(U, X, fX/scale, grads/scale)
 		# NB: since J is symmetric, its eigenvectors are orthogonal and hence
 		# after the rotation below, U is still unitary
 		#U = U.dot(ev[:,::-1])
