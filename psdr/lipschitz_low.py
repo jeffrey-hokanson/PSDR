@@ -10,7 +10,43 @@ from .misc import merge
 from .opg import opg_grads
 
 class LowRankLipschitzMatrix(LipschitzMatrix):
+	r""" Approximate the Lipschitz matrix using a low-dimensional parameterization
 
+	When computing the Lipschitz matrix, we solve a semidefinite program involving
+	the 'squared Lipschitz matrix' :math:`\mathbf{H}`: an :math:`m\times m` 
+	symmetric positive semidefinite matrix. 
+	The number of parameters grows quadratically in the dimension :math:`m`.
+	Hence, for large scale problems, the standard approach becomes too computationally expensive.
+	Here we decompose :math:`\mathbf{H}` into two parts:
+	a low dimensional subspace specified by :math:`\mathbf{U} \in \mathbb{R}^{m\times r}`
+	and its orthogonal complement:
+
+	.. math::
+		\mathbf{H} = \mathbf{U} \mathbf{J} \mathbf{U}^\top + \alpha(\mathbf{I} - \mathbf{U}\mathbf{U}^\top).
+
+	Essentially we approximate :math:`\mathbf{H}` by (up to a rotation) a block diagonal matrix
+	with the upper left block being :math:`\mathbf{J}` and the lower right block being 
+	the identity matrix scaled by :math:`\alpha`.
+
+	Parameters
+	----------
+	rank: int
+		Dimension of the subspace on which we approximate
+	epsilon: float
+		If non-zero, find the epsilon-Lipschitz matrix
+	verbose: bool
+		If True, print logging messages during optimization
+	U0: None or array like
+		Initial estimate of the subspace
+	maxiter: int
+		Maximum number of iterations of gradient descent to take
+	tol_obj: float
+		Minimum change in the objective function for optimization to proceed
+	tol_dx: float
+		Mininum norm of the step direction to proceed
+	solver_kwargs: dict
+		Arguments to pass to cvxpy.solve
+	"""
 	def __init__(self, rank, epsilon = 0, verbose = True, U0 = None, maxiter = 50, 
 		tol_obj = 1e-9, tol_dx = 1e-7, solver_kwargs = {}):
 		self.rank = rank
@@ -50,14 +86,14 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 		# Flip to descending order
 		ew = ew[::-1]
 		ev = ev[:,::-1]
+		# Rotate onto the domaint subspace, so J becomes diagonal
 		J = np.diag(ew)
-		U = U.dot(ev)
-		U = self._fix_subspace_signs(U, X, fX/scale, grads/scale)
 		# NB: since J is symmetric, its eigenvectors are orthogonal and hence
 		# after the rotation below, U is still unitary
-		#U = U.dot(ev[:,::-1])
+		U = U.dot(ev)
 
-		# TODO: sign flipping
+		# flip the signs of U to be monotonically increasing
+		U = self._fix_subspace_signs(U, X, fX/scale, grads/scale)
 
 		# Fix scaling	
 		J *= scale**2
@@ -86,14 +122,17 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 
 	@property
 	def J(self):
+		r""" The projected positive-semidefinite matrix"""
 		return self._J
 
 	@property
 	def U(self):
+		r""" The important directions"""
 		return self._U
 
 	@property
 	def alpha(self):
+		r""" The coefficient associated with the trailing eigenvalues"""
 		return self._alpha
 
 	def _init_U(self, X, fX, grads):
