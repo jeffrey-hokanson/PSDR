@@ -220,7 +220,7 @@ class SubspaceBasedDimensionReduction(object):
 
 
 	def _init_dim(self, X = None, grads = None):
-		if X is not None:
+		if X is not None and len(X) > 0:
 			self._dimension = len(X[0])
 		elif grads is not None:
 			self._dimension = len(grads[0])

@@ -27,21 +27,31 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 		self.epsilon = epsilon
 
 	def _fit(self, X, fX, grads, epsilon, scale):
-		assert self.rank < grads.shape[1], "Rank must be strictly less than the dimension of the problem"
+		m = grads.shape[1]
 
-		if self.U0 is None:
-			U0 = self._init_U(X, fX, grads)
+		if self.rank == m:
+			U = np.eye(m)
+			J, alpha = self._fixed_U(U, X, fX/scale, grads/scale, epsilon)
+		elif self.rank < m:		
+			if self.U0 is None:
+				U0 = self._init_U(X, fX, grads)
+			else:
+				# Checks on dimension of U0
+				assert self.U0.shape[0] == X.shape[1]
+				assert self.U0.shape[1] == self.rank
+				U0 = self.U0
+		
+			U, J, alpha = self._optimize(U0, X, fX/scale, grads/scale, epsilon)
 		else:
-			# Checks on dimension of U0
-			assert self.U0.shape[0] == X.shape[0]
-			assert self.U0.shape[1] == self.rank
-			U0 = self.U0
-	
-		U, J, alpha = self._optimize(U0, X, fX/scale, grads/scale, epsilon)
+			raise ValueError("Rank must be less than or equal to the dimension of the space")
 
 		# Rotate U
-		#ew, ev = np.linalg.eigh(J)
-		#J = np.diag(ew[::-1])
+		ew, ev = np.linalg.eigh(J)
+		# Flip to descending order
+		ew = ew[::-1]
+		ev = ev[:,::-1]
+		J = np.diag(ew)
+		U = U.dot(ev)
 		# NB: since J is symmetric, its eigenvectors are orthogonal and hence
 		# after the rotation below, U is still unitary
 		#U = U.dot(ev[:,::-1])
@@ -64,14 +74,14 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 		#Q, _ = np.linalg.qr(self.U, mode = 'complete')
 		#JJ = np.diag(np.hstack([np.diag(self.J), self.alpha*np.ones(m-r)]))
 		#return Q.T.dot(JJ.dot(Q))
-		return U.dot(J.dot(U.T)) + self.alpha*(np.eye(m) - U.dot(U.T))
+		return U.dot(J).dot(U.T) + self.alpha*(np.eye(m) - U.dot(U.T))
 
 	@property
 	def L(self):
 		m, r = self.U.shape
 		Q, _ = np.linalg.qr(self.U, mode = 'complete')
 		JJdiag = np.hstack([np.diag(self.J), self.alpha*np.ones(m-r)])
-		return np.diag(np.sqrt(JJdiag)).dot(Q.T)
+		return Q.dot(np.diag(np.sqrt(JJdiag))).dot(Q.T)
 
 	@property
 	def J(self):
@@ -110,16 +120,13 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 		"""	
 
 		m, r = U.shape
-
-
 		J = cp.Variable((r,r), PSD = True)
 		alpha = cp.Variable(nonneg = True)
 
 		obj = cp.trace(J) + alpha*(m-r)
 
-
 		constraints = []
-		if m - r == 0:
+		if m == r:
 			constraints.append(alpha == 0)
 
 		for i in range(len(X)):
@@ -134,13 +141,14 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 		Pperp = np.eye(m) - U.dot(U.T) 
 		for g in grads:
 			lhs = np.outer(g,g)
+			#rhs = cp.quad_form(U, J) + alpha*Pperp
 			rhs = (J.__rmatmul__(U)).__matmul__(U.T) + alpha*Pperp
 			constraints.append(lhs << rhs)
 
 		problem = cp.Problem(cp.Minimize(obj), constraints)
 		problem.solve(**self.solver_kwargs)
 
-		J = np.array(J.value).reshape(r,r)
+		J = np.array(J.value)
 		alpha = float(alpha.value)
 		return J, alpha
 
@@ -149,9 +157,6 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 		""" 
 
 		m, r = U.shape
-		Q, _ = np.linalg.qr(U, mode = 'complete') 	
-
-		lam = np.linalg.eigvalsh(J)
 
 		Jp = cp.Variable((r,r), symmetric = True)
 		alphap = cp.Variable()
@@ -162,7 +167,7 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 		# Orthogonality constraint from manifold considerations
 		constraints = [ Up.__rmatmul__(U.T) == 0]
 		# Also require that the new step could not take the problem negative
-		constraints.append(alphap >= -alpha)
+		#constraints.append(alphap >= -alpha)
 		
 		for i in range(len(X)):	
 			for j in range(i+1, len(X)):
@@ -173,7 +178,8 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 				lhs -= UTy.dot(J.dot(UTy)) + alpha*(y.dot(y) - UTy.dot(UTy)) # 0th order term
 				# 2 * y.T @ U.T @ J @ Up @ y + y.T @ U.T @ Jp @ U @ y
 				rhs = (2*Up.T.__rmatmul__(J.dot(UTy))).__matmul__(y) + cp.quad_form(UTy, Jp) # 1st order term
-				rhs += -2*alpha*(Up.T.__matmul__(y)).__rmatmul__(UTy.T) + alphap*(y.dot(y) - UTy.dot(UTy))
+				#rhs = 2*Up.T.__matmul__(y).__rmatmul__(J.dot(UTy)) + cp.quad_form(UTy, Jp)
+				rhs += -2*alpha*(Up.T.__matmul__(y)).__rmatmul__(J.dot(UTy).T) + alphap*(y.dot(y) - UTy.dot(UTy))
 				constraints.append(lhs <= rhs)
 
 		Pperp = np.eye(m) - U.dot(U.T) 
@@ -235,14 +241,21 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 				t *= 0.1
 			
 			if obj_new > obj:
-				if self.verbose:
-					print("objective did not decrease during line search")
-				break
+				t = 0
 			
 			if self.verbose:
 				lam = np.linalg.eigvalsh(J_new)
 				print("%4d | %14.10e | %7.2e | %7.2e | %7.2e | %7.2e | %7.2e |" % (it+1, obj_new, np.linalg.norm(dU), t, np.max(lam), np.min(lam), alpha_new))
 			
+			if obj_new > obj:
+				if self.verbose:
+					print("objective did not decrease during line search")
+				break
+			
+			# Rotate
+			#ew, ev = np.linalg.eigh(J)
+			#U = U_new.dot(ev.T)
+			#J = np.diag(ew)
 			U = U_new
 			J = J_new
 			alpha = alpha_new

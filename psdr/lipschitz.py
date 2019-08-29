@@ -164,9 +164,11 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		ew, U = scipy.linalg.eigh(H)
 
 		# Because eigenvalues are in ascending order, the subspace basis needs to be flipped
+		U = U[:,::-1]
+		ew = ew[::-1]
 		# Fix the signs for the subspace directions 
-		U = self._fix_subspace_signs(U[:,::-1], X, fX/scale, grads/scale)
-			
+		#U = self._fix_subspace_signs(U[:,::-1], X, fX/scale, grads/scale)
+		self._U = U	
 		# Force to be SPD
 		self._H = scale**2 * U.dot(np.diag(np.maximum(ew,0)).dot(U.T))
 
@@ -222,7 +224,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 		problem = cp.Problem(cp.Minimize(cp.trace(H)), constraints)
 		problem.solve(**self.kwargs)
-		
+		print("Inside Lipschitz")
+		print(np.array(H.value))	
 		return np.array(H.value).reshape(len(self),len(self))
 				
 	

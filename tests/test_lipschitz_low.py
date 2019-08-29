@@ -24,7 +24,36 @@ def check_lipschitz(H, X = None, fX = None, grads = None):
 	return err
 
 
-def test_lipschitz_low(N = 50, M = 15):
+def test_lipschitz_fixed_U(N = 10, M = 20):
+	np.random.seed(0)
+	if True:
+		fun = psdr.demos.HartmannMHD()
+		X = fun.domain.sample(M)
+		fX = fun(X)[:,0]
+		Xg = fun.domain.sample(N)
+		grads = fun.grad(Xg)[:,0,:]
+	else:
+		fun = psdr.demos.OTLCircuit()
+		X = fun.domain.sample(M)
+		fX = fun(X)
+		Xg = fun.domain.sample(N)
+		grads = fun.grad(Xg)
+
+	m = len(fun.domain)
+	#grads = np.zeros((0,m))
+	X = np.zeros((0,m))
+	fX = np.zeros((0,))
+
+	lipr = psdr.LowRankLipschitzMatrix(m)
+	U = np.eye(m)
+	J, alpha = lipr._fixed_U(U, X, fX, grads, 0)
+	
+	lip = psdr.LipschitzMatrix(method = 'cvxpy')
+	lip.fit(X = X, fX = fX, grads = grads)
+
+	assert np.max(np.abs(lip.H - J)) < 1e-3
+
+def test_lipschitz_low(N = 30, M = 20):
 	np.random.seed(0)
 	if True:
 		fun = psdr.demos.HartmannMHD()
@@ -39,36 +68,38 @@ def test_lipschitz_low(N = 50, M = 15):
 		Xg = fun.domain.sample(N)
 		grads = fun.grad(Xg)
 		
-	lip = psdr.LipschitzMatrix()
-	lip1 = psdr.LowRankLipschitzMatrix(1, verbose = True)
-	lip2 = psdr.LowRankLipschitzMatrix(2, verbose = True)
-	lip5 = psdr.LowRankLipschitzMatrix(len(fun.domain)-1, verbose = True)
+	lip1 = psdr.LowRankLipschitzMatrix(1, verbose = True, maxiter = 10)
+	lip2 = psdr.LowRankLipschitzMatrix(2, verbose = True, maxiter = 10)
 
-	for lip in [ ]:
+	for lip in [lip1, lip2 ]:
 		for kwargs in [ {'X': X, 'fX': fX}, {'grads':grads}, {'X':X, 'fX': fX, 'grads': grads}]:
 			lip.fit(**kwargs)
 			err = check_lipschitz(lip.H, **kwargs) 
 			print("error", err)
 			assert err > -1e-6, "constraints not satisfied"
+
+			# Check square-root L
+			err_L = np.max(np.abs(lip.H - lip.L.dot(lip.L))) 
+			print("err L", err_L)
+			assert err_L < 1e-7
 	
 	# If we fit an m-1 dimensional case we should get back the true Lipschitz matrix
 	# We avoid the low rank problem of points by considering gradients here 
-	lip5.fit(grads = grads)
+	lip = psdr.LipschitzMatrix()
 	lip.fit(grads = grads)
-	print(np.linalg.eigvalsh(lip5.H))
-	print(np.linalg.eigvalsh(lip.H))
-	print("True Lipschitz")
-	print(lip.H)
-	print("Low Rank Lipschitz")
-	print(lip5.H)
-	print("J")
-	print(lip5.J)
-	print("U")
-	print(lip5.U)
-	print("alpha", lip5.alpha)
+	H = lip.H
+
+	lip3 = psdr.LowRankLipschitzMatrix(len(fun.domain)-1, verbose = True, U0 = lip.U[:,0:len(fun.domain)-1])
+	lip4 = psdr.LowRankLipschitzMatrix(len(fun.domain), verbose = True)
+	for lip in [lip3, lip4]:
+		lip.fit(grads = grads)
+		err = np.max(np.abs(H - lip.H))
+		print('error', err)
+		assert err < 1e-4, "Did not identify true Lipschitz matrix"
 
 
 if __name__ == '__main__':
 	test_lipschitz_low()
+	#test_lipschitz_fixed_U()
  
 
