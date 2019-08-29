@@ -38,7 +38,7 @@ class OuterProductGradient(ActiveSubspace):
 	and then (2) using the eigendecomposition of the outer product of these approximate gradients 
 	The gradients are estimated by fitting a linear model at each input point :math:`\mathbf{x}_j`
 	weighting the other points based on a kernel :math:`k` that decreases with increasing distance;
-	i.e., at :math:`\mathbf{x}_j` we construct the linear model :math:`\mathbf{a}^\trans \ve x + \beta`: 
+	i.e., at :math:`\mathbf{x}_j` we construct the linear model :math:`\mathbf{a}^\top \mathbf{x} + \beta`: 
 	by solving a linear system:
 
 	.. math::
@@ -46,24 +46,25 @@ class OuterProductGradient(ActiveSubspace):
 		\min_{\mathbf{a}, \beta} 
 		\left\|
 		\begin{bmatrix}
-			\sqrt{k(\| \ve x_1 - \ve x_j\|)} & & & \\	
-			& \sqrt{k(\|\ve x_2 - \ve x_j\|)} & & \\
+			\sqrt{k(\| \mathbf{x}_1 - \mathbf{x}_j\|)} & & & \\	
+			& \sqrt{k(\| \mathbf{x}_2 - \mathbf{x}_j\|)} & & \\
 			& & \ddots & \\
-			& & & \sqrt{k(\|\ve x_M - \ve x_j)}
+			& & & \sqrt{k(\|\mathbf{x}_M - \mathbf{x}_j\|)}
+		\end{bmatrix}
 		\left[	
 		\begin{bmatrix} 
-			\ve x_1^\top - \ve x_j^\top & 1 \\ 
-			\ve x_2^\top - \ve x_j^\top & 1 \\ 
+			\mathbf{x}_1^\top - \mathbf{x}_j^\top & 1 \\ 
+			\mathbf{x}_2^\top - \mathbf{x}_j^\top & 1 \\ 
 			\vdots & \vdots \\
-			\ve x_M^\top - \ve x_j^\top & 1 \\ 
+			\mathbf{x}_M^\top - \mathbf{x}_j^\top & 1 \\ 
 		\end{bmatrix}
-		\begin{bmatrix} \ve a \\ \beta \end{bmatrix}
+		\begin{bmatrix} \mathbf{a} \\ \beta \end{bmatrix}
 		- 
 		\begin{bmatrix}
-			f(\ve x_1) \\ 
-			f(\ve x_2) \\
+			f(\mathbf{x}_1) \\ 
+			f(\mathbf{x}_2) \\
 			\vdots \\
-			f(\ve x_M)
+			f(\mathbf{x}_M)
 		\end{bmatrix}
 		\right]
 		\right\|_2.
