@@ -248,7 +248,8 @@ class SubspaceBasedDimensionReduction(object):
 
 		Since subspaces have no associated direction (they are invariant to a sign flip)
 		here we fix the sign such that the function is increasing on average along the direction
-		u_i.
+		u_i.  This approach uses either gradient or sample information, with a preference for
+		gradient information if it is availible.
 		"""
 		if grads is not None and len(grads) > 0:
 			return self._fix_subspace_signs_grads(U, grads)
@@ -262,12 +263,10 @@ class SubspaceBasedDimensionReduction(object):
 				for j in range(i+1, len(X)):
 					sgn[k] += (fX[i] - fX[j])/(U[:,k].dot(X[i] - X[j]))
 
-		self._U = U.dot(np.diag(np.sign(sgn)))	
-		return self._U	
+		return U.dot(np.diag(np.sign(sgn)))	
 
 	def _fix_subspace_signs_grads(self, U, grads):
-		self._U = U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
-		return self._U	
+		return U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
 
 	
 	def approximate_lipschitz(self, X = None, fX = None, grads = None,  dim = None):
@@ -328,7 +327,7 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 		self._C = self._U.dot(np.diag(self._s**2).dot(self._U.T))
 
 		# Fix +/- scaling so average gradient is positive	
-		self._fix_subspace_signs_grads(self._U, self._grads)		
+		self._U = self._fix_subspace_signs_grads(self._U, self._grads)		
 
 
 	def fit_function(self, fun, N_gradients):

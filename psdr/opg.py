@@ -6,6 +6,29 @@ from .subspace import SubspaceBasedDimensionReduction, ActiveSubspace
 
 __all__ = ['OuterProductGradient']
 
+def opg_grads(Z, fZ, kernel = None):
+	if kernel is None:
+		# Bandwidth from Xia 2007, [Li18, eq. 11.5] 
+		bw = 2.34*len(Z)**(-1./(max(Z.shape[1], 3) +6))
+		kernel = lambda dist: np.exp(-bw*dist**2/2.)
+		 
+	z_grads = np.zeros(Z.shape)		# estimated gradients in the transformed coordinates
+	for i, zi in enumerate(Z):
+		# This essentially fits the linear model by solving the normal equations
+		A = np.zeros((Z.shape[1]+1, Z.shape[1]+1))
+		b = np.zeros((Z.shape[1]+1))
+		for j, zj in enumerate(Z):
+			h = np.hstack([1, zj - zi])
+			# TODO: Li mentions the kernel can be evaluated cheaper when Gaussian
+			kern = kernel(np.linalg.norm(zi - zj))
+			A += np.outer(h, h)*kern
+			b += h*fZ[j]*kern
+		xx = np.linalg.solve(A, b)
+		z_grads[i] = xx[1:]
+
+	return z_grads
+
+
 class OuterProductGradient(ActiveSubspace):
 	r""" The Outer Product Gradient approach of Hardle and Stoker
 
@@ -108,19 +131,7 @@ class OuterProductGradient(ActiveSubspace):
 		# vs a small pos-definite linear system
 
 		# Step 3: Estimate gradients
-		z_grads = np.zeros(Z.shape)		# estimated gradients in the transformed coordinates
-		for i, zi in enumerate(Z):
-			# This essentially fits the linear model by solving the normal equations
-			A = np.zeros((X.shape[1]+1, X.shape[1]+1))
-			b = np.zeros((X.shape[1]+1))
-			for j, zj in enumerate(Z):
-				h = np.hstack([1, zj - zi])
-				# TODO: Li mentions the kernel can be evaluated cheaper when Gaussian
-				kern = kernel(np.linalg.norm(zi - zj))
-				A += np.outer(h, h)*kern
-				b += h*fX[j]*kern
-			xx = np.linalg.solve(A, b)
-			z_grads[i] = xx[1:]
+		z_grads = opg_grads(Z, fX, kernel)
 
 		# Step 4: identify the active subspace
 		ActiveSubspace.fit(self, z_grads)
@@ -131,7 +142,6 @@ class OuterProductGradient(ActiveSubspace):
 			U = Dinv2.dot(self.U)
 			Q, R = np.linalg.qr(U, mode = 'reduced')
 			self._U = Q
-	
-			self._fix_subspace_signs_grads(self._U, z_grads)		
+			self._U = self._fix_subspace_signs_grads(self._U, z_grads)		
 		
 

@@ -2,46 +2,33 @@ import numpy as np
 import psdr
 import psdr.demos
 from scipy.spatial.distance import pdist, squareform
-
+from scipy.linalg import orth
 if True:
-	m = 3
-	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
-	X = dom.sample(500)
-	
-	r = 0.5
-	psdr.minimax_covering_discrete(X, 0.5)
-	
-
-
-if False:
+	np.random.seed(0)
 	fun = psdr.demos.OTLCircuit()
-	X = fun.domain.sample_grid(2)
-	X = np.vstack([X, fun.domain.sample(5)])
-	L1 = np.ones((1, len(fun.domain)))
-	L2 = np.zeros((1,len(fun.domain)))
-	L2[0,3] = 1.
-	Ls = [L1, L2]
+	X = fun.domain.sample(5)
+	fX = fun(X)
+	Xg = fun.domain.sample(20)
+	grads = fun.grad(Xg)
 
-	x = psdr.seq_maximin_sample(fun.domain, X, Ls = Ls)
+	lip = psdr.LowRankLipschitzMatrix(3, verbose = True)
+	lip.fit(X, fX, grads)
+	H = lip.H
+	print(H)
+	print(np.linalg.eigvalsh(H))
+#	U = lip._init_U(X, fX, grads)
+#	print(U)
+#	act = psdr.ActiveSubspace()
+#	act.fit(grads = grads)
 
-if False:
-	#domain = fun.domain
-	domain = psdr.BoxDomain([-1, -1, -1], [1, 1, 1])
-	L1 = np.random.randn(2,len(domain))
-	L2 = np.random.randn(1,len(domain))
+#	U = act.U[:,0:2]
+#	#U = np.random.randn(*U.shape)
+	#U = orth(U)
+	# U = np.random.randn(len(fun.domain),6)
+#	grads = grads[0:50]
+	#J, alpha = lip._fixed_U(U, X, fX, grads, 0)
+	#print(J, np.linalg.eigvals(J))
+	#print(alpha)
 
-	I = np.eye(len(domain))
-	#psdr.minimax_cluster(domain, 10, L = I, N0 = 100)
-	X = psdr.poisson_disk_sample(domain, 0.5)
-	print(X)
-	D = squareform(pdist(X))
-	D += np.diag(np.nan*np.ones(D.shape[0]))
-	print(np.nanmin(D, axis = 1))	
-	#L1 = np.ones((1, len(domain)))
-	#L1 = None
-	#X = psdr.lipschitz_sample(domain, 7, [L1,L2], verbose =True)
-	#X = psdr.sample.minimax_sample(domain, 5, L = L1, verbose = True, maxiter = 200)
-	#X = psdr.maximin_sample(fun.domain, 20, L = L1, verbose = True)
-	#print(X)
-	#print(X[:,:2])
-	#print(pdist(X[:,:2]))
+	#lip._U_descent(U, J, alpha, X, fX, grads, 0)
+	#lip._optimize(U, X, fX, grads, 0)

@@ -165,9 +165,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 		# Because eigenvalues are in ascending order, the subspace basis needs to be flipped
 		# Fix the signs for the subspace directions 
-		self._fix_subspace_signs(U[:,::-1], X, fX/scale, grads/scale)
-		
-
+		U = self._fix_subspace_signs(U[:,::-1], X, fX/scale, grads/scale)
+			
 		# Force to be SPD
 		self._H = scale**2 * U.dot(np.diag(np.maximum(ew,0)).dot(U.T))
 
