@@ -19,6 +19,8 @@ import cvxpy as cp
 import cvxopt
 
 from .pgf import PGF
+from .domains.domain import DEFAULT_CVXPY_KWARGS
+from .misc import merge
 
 __all__ = ['SubspaceBasedDimensionReduction',
 	'ActiveSubspace', 
@@ -142,7 +144,9 @@ class SubspaceBasedDimensionReduction(object):
 		else:
 			if len(U.shape) > 1:
 				U = U[:,0]
-				
+
+		# Since this is for plotting purposes, we reduce accuracy to 3 digits	
+		solver_kwargs = {'verbose': verbose, 'solver': 'OSQP', 'eps_abs': 1e-3, 'eps_rel': 1e-3}				
 
 		X = np.array(X)
 		fX = np.array(fX)
@@ -196,14 +200,14 @@ class SubspaceBasedDimensionReduction(object):
 		#ub0 = [ max(max(fX[j == i]), max(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[max(fX[j == ngrid - 1])]
 		#ub.value = np.array(ub0).flatten()
 		prob = cp.Problem(cp.Minimize(cp.sum(ub)), [A*ub >= fX.flatten()])
-		prob.solve(verbose = verbose, warm_start = True)
+		prob.solve(**solver_kwargs)
 		ub = ub.value
 		
 		lb = cp.Variable(len(yy))
 		#lb0 = [ min(min(fX[j == i]), min(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[min(fX[j == ngrid - 1])]
 		#lb.value = np.array(lb0).flatten()
 		prob = cp.Problem(cp.Maximize(cp.sum(lb)), [A*lb <= fX.flatten()])
-		prob.solve(verbose = verbose, warm_start = True)
+		prob.solve(**solver_kwargs)
 		lb = lb.value
 
 		if ax is not None:
