@@ -341,12 +341,17 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			mess += "requires at least %d samples to not be underdetermined" % (n_param, )
 			raise UnderdeterminedException(mess) 	
 
-		# Check that U0 has the right shape
 		if U0 is not None:
+			# Check that U0 has the right shape
 			U0 = np.array(U0)
 			assert U0.shape[0] == X.shape[1], "U0 has %d rows, expected %d based on X" % (U0.shape[0], X.shape[1])
 			assert U0.shape[1] == self.subspace_dimension, "U0 has %d columns; expected %d" % (U0.shape[1], self.subspace_dimension)
-			U0 = orth(U0)
+		else:
+			U0 = self._init_U(X, fX)
+
+		# Orthogonalize just to make sure the starting value satisfies constraints	
+		U0 = orth(U0)
+			
 
 		if self.subspace_dimension == 1 and self.degree == 1:
 			# Special case where solution is convex and no iteration is required
@@ -509,8 +514,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		return U_new
 	
 	def _fit_varpro(self, X, fX, U0, **kwargs):
-		if U0 is None:
-			U0 = self._init_U(X, fX)	
 	
 		# Setup scaling	
 		self.set_scale(X, U = U0)
@@ -616,9 +619,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		M, m = X.shape
 		n = self.subspace_dimension
 		N = len(self.basis.indices)
-		
-		if U0 is None:
-			U0 = self._init_U(X, fX)
 	
 		def residual(U_c):
 			r = self._residual(X, fX, U_c)
