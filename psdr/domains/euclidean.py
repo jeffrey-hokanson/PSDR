@@ -937,11 +937,17 @@ class EuclideanDomain(Domain):
 	
 	@property
 	def lb_norm(self):
-		return self.normalize(self.lb)
+		lb_norm = self.normalize(self.lb)
+		I = ~np.isfinite(self.lb)
+		lb_norm[I] = -np.inf
+		return lb_norm
 
 	@property
 	def ub_norm(self):
-		return self.normalize(self.ub)
+		ub_norm = self.normalize(self.ub)
+		I = ~np.isfinite(self.ub)
+		ub_norm[I] = np.inf
+		return ub_norm
 
 	@property
 	def A_norm(self):
@@ -1112,8 +1118,10 @@ class EuclideanDomain(Domain):
 		lb_check = np.ones(len(X), dtype = np.bool)
 		ub_check = np.ones(len(X), dtype = np.bool)
 		for i in range(len(self)):
-			lb_check &= X[:,i] >= self.lb[i] - tol
-			ub_check &= X[:,i] <= self.ub[i] + tol
+			if np.isfinite(self.lb[i]):
+				lb_check &= X[:,i] >= self.lb[i] - tol
+			if np.isfinite(self.ub[i]):
+				ub_check &= X[:,i] <= self.ub[i] + tol
 		#print("bounds check", lb_check & ub_check, self.names)
 		return lb_check & ub_check
 
@@ -1157,12 +1165,12 @@ class EuclideanDomain(Domain):
 
 		# Check upper bounds
 		y = (self.ub - x)[I]/p[I]
-		if np.sum(y>0) > 0:
+		if np.any(y>0):
 			alpha = min(alpha, np.min(y[y>0]))	
 
 		# Check lower bounds
 		y = (self.lb - x)[I]/p[I]
-		if np.sum(y>0) > 0:
+		if np.any(y>0):
 			alpha = min(alpha, np.min(y[y>0]))
 		
 		return alpha
