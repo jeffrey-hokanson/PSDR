@@ -37,7 +37,7 @@ before_install:
  # https://stackoverflow.com/a/48185032
 # - pip install -U --only-binary=numpy, scipy numpy==1.15.4 
  - sudo apt-get update
- - sudo install -y swig python-numpy python3-numpy python-scipy python3-scipy
+ - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]] ; then sudo apt-get install -y swig python-numpy python-scipy; else sudo apt-get install -y swig python3-numpy python3-scipy ; fi 
 
 # dask.distributed dropped support for python2 so we need to install the last compatabile version
  - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]] ; then pip install -U distributed==1.28.1 ; fi 
