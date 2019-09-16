@@ -37,12 +37,13 @@ before_install:
  # https://stackoverflow.com/a/48185032
 # - pip install -U --only-binary=numpy, scipy numpy==1.15.4
  - |
+   pip install -U --only-binary=numpy --only-binary=scipy numpy scipy scs
    if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]] ; then 
-      pip install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs==2.1.1-2
+      #pip install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs==2.1.1-2
       # dask.distributed dropped support for python2 so we need to install the last compatabile version
       pip install -U distributed==1.28.1
-   else
-      pip3 install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs==2.1.1-2
+   #else
+   #   pip3 install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs==2.1.1-2
    fi
 
 # - sudo apt-get update
@@ -50,9 +51,7 @@ before_install:
 
 
 install:
- - pip install pytest
- - pip install pytest-cov
- - pip install coveralls
+ - pip install -U pytest pytest-cov coveralls
  - python setup.py install 
 
 script:
