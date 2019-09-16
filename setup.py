@@ -12,6 +12,7 @@ install_requires = [
 		'distributed',
 		'sobol_seq',
 		'satyrn>=0.3.2',
+		'scs<=1.2.1',
 	]
 
 if sys.version_info[0] < 3:
