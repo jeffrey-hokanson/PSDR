@@ -13,6 +13,7 @@ install_requires = [
 		'distributed',
 		'sobol_seq',
 		'satyrn>=0.3.2',
+		'osqp',
 	]
 
 if sys.version_info[0] < 3:
