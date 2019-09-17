@@ -4,7 +4,6 @@ from setuptools import setup
 
 install_requires = [
 		'numpy>=1.15', 
-		'scipy>=1.0.0', 
 		'redis',
 		'cvxpy',
 		'cvxopt',
@@ -22,10 +21,12 @@ if sys.version_info[0] < 3:
 		'tornado<6.0.0',
 		# LRU Cache
 		'backports.functools_lru_cache',
+		'scipy<=1.2.0', 
 		]
 else:
 	install_requires += [
 		'matplotlib',
+		'scipy>=1.1.0', 
 		]
 
 
