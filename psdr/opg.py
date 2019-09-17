@@ -14,7 +14,7 @@ def opg_grads(Z, fZ, kernel = None):
 		 
 	
 	# Append ones to accelerate 
-	M = Z.shape[0]
+	M, m = Z.shape
 	Y = np.hstack([np.ones((M, 1)), Z])
 	
 	# estimated gradients in the transformed coordinates
@@ -30,7 +30,10 @@ def opg_grads(Z, fZ, kernel = None):
 		# This is sum_j weight_j * y_j * fX_j
 		b = np.sum((weights*fZ.reshape(-1,1))*Y, axis = 0)
 		# Estimate the coefficients of the line
-		g = np.linalg.solve(A, b)
+		try:
+			g = np.linalg.solve(A, b)
+		except np.linalg.LinAlgError:
+			g = np.zeros(m+1)
 		# Extract the slope as the gradient
 		z_grads[i] = g[1:]
 
