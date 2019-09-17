@@ -1,7 +1,7 @@
 from __future__ import division, print_function
 
 import numpy as np
-
+from scipy.spatial.distance import cdist
 from .subspace import SubspaceBasedDimensionReduction, ActiveSubspace
 
 __all__ = ['OuterProductGradient']
@@ -12,19 +12,27 @@ def opg_grads(Z, fZ, kernel = None):
 		bw = 2.34*len(Z)**(-1./(max(Z.shape[1], 3) +6))
 		kernel = lambda dist: np.exp(-bw*dist**2/2.)
 		 
-	z_grads = np.zeros(Z.shape)		# estimated gradients in the transformed coordinates
+	
+	# Append ones to accelerate 
+	M = Z.shape[0]
+	Y = np.hstack([np.ones((M, 1)), Z])
+	
+	# estimated gradients in the transformed coordinates
+	z_grads = np.zeros(Z.shape)	
+
 	for i, zi in enumerate(Z):
-		# This essentially fits the linear model by solving the normal equations
-		A = np.zeros((Z.shape[1]+1, Z.shape[1]+1))
-		b = np.zeros((Z.shape[1]+1))
-		for j, zj in enumerate(Z):
-			h = np.hstack([1, zj - zi])
-			# TODO: Li mentions the kernel can be evaluated cheaper when Gaussian
-			kern = kernel(np.linalg.norm(zi - zj))
-			A += np.outer(h, h)*kern
-			b += h*fZ[j]*kern
-		xx = np.linalg.solve(A, b)
-		z_grads[i] = xx[1:]
+		# Compute 2-norm distance between points
+		d = cdist(Z, zi.reshape(1,-1), 'euclidean').flatten()
+		
+		weights = kernel(d).reshape(-1,1)
+		# This is sum_j weight_j * y_j y_j^T 
+		A = Y.T.dot(weights*Y)
+		# This is sum_j weight_j * y_j * fX_j
+		b = np.sum((weights*fZ.reshape(-1,1))*Y, axis = 0)
+		# Estimate the coefficients of the line
+		g = np.linalg.solve(A, b)
+		# Extract the slope as the gradient
+		z_grads[i] = g[1:]
 
 	return z_grads
 
