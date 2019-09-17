@@ -33,10 +33,6 @@ def perplexity_opg_grads(X, fX, perplexity = None):
 	res = root_scalar(lambda x: np.log(min(np.sqrt(2*M), perplexity)) - 2*(1 - x)*np.log(M/(2*(1 - x))), bracket = [3./4,1 - 1e-14],)
 	p1 = res.root
 	
-	# Bandwidth from Xia 2007, [Li18, eq. 11.5] 
-	bw = 2.34*len(X)**(-1./(max(X.shape[1], 3) +6))
-	kernel = lambda dist: np.exp(-bw*dist**2/2.)
-
 	
 	opg_grads = []
 	for i, xi in enumerate(X):
@@ -45,13 +41,22 @@ def perplexity_opg_grads(X, fX, perplexity = None):
 		
 		# Compute the bandwidth for target perplexity
 		def log_entropy(beta):
+			beta = min(max(beta, beta1), beta2)
 			p = np.exp(-d*beta)
-			p[i] = 0.
-			sum_p = np.sum(p) + 1e-40
+			#p[i] = 0.
+			sum_p = np.sum(p)
 			# Shannon entropy
 			#H = np.sum(-p*np.log2(p)) 
 			# More stable formula 
 			return beta*np.sum(p*d/sum_p) + np.log(sum_p)
+
+		def log_entropy_der(beta):
+			beta = min(max(beta, beta1), beta2)
+			p = np.exp(-d*beta)
+			sum_p = np.sum(p)
+			#p[i] = 0.
+			# [VC13, eq. 4]
+			return -beta*(np.sum(p*d**2/sum_p) - np.sum(p*d/sum_p)**2)
 
 		# Compute upper and lower bounds of beta from [VC13, eq. (7) (8)]
 		# These are constants appearing the bounds
@@ -69,7 +74,10 @@ def perplexity_opg_grads(X, fX, perplexity = None):
 		# Compute bandwidth beta
 		res = root_scalar(lambda beta: log_entropy(beta) - log_perplexity,
 			bracket = [beta1, beta2],
+			#x0 = sum([beta1, beta2])/2,
 			method = 'brenth',
+			#method = 'newton',
+			#fprime = log_entropy_der,
 			rtol = 1e-4)
 		beta = res.root
 
