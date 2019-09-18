@@ -8,7 +8,7 @@ from .subspace import ActiveSubspace
 __all__ = ['PerplexityOuterProductGradient']
 
 
-def perplexity_opg_grads(X, fX, perplexity = None):
+def perplexity_opg_grads(X, fX, perplexity = None, idx = None):
 	r""" Compute the gradients in Outer Product Gradient using a variable bandwidth
 	"""
 	################################################################################	
@@ -34,8 +34,12 @@ def perplexity_opg_grads(X, fX, perplexity = None):
 	p1 = res.root
 	
 	
-	opg_grads = []
-	for i, xi in enumerate(X):
+	if idx is None:
+		idx = np.arange(len(X))
+
+	opg_grads = np.zeros((len(idx), m))
+	for num, i in enumerate(idx):
+		xi = X[i]
 		# Compute 2-norm distance between points
 		d = cdist(X, xi.reshape(1,-1), 'sqeuclidean').flatten()
 		
@@ -81,19 +85,25 @@ def perplexity_opg_grads(X, fX, perplexity = None):
 			rtol = 1e-4)
 		beta = res.root
 
-		# Weights associated with each point
-		weights = np.exp(-beta*d).reshape(-1,1)
 		
 		# This is sum_j weight_j * y_j y_j^T 
-		A = Y.T.dot(weights*Y)
+		#A = Y.T.dot(weights*Y)
 		# This is sum_j weight_j * y_j * fX_j
-		b = np.sum((weights*fX.reshape(-1,1))*Y, axis = 0)
+		#b = np.sum((weights*fX.reshape(-1,1))*Y, axis = 0)
 		# Estimate the coefficients of the line
-		g = np.linalg.solve(A, b)
+		#g = np.linalg.solve(A, b)
 		# Extract the slope as the gradient
-		opg_grads.append(g[1:])
+		
+		try:
+			# Weights associated with each point
+			sqrt_weights = np.exp(-0.5*beta*d).reshape(-1,1)
+			g, _, _, _ = np.linalg.lstsq(sqrt_weights*Y, sqrt_weights*fX.reshape(-1,1), rcond = None)
+			g = g.flatten()
+		except np.linalg.LinAlgError:
+			g = np.zeros(m+1)
 
-	opg_grads = np.vstack(opg_grads)
+		opg_grads[num] = g[1:]
+
 	return opg_grads
 
 class PerplexityOuterProductGradient(OuterProductGradient):
