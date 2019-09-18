@@ -25,15 +25,20 @@ def opg_grads(Z, fZ, kernel = None):
 		d = cdist(Z, zi.reshape(1,-1), 'euclidean').flatten()
 		
 		weights = kernel(d).reshape(-1,1)
-		# This is sum_j weight_j * y_j y_j^T 
-		A = Y.T.dot(weights*Y)
-		# This is sum_j weight_j * y_j * fX_j
-		b = np.sum((weights*fZ.reshape(-1,1))*Y, axis = 0)
-		# Estimate the coefficients of the line
 		try:
-			g = np.linalg.solve(A, b)
+			g, _, _, _ = np.linalg.lstsq(np.sqrt(weights)*Y, np.sqrt(weights)*fZ.reshape(-1,1), rcond = None)
+			g = g.flatten()
 		except np.linalg.LinAlgError:
 			g = np.zeros(m+1)
+		# This is sum_j weight_j * y_j y_j^T 
+		#A = Y.T.dot(weights*Y)
+		# This is sum_j weight_j * y_j * fX_j
+		#b = np.sum((weights*fZ.reshape(-1,1))*Y, axis = 0)
+		# Estimate the coefficients of the line
+		#try:
+		#	g = np.linalg.solve(A, b)
+		#except np.linalg.LinAlgError:
+		#	g = np.zeros(m+1)
 		# Extract the slope as the gradient
 		z_grads[i] = g[1:]
 
