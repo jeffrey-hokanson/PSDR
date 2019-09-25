@@ -9,3 +9,4 @@ from .multif import *
 from .naca0012 import *
 from .beam import *
 from .hartmann import *
+from .polynomial import *

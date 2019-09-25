@@ -9,6 +9,7 @@ API Documentation
    samplers
    subspace
    coord
+   local_linear
    surrogate
    opt
    demos

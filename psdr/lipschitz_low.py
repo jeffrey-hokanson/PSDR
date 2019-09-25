@@ -7,7 +7,7 @@ from .lipschitz import LipschitzMatrix
 
 from .domains import DEFAULT_CVXPY_KWARGS
 from .misc import merge
-from .opg import opg_grads
+from .initialization import initialize_subspace
 
 class LowRankLipschitzMatrix(LipschitzMatrix):
 	r""" Approximate the Lipschitz matrix using a low-dimensional parameterization
@@ -70,7 +70,7 @@ class LowRankLipschitzMatrix(LipschitzMatrix):
 			J, alpha = self._fixed_U(U, X, fX/scale, grads/scale, epsilon)
 		elif self.rank < m:		
 			if self.U0 is None:
-				U0 = self._init_U(X, fX, grads)
+				U0 = initialize_subspace(X, fX, grads)[:,:self.rank]
 			else:
 				# Checks on dimension of U0
 				assert self.U0.shape[0] == X.shape[1]
