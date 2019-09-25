@@ -104,8 +104,8 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 		distances.append(D[I])
 		
 	#############################################################################
-	# Now we construct a number of candidate domains to sample from
-	# many of these may be empty because the constraints are infeasible
+	# Now we construct a number of candidate domains to sample from.
+	# Many of these may be empty because the constraints are collectively infeasible
 	#############################################################################
 
 	# When generating these domains, we limit the number of vertices we consider
