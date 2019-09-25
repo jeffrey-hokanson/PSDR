@@ -16,7 +16,7 @@ from .basis import *
 from .gn import gauss_newton 
 from .seqlp import sequential_lp
 from .exceptions import UnderdeterminedException
-
+from .initialization import initialize_subspace
 
 class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function
@@ -347,7 +347,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			assert U0.shape[0] == X.shape[1], "U0 has %d rows, expected %d based on X" % (U0.shape[0], X.shape[1])
 			assert U0.shape[1] == self.subspace_dimension, "U0 has %d columns; expected %d" % (U0.shape[1], self.subspace_dimension)
 		else:
-			U0 = self._init_U(X, fX)
+			U0 = initialize_subspace(X = X, fX = fX)[:,:self.subspace_dimension]
 
 		# Orthogonalize just to make sure the starting value satisfies constraints	
 		U0 = orth(U0)
