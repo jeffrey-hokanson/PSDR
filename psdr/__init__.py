@@ -5,7 +5,7 @@ from .function import *
 from .subspace import *
 from .coord import *
 from .lipschitz import *
-from .lipschitz_low import *
+from .lipschitz_partial import *
 from .gp import * 
 from .sample import *
 from .polyridge import *

@@ -9,7 +9,7 @@ from .domains import DEFAULT_CVXPY_KWARGS
 from .misc import merge
 from .initialization import initialize_subspace
 
-class LowRankLipschitzMatrix(LipschitzMatrix):
+class PartialLipschitzMatrix(LipschitzMatrix):
 	r""" Approximate the Lipschitz matrix using a low-dimensional parameterization
 
 	When computing the Lipschitz matrix, we solve a semidefinite program involving

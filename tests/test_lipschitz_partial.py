@@ -44,7 +44,7 @@ def test_lipschitz_fixed_U(N = 10, M = 20):
 	X = np.zeros((0,m))
 	fX = np.zeros((0,))
 
-	lipr = psdr.LowRankLipschitzMatrix(m)
+	lipr = psdr.PartialLipschitzMatrix(m)
 	U = np.eye(m)
 	J, alpha = lipr._fixed_U(U, X, fX, grads, 0)
 	
@@ -53,7 +53,7 @@ def test_lipschitz_fixed_U(N = 10, M = 20):
 
 	assert np.max(np.abs(lip.H - J)) < 1e-3
 
-def test_lipschitz_low(N = 30, M = 20):
+def test_lipschitz_partial(N = 30, M = 20):
 	np.random.seed(0)
 	if True:
 		fun = psdr.demos.HartmannMHD()
@@ -68,8 +68,8 @@ def test_lipschitz_low(N = 30, M = 20):
 		Xg = fun.domain.sample(N)
 		grads = fun.grad(Xg)
 		
-	lip1 = psdr.LowRankLipschitzMatrix(1, verbose = True, maxiter = 10)
-	lip2 = psdr.LowRankLipschitzMatrix(2, verbose = True, maxiter = 10)
+	lip1 = psdr.PartialLipschitzMatrix(1, verbose = True, maxiter = 10)
+	lip2 = psdr.PartialLipschitzMatrix(2, verbose = True, maxiter = 10)
 
 	for lip in [lip1, lip2 ]:
 		for kwargs in [ {'X': X, 'fX': fX}, {'grads':grads}, {'X':X, 'fX': fX, 'grads': grads}]:
@@ -89,8 +89,8 @@ def test_lipschitz_low(N = 30, M = 20):
 	lip.fit(grads = grads)
 	H = lip.H
 
-	lip3 = psdr.LowRankLipschitzMatrix(len(fun.domain)-1, verbose = True, U0 = lip.U[:,0:len(fun.domain)-1])
-	lip4 = psdr.LowRankLipschitzMatrix(len(fun.domain), verbose = True)
+	lip3 = psdr.PartialLipschitzMatrix(len(fun.domain)-1, verbose = True, U0 = lip.U[:,0:len(fun.domain)-1])
+	lip4 = psdr.PartialLipschitzMatrix(len(fun.domain), verbose = True)
 	for lip in [lip3, lip4]:
 		lip.fit(grads = grads)
 		err = np.max(np.abs(H - lip.H))
@@ -99,7 +99,7 @@ def test_lipschitz_low(N = 30, M = 20):
 
 
 if __name__ == '__main__':
-	test_lipschitz_low()
+	test_lipschitz_partial()
 	#test_lipschitz_fixed_U()
  
 
