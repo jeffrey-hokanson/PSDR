@@ -113,12 +113,14 @@ class OuterProductGradient(ActiveSubspace):
 			Z = X
 
 		# Step 2: Setup the kernel
-		if bandwidth == 'xia':
+		if self.bandwidth == 'xia':
 			# Bandwidth from Xia 2007, [Li18, eq. 11.5] 
 			bandwidth = 2.34*len(X)**(-1./(max(X.shape[1], 3) +6))
+		else:
+			bandwidth = self.bandwidth
 
 		# Step 3: Estimate gradients
-		z_grads = local_linear_grads(Z, fX)
+		z_grads = local_linear_grads(Z, fX, perplexity = self.perplexity, bandwidth = self.bandwidth)
 
 		# Step 4: identify the active subspace
 		ActiveSubspace.fit(self, z_grads)

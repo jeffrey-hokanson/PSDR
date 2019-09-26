@@ -47,7 +47,7 @@ class QuadraticFunction(Function):
 		if quad is not None:
 			m = len(quad)
 		elif linear is not None:
-			m = len(quad)
+			m = len(linear)
 		elif domain is not None:
 			m = len(domain)
 		else:
@@ -76,6 +76,7 @@ class QuadraticFunction(Function):
 	def _func(self, X):
 		# Fast quadratic form computation
 		# https://stackoverflow.com/a/18542236
+		X = np.atleast_2d(X)
 		return 	(X.dot(self.quad)*X).sum(axis = 1) + self.linear.dot(X.T) + self.constant
 
 	def _func_grad(self, X):
