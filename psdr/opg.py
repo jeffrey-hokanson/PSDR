@@ -1,32 +1,12 @@
 from __future__ import division, print_function
 
 import numpy as np
-
+from scipy.spatial.distance import cdist
 from .subspace import SubspaceBasedDimensionReduction, ActiveSubspace
+from .local_linear import local_linear_grads
+
 
 __all__ = ['OuterProductGradient']
-
-def opg_grads(Z, fZ, kernel = None):
-	if kernel is None:
-		# Bandwidth from Xia 2007, [Li18, eq. 11.5] 
-		bw = 2.34*len(Z)**(-1./(max(Z.shape[1], 3) +6))
-		kernel = lambda dist: np.exp(-bw*dist**2/2.)
-		 
-	z_grads = np.zeros(Z.shape)		# estimated gradients in the transformed coordinates
-	for i, zi in enumerate(Z):
-		# This essentially fits the linear model by solving the normal equations
-		A = np.zeros((Z.shape[1]+1, Z.shape[1]+1))
-		b = np.zeros((Z.shape[1]+1))
-		for j, zj in enumerate(Z):
-			h = np.hstack([1, zj - zi])
-			# TODO: Li mentions the kernel can be evaluated cheaper when Gaussian
-			kern = kernel(np.linalg.norm(zi - zj))
-			A += np.outer(h, h)*kern
-			b += h*fZ[j]*kern
-		xx = np.linalg.solve(A, b)
-		z_grads[i] = xx[1:]
-
-	return z_grads
 
 
 class OuterProductGradient(ActiveSubspace):
@@ -70,7 +50,20 @@ class OuterProductGradient(ActiveSubspace):
 		\right\|_2.
 		
 
-	Our implementation largely follows [Li18]_.
+	Our implementation is a modification of the algorithm presented by Li [Li18]_.
+	Gradients are estimated by calling :code:`psdr.local_linear_grad` which uses
+	a more numerically stable approach for estimating gradients than that above.
+	Additionally, by default we use a per-location bandwidth based on perplexity.	
+
+	Parameters
+	----------
+	standardize: bool
+		If True, standardize input X to have zero mean and identity covariance.
+	perplexity: None or float
+		Entropy target for choosing bandwidth 
+	bandwidth: None, 'xia' or positive float
+ 		If specified, set a global bandwidth.  'xia' uses the heuristic
+		suggested in [Li18]_.
 
 	References
 	----------
@@ -81,12 +74,10 @@ class OuterProductGradient(ActiveSubspace):
 		Sufficient Dimension Reduction: Methods and Applications with R.
 		CRC Press, 2018.
 	"""
-	def __init__(self, kernel = 'gaussian', standardize = True):
-	
-		# TODO: Bandwidth determination strategies
-		assert kernel in ['gaussian',], "Invalid kernel provided"
-		self.kernel = kernel
+	def __init__(self, standardize = True, perplexity = None, bandwidth = None):
 		self.standardize = standardize
+		self.perplexity = perplexity
+		self.bandwidth = bandwidth
 
 	def __str__(self):
 		return "<Outer Product Gradient>"
@@ -122,27 +113,23 @@ class OuterProductGradient(ActiveSubspace):
 			Z = X
 
 		# Step 2: Setup the kernel
-
-		# Bandwidth from Xia 2007, [Li18, eq. 11.5] 
-		bw = 2.34*len(X)**(-1./(max(X.shape[1], 3) +6))
-		kernel = lambda dist: np.exp(-bw*dist**2/2.)
-
-		# TODO: Implement both naive approach in Li as well as weighted LS
-		# N.B.: weighted LS will be slower (but better conditioned) because it is solve a large LS
-		# vs a small pos-definite linear system
+		if self.bandwidth == 'xia':
+			# Bandwidth from Xia 2007, [Li18, eq. 11.5] 
+			bandwidth = 2.34*len(X)**(-1./(max(X.shape[1], 3) +6))
+		else:
+			bandwidth = self.bandwidth
 
 		# Step 3: Estimate gradients
-		z_grads = opg_grads(Z, fX, kernel)
+		z_grads = local_linear_grads(Z, fX, perplexity = self.perplexity, bandwidth = self.bandwidth)
 
 		# Step 4: identify the active subspace
 		ActiveSubspace.fit(self, z_grads)
 			
 		if self.standardize:
-			# Due to the coordiante change introduced by standardization 
+			# Undo the coordiante change introduced by standardization 
 			Dinv2 = np.diag(std**(-0.5))
 			U = Dinv2.dot(self.U)
 			Q, R = np.linalg.qr(U, mode = 'reduced')
 			self._U = Q
 			self._U = self._fix_subspace_signs_grads(self._U, z_grads)		
 		
-
