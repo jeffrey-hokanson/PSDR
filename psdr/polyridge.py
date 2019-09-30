@@ -402,14 +402,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U /= np.linalg.norm(U)
 		return U	
 
-
-	def _init_U(self, X, fX):
-		U0 = self._fit_affine(X, fX)
-		if self.subspace_dimension > 1:
-			# TODO: Find something better than random for the other directions
-			U0 = np.hstack([U0, np.random.randn(X.shape[1], self.subspace_dimension-1)])
-		return U0
-
 	def _fit_coef(self, X, fX, U):
 		r""" Returns the linear coefficients
 		"""
