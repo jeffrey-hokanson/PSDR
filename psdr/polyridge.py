@@ -245,6 +245,9 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	bound: [None, 'lower', 'upper']
 		If 'lower' or 'upper' construct a lower or upper bound
 
+	rotate: bool
+		If True, rotate the U matrix to align to the active subspace with average increasing gradients
+
 	References
 	----------
 	.. [HC18] J. M. Hokanson and Paul G. Constantine. 
@@ -254,8 +257,9 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 	def __init__(self, degree, subspace_dimension, basis = 'legendre', 
 		norm = 2, n_init = 1, scale = True, keep_data = True, domain = None,
-		bound = None):
+		bound = None, rotate = True):
 
+		self.rotate = rotate
 		assert isinstance(degree, int)
 		assert degree >= 0
 		self.degree = degree
@@ -437,22 +441,24 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 		# Step 1: Apply active subspaces to the profile function at samples X
 		# to rotate onto the most important directions
-		if U.shape[1] > 1:
+		if U.shape[1] > 1 and self.rotate:
 			self._U = U
 			self.coef = self._fit_coef(X, fX, U)
 			grads = self.profile_grad(X)
-			Ur = scipy.linalg.svd(grads.T)[0]
+			# We only need the short-form SVD
+			Ur = scipy.linalg.svd(grads.T, full_matrices = False)[0]
 			U = U.dot(Ur)
 		
-		# Step 2: Flip signs such that average slope is positive in the coordinate directions
 		self._U = U
-		self.coef = self._fit_coef(X, fX, U)
-		grads = self.profile_grad(X)
-		self._U = U = U.dot(np.diag(np.sign(np.mean(grads, axis = 0))))
+
+		# Step 2: Flip signs such that average slope is positive in the coordinate directions
+		if self.rotate:
+			self.coef = self._fit_coef(X, fX, U)
+			grads = self.profile_grad(X)
+			self._U = U = U.dot(np.diag(np.sign(np.mean(grads, axis = 0))))
 		
 		# Step 3: final fit	
 		self.coef = self._fit_coef(X, fX, U)
-		grads = self.profile_grad(X)
 
 	################################################################################	
 	# VarPro based solution for the 2-norm without bound constraints 
