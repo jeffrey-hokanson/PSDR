@@ -345,6 +345,13 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			mess += "requires at least %d samples to not be underdetermined" % (n_param, )
 			raise UnderdeterminedException(mess) 	
 
+		# Special case where solution is convex and no iteration is required
+		if self.subspace_dimension == 1 and self.degree == 1:
+			self._U = self._fit_affine(X, fX)	
+			self.coef = self._fit_coef(X, fX, self._U)	
+			return 
+
+
 		if U0 is not None:
 			# Check that U0 has the right shape
 			U0 = np.array(U0)
@@ -352,22 +359,15 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			assert U0.shape[1] == self.subspace_dimension, "U0 has %d columns; expected %d" % (U0.shape[1], self.subspace_dimension)
 		else:
 			U0 = initialize_subspace(X = X, fX = fX)[:,:self.subspace_dimension]
-
+			
 		# Orthogonalize just to make sure the starting value satisfies constraints	
 		U0 = orth(U0)
 			
-
-		if self.subspace_dimension == 1 and self.degree == 1:
-			# Special case where solution is convex and no iteration is required
-			self._U = self._fit_affine(X, fX)	
-			self.coef = self._fit_coef(X, fX, self._U)	
-			return 
-		else:
-			# TODO Implement multiple initializations
-			if self.norm == 2 and self.bound == None:
-				return self._fit_varpro(X, fX, U0, **kwargs)
-			else:	
-				return self._fit_alternating(X, fX, U0, **kwargs)
+		# TODO Implement multiple initializations
+		if self.norm == 2 and self.bound == None:
+			return self._fit_varpro(X, fX, U0, **kwargs)
+		else:	
+			return self._fit_alternating(X, fX, U0, **kwargs)
 
 
 	################################################################################	
@@ -406,13 +406,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U /= np.linalg.norm(U)
 		return U	
 
-
-	def _init_U(self, X, fX):
-		U0 = self._fit_affine(X, fX)
-		if self.subspace_dimension > 1:
-			# TODO: Find something better than random for the other directions
-			U0 = np.hstack([U0, np.random.randn(X.shape[1], self.subspace_dimension-1)])
-		return U0
 
 	def _fit_coef(self, X, fX, U):
 		r""" Returns the linear coefficients
