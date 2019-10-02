@@ -2,7 +2,9 @@
 """
 import numpy as np
 from scipy.optimize import root_scalar
+from scipy.special import xlogy
 from scipy.spatial.distance import cdist
+import scipy.linalg
 
 try:
     from functools import lru_cache
@@ -15,8 +17,12 @@ __all__ = ['perplexity_bandwidth', 'local_linear_grads', 'local_linear']
 def _compute_p1(M, perplexity):
 	r""" The constant appearing in VC13, eq. 9
 	"""
-	res = root_scalar(lambda x: np.log(min(np.sqrt(2*M), perplexity)) - 2*(1 - x)*np.log(M/(2*(1 - x))), bracket = [3./4,1 - 1e-14],)
-	return res.root
+	#res = root_scalar(lambda x: np.log(min(np.sqrt(2*M), perplexity)) - 2*(1 - x)*np.log(M/(2*(1 - x))), bracket = [3./4,1 - 1e-14],)
+	# Instead we solve in terms of 2*(1-p1)
+	res = root_scalar(lambda x: x*np.log(M) - xlogy(x,x) - np.log(min(np.sqrt(2*M), perplexity)),
+		bracket = [0, 0.5])
+	p1 = 1. - res.root/2.
+	return p1
 
 
 def log_entropy(beta, d):
@@ -65,6 +71,14 @@ def perplexity_bandwidth(d, perplexity):
 	# TODO: There are some fancy initialization strategies that can be used
 	# based on caching previous values; we ignore this here
 
+	#print("beta1", beta1, log_entropy(beta1, d), "\nbeta2", beta2, log_entropy(beta2,d))
+
+	# Sometimes the right endpoint is the root.  
+	# scipy spuriously fails when checking the bracketing interval
+	# TODO: remove this when using custom bracketed root solver
+	if np.abs(log_entropy(beta2, d)) < 1e-10:
+		return beta2
+
 	# Compute bandwidth beta
 	res = root_scalar(lambda beta: log_entropy(beta, d) - log_perplexity,
 		bracket = [beta1, beta2],
@@ -94,7 +108,9 @@ def local_linear(X, fX, perplexity = None, bandwidth = None, Xt = None):
 	By default, we choose :math:`\beta_t` for each :math:`\mathbf{x}_t` 
 	such that the perplexity corresponds to :math:`m+1`; other values of perplexity are avalible setting :code:`perplexity`.
 	The other option is to specify the bandwidth :math:`\beta` explicitly.
-		
+	
+
+	*Note* The cost of this method scales quadratically in the dimension of input space.	
 
 	Parameters
 	----------
@@ -151,7 +167,8 @@ def local_linear(X, fX, perplexity = None, bandwidth = None, Xt = None):
 		try:
 			# Weights associated with each point
 			sqrt_weights = np.exp(-0.5*beta*d).reshape(-1,1)
-			a, _, _, _ = np.linalg.lstsq(sqrt_weights*Y, sqrt_weights*fX.reshape(-1,1), rcond = None)
+			#a, _, _, _ = np.linalg.lstsq(sqrt_weights*Y, sqrt_weights*fX.reshape(-1,1), rcond = None)
+			a, _, _, _ = scipy.linalg.lstsq(sqrt_weights*Y, sqrt_weights*fX.reshape(-1,1), overwrite_a = True, overwrite_b = True)
 			a = a.flatten()
 		except np.linalg.LinAlgError:
 			a = np.zeros(m+1)
