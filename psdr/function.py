@@ -35,6 +35,11 @@ class BaseFunction(object):
 		else:
 			return self.eval(X, **kwargs)
 
+	def predict(self, X):
+		r""" Alias of __call__ to match scikit learn API
+		"""
+		return self.__call__(X)
+
 
 class Function(BaseFunction):
 	r"""Wrapper around function specifying the domain
