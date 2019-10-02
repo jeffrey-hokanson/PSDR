@@ -18,6 +18,7 @@ def _compute_p1(M, perplexity):
 	r""" The constant appearing in VC13, eq. 9
 	"""
 	#res = root_scalar(lambda x: np.log(min(np.sqrt(2*M), perplexity)) - 2*(1 - x)*np.log(M/(2*(1 - x))), bracket = [3./4,1 - 1e-14],)
+	#p1 = res.root
 	# Instead we solve in terms of 2*(1-p1)
 	res = root_scalar(lambda x: x*np.log(M) - xlogy(x,x) - np.log(min(np.sqrt(2*M), perplexity)),
 		bracket = [0, 0.5])
@@ -49,6 +50,9 @@ def perplexity_bandwidth(d, perplexity):
 		Bandwidth of Gaussian kernel (includes 1/2 factor)
 	"""
 	M = len(d)
+	# TODO: Is perplexity necessarily in this interval
+	#perplexity = min(M, perplexity)
+
 	p1 = _compute_p1(M, perplexity)
 	# Compute upper and lower bounds of beta from [VC13, eq. (7) (8)]
 	# These are constants appearing the bounds
@@ -73,18 +77,20 @@ def perplexity_bandwidth(d, perplexity):
 
 	#print("beta1", beta1, log_entropy(beta1, d), "\nbeta2", beta2, log_entropy(beta2,d))
 
-	# Sometimes the right endpoint is the root.  
-	# scipy spuriously fails when checking the bracketing interval
-	# TODO: remove this when using custom bracketed root solver
-	if np.abs(log_entropy(beta2, d)) < 1e-10:
-		return beta2
 
 	# Compute bandwidth beta
-	res = root_scalar(lambda beta: log_entropy(beta, d) - log_perplexity,
-		bracket = [beta1, beta2],
-		method = 'brenth',
-		rtol = 1e-10)
-	beta = res.root
+	try:
+		res = root_scalar(lambda beta: log_entropy(beta, d) - log_perplexity,
+			bracket = [beta1, beta2],
+			method = 'brenth',
+			rtol = 1e-10)
+		beta = res.root
+	except ValueError as e:
+		f1 = log_entropy(beta1, d) - log_perplexity
+		f2 = log_entropy(beta2, d) - log_perplexity
+		print("beta", beta1, "f", f1)
+		print("beta", beta2, "f", f2)
+		raise e
 	return beta
 
 
@@ -140,7 +146,7 @@ def local_linear(X, fX, perplexity = None, bandwidth = None, Xt = None):
 		Xt = X
 
 	if perplexity is None and bandwidth is None:
-		perplexity = m+1
+		perplexity = min(m+1, M)
 	if perplexity is not None:
 		bandwidth = None
 		assert perplexity >= 2 and perplexity < M, "Perplexity must be in the interval [2,M)"
