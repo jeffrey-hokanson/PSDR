@@ -18,6 +18,7 @@ def test_perplexity_bandwidth():
 	assert np.isclose(perplexity, perplexity_computed)
 
 def test_local_linear_grads():
+	np.random.seed(0)
 	m = 6
 	a = np.random.randn(m)
 	fun = lambda x: a.dot(x)
@@ -28,7 +29,9 @@ def test_local_linear_grads():
 	X = func.domain.sample(20)
 	fX = func(X)
 	grads = psdr.local_linear_grads(X, fX)
+	print("a", a)
 	for grad in grads:
+		print("g", grad)
 		assert np.all(np.isclose(grad, a))
 
 
