@@ -406,7 +406,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U /= np.linalg.norm(U)
 		return U	
 
-
 	def _fit_coef(self, X, fX, U):
 		r""" Returns the linear coefficients
 		"""
