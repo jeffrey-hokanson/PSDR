@@ -17,22 +17,27 @@ def test_perplexity_bandwidth():
 	print("target", perplexity, "found", perplexity_computed)
 	assert np.isclose(perplexity, perplexity_computed)
 
-def test_local_linear_grads():
+def test_local_linear_grads(m = 10):
 	np.random.seed(0)
-	m = 6
 	a = np.random.randn(m)
-	fun = lambda x: a.dot(x)
-	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
-	func = psdr.Function(fun, dom)
+	func = psdr.demos.AffineFunction(linear = a)
 
-	# This should accurately estimate a linear model 
+	# This should accurately estimate a linear model
+	# regardless of the permutation of arguments 
 	X = func.domain.sample(20)
 	fX = func(X)
-	grads = psdr.local_linear_grads(X, fX)
-	print("a", a)
-	for grad in grads:
-		print("g", grad)
-		assert np.all(np.isclose(grad, a))
+
+	kwargs = [{},
+		{'perplexity': 10,},
+		{'bandwidth': 0.1,},
+		{'bandwidth': 'xia'},
+	]
+	for kwarg in kwargs:
+		grads = psdr.local_linear_grads(X, fX, **kwarg)
+		print("a", a)
+		for grad in grads:
+			print("g", grad)
+			assert np.all(np.isclose(grad, a))
 
 
 if __name__ == '__main__':
