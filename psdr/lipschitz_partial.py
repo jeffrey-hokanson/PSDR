@@ -135,16 +135,6 @@ class PartialLipschitzMatrix(LipschitzMatrix):
 		r""" The coefficient associated with the trailing eigenvalues"""
 		return self._alpha
 
-	def _init_U(self, X, fX, grads):
-		if len(X) > X.shape[1]:
-			all_grads = np.vstack([grads, opg_grads(X, fX)])
-		else:
-			all_grads = grads	
-		assert len(all_grads) >= self.rank, "Not enough samples or gradients provided to estimate an initial subspace"
-	
-		U, s, VT = np.linalg.svd(all_grads.T, full_matrices = False)
-		return U[:,0:self.rank]
-
 	
 	def _fixed_U(self, U, X, fX, grads, epsilon):
 		r"""Compute J and alpha for a fixed U
