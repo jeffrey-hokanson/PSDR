@@ -6,9 +6,12 @@ from scipy.stats import ortho_group
 from scipy.linalg import orth
 from scipy.spatial.distance import pdist
 
-import cvxpy as cp
+try:
+    from functools import lru_cache
+except ImportError:
+    from backports.functools_lru_cache import lru_cache
 
-import sobol_seq
+import cvxpy as cp
 
 from .domain import Domain
 from ..exceptions import SolverError, EmptyDomainException, UnboundedDomainException
@@ -70,14 +73,9 @@ class EuclideanDomain(Domain):
 		"""
 		return self._dimension
 
-	def _is_linquad_domain(self):
-		return True
-	
-	def _is_linineq_domain(self):
-		return len(self.Ls) == 0
-	
-	def _is_box_domain(self):
-		return len(self.Ls) == 0 and len(self.b) == 0 and len(self.b_eq) == 0
+
+
+
 	
 	@property
 	def is_empty(self):
@@ -307,7 +305,7 @@ class EuclideanDomain(Domain):
 		# Setup the problem in CVXPY	
 		x_norm = cp.Variable(len(self))
 		D = self._unnormalize_der() 	
-			
+		
 		# p.T @ x
 		if len(self) > 1:
 			obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
@@ -316,15 +314,17 @@ class EuclideanDomain(Domain):
 
 		constraints = self._build_constraints_norm(x_norm)
 		problem = cp.Problem(cp.Maximize(obj), constraints)
+	
 		
 		problem.solve(**kwargs)
-
 		if problem.status in ['infeasible']:
 			self._empty = True
 			self._unbounded = False
 			self._point = False
 			raise EmptyDomainException	
-		elif problem.status in ['unbounded']:
+		# For some reason, if no constraints are provided CVXPY doesn't note
+		# the domain is unbounded
+		elif problem.status in ['unbounded'] or len(constraints) == 0:
 			self._unbounded = True
 			self._empty = False
 			self._point = False
@@ -983,6 +983,18 @@ class EuclideanDomain(Domain):
 	def rhos_norm(self):
 		return self.rhos
 
+	################################################################################		
+	# Meta properties
+	################################################################################		
+	
+	def _is_linquad_domain(self):
+		return True
+	
+	def _is_linineq_domain(self):
+		return len(self.Ls) == 0
+	
+	def _is_box_domain(self):
+		return len(self.Ls) == 0 and len(self.b) == 0 and len(self.b_eq) == 0
 
 
 	# These are the lower and upper bounds to use for normalization purposes;
@@ -1004,7 +1016,7 @@ class EuclideanDomain(Domain):
 					try:
 						x_corner = self.corner(-ei)
 						self._norm_lb[i] = x_corner[i]	
-					except SolverError:
+					except (SolverError, UnboundedDomainException):
 						self._norm_lb[i] = -np.inf
 
 			return self._norm_lb
@@ -1031,7 +1043,7 @@ class EuclideanDomain(Domain):
 					try:
 						x_corner = self.corner(ei)
 						self._norm_ub[i] = x_corner[i]	
-					except SolverError:
+					except (SolverError, UnboundedDomainException):
 						self._norm_ub[i] = np.inf
 			
 			return self._norm_ub

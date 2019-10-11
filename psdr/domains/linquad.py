@@ -1,3 +1,13 @@
+r""" LinQuadDomain definition
+
+Philosophically, LinQuad domains consist of those convex domains specified by a combination
+of linear inequality, linear equality, and quadratic inequality constraints.
+
+From a code perspective, this is where a dependency on CVXPY is introduced to 
+handle domain properities from within this domain
+
+"""
+
 from __future__ import division
 
 import numpy as np
@@ -226,6 +236,8 @@ class LinQuadDomain(EuclideanDomain):
 	
 	@property
 	def rhos(self): return self._rhos
+
+
 
 		
 	################################################################################		
