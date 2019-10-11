@@ -717,6 +717,9 @@ class EuclideanDomain(Domain):
 			Weights for quadrature rule
 
 		"""
+		from .normal import NormalDomain
+		if isinstance(self, NormalDomain):
+			raise NotImplementedError
 
 		# If we have a single point in the domain, we can't really integrate
 		if self.is_point:
@@ -731,6 +734,9 @@ class EuclideanDomain(Domain):
 			# If we can take more than one point in each axis, use a tensor-product Gauss quadrature rule
 			if q > 1: method = 'gauss'
 			else: method = 'montecarlo'
+
+		if self.is_unbounded:
+			method = 'montecarlo'
 
 		# We currently do not support gauss quadrature on equality constrained domains
 		if len(self.A_eq) > 0 and method == 'gauss':
