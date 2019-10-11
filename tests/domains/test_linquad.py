@@ -29,4 +29,56 @@ def test_str():
 	dom = psdr.LinQuadDomain(Ls = Ls, ys = ys, rhos = rhos)
 	assert 'LinQuadDomain' in dom.__str__()
 	assert ' quadratic ' in dom.__str__()
+
+
+def test_and(m = 5):
+	np.random.seed(0)
+	lb = -np.ones(m)
+	ub = np.ones(m)
+	dom1 = psdr.BoxDomain(lb, ub)
+
+	Ls = [np.eye(m),]
+	ys = [np.ones(m),]
+	rhos = [0.5,]
+	dom2 = psdr.LinQuadDomain(Ls = Ls, ys = ys, rhos = rhos)
+
+	# Combine the two domains
+	dom3 = dom1 & dom2
+
+	# Check inclusion
+	for it in range(10):
+		p = np.random.randn(m)
+		x = dom3.corner(p)
+		assert dom1.isinside(x)
+		assert dom2.isinside(x)
+
+	# Now try with a tensor product domain
+	lb = -np.ones(2)
+	ub = np.ones(2)
+	dom1a = psdr.BoxDomain(lb, ub)	
 	
+	lb = -np.ones(m-2)
+	ub = np.ones(m-2)
+	dom1b = psdr.BoxDomain(lb, ub)	
+	
+	dom1 = dom1a * dom1b
+	
+	# Combine the two domains
+	dom3 = dom1 & dom2
+
+	# Check inclusion
+	for it in range(10):
+		p = np.random.randn(m)
+		x = dom3.corner(p)
+		assert dom1.isinside(x)
+		assert dom2.isinside(x)
+
+	# Combine the two domains
+	dom3 = dom2 & dom1
+
+	# Check inclusion
+	for it in range(10):
+		p = np.random.randn(m)
+		x = dom3.corner(p)
+		assert dom1.isinside(x)
+		assert dom2.isinside(x)

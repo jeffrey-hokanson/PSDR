@@ -13,12 +13,11 @@ except ImportError:
 
 import cvxpy as cp
 
-from .domain import Domain
+from .domain import Domain, TOL
 from ..exceptions import SolverError, EmptyDomainException, UnboundedDomainException
 from ..misc import merge
 from ..quadrature import gauss
 
-TOL = 1e-5
 
 class EuclideanDomain(Domain):
 	r""" Abstract base class for a Euclidean input domain
