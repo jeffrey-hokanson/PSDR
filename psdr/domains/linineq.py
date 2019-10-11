@@ -50,11 +50,7 @@ class LinIneqDomain(LinQuadDomain):
 		return self._isinside_bounds(X, tol = tol) & self._isinside_ineq(X, tol = tol) & self._isinside_eq(X, tol = tol)
 
 	def _extent(self, x, p):
-		# Check that direction satisfies equality constraints to a tolerance
-		if self.A_eq.shape[0] == 0 or np.all(np.abs(self.A_eq.dot(p) ) < self.tol):
-			return min(self._extent_bounds(x, p), self._extent_ineq(x, p))
-		else:
-			return 0. 
+		return min(self._extent_bounds(x, p), self._extent_ineq(x, p))
 	
 	def _normalized_domain(self, **kwargs):
 		names_norm = [name + ' (normalized)' for name in self.names]
