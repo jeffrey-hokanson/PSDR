@@ -12,6 +12,8 @@ except ImportError:
 from .util import low_rank_L
 from .maximin import maximin_sample
 from .latin import _score_maximin
+from ..geometry import voronoi_vertex
+
 
 def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs = False):
 	r""" Construct a maximin design with respect to multiple projections
@@ -55,9 +57,13 @@ def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs =
 		if _lhs:
 			# If constructing an LHS design, we use minimax points in each projection 
 			c1 = domain.corner(L.flatten())
+			a1 = L.dot(c1).flatten()
 			c2 = domain.corner(-L.flatten())
-			xi = np.linspace(domain.norm_lb[i], domain.norm_ub[i], Nsamp + 1)
-			X = (xi[1:]+xi[0:-1])/2.
+			a2 = L.dot(c2).flatten()
+			a1, a2 = min(a1, a2), max(a1, a2)
+			avec = np.linspace(a1, a2, Nsamp+1)
+			avec = 0.5*(avec[1:] + avec[0:-1])
+			X = np.array([L.flatten()*a for a in avec])
 		else:
 			# We use maximin points in general as these generalize two and higher dimensional projections
 			X = maximin_sample(domain, Nsamp, L)

@@ -629,6 +629,11 @@ class EuclideanDomain(Domain):
 	def _sample(self, draw = 1):
 		# By default, use the hit and run sampler
 
+		# However, we only use hit and run if it isn't a point
+		if self.is_point:
+			c = self.center
+			return np.array([c for i in range(draw)])
+
 		X = [self._hit_and_run() for i in range(3*draw)]
 		I = np.random.permutation(len(X))
 		return np.array([X[i] for i in I[0:draw]])
@@ -869,14 +874,12 @@ class EuclideanDomain(Domain):
 
 		# Loop over multiple search directions if we have trouble 
 		for it in range(len(self)):	
-			p = np.random.normal(size = (len(self),))
+			p = self.random_direction(x0)
 			# Orthogonalize against equality constarints constraints
-			p = p - Qeq.dot(Qeq.T.dot(p))
 			p /= np.linalg.norm(p)
 
 			alpha_min = -self.extent(x0, -p)
 			alpha_max =  self.extent(x0,  p)
-			
 			if alpha_max - alpha_min > 1e-7:
 				alpha = np.random.uniform(alpha_min, alpha_max)
 				# We call closest point just to make sure we stay inside numerically
@@ -1190,7 +1193,8 @@ class EuclideanDomain(Domain):
 		""" check the extent from the inequality constraints """
 		alpha = np.inf
 		# positive extent
-		y = (self.b - np.dot(self.A, x)	)/np.dot(self.A, p)
+		with np.errstate(divide = 'ignore'):
+			y = (self.b - np.dot(self.A, x)	)/np.dot(self.A, p)
 		if np.sum(y>0) > 0:
 			alpha = min(alpha, np.min(y[y>0]))
 
