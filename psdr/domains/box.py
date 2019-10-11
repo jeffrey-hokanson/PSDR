@@ -5,6 +5,7 @@ from scipy.spatial.distance import pdist
 
 from .domain import TOL
 from .linineq import LinIneqDomain
+from ..exceptions import EmptyDomainException
 
 
 class BoxDomain(LinIneqDomain):
@@ -27,8 +28,18 @@ class BoxDomain(LinIneqDomain):
 		LinIneqDomain.__init__(self, lb = lb, ub = ub, names = names)	
 		assert np.all(np.isfinite(lb)) and np.all(np.isfinite(ub)), "Both lb and ub must be finite to construct a box domain"
 
+	@property
+	def is_empty(self):
+		try:
+			return self._empty
+		except AttributeError:
+			self._empty = np.any(self.lb > self.ub)
+			return self._empty
+
 	# Due to the simplicity of this domain, we can use a more efficient sampling routine
 	def _sample(self, draw = 1):
+		if self.is_empty:
+			raise EmptyDomainException
 		x_sample = np.random.uniform(self.lb, self.ub, size = (draw, len(self)))
 		return x_sample
 
