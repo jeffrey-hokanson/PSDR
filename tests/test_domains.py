@@ -24,14 +24,14 @@ def test_point(m = 3):
 	ub = 1*np.ones(m)
 
 	dom = BoxDomain(lb, ub)
-	assert dom.is_point is False
+	assert dom.is_point == False
 
 	dom = BoxDomain(ub, ub)
-	assert dom.is_point is True
+	assert dom.is_point == True
 
 	dom = BoxDomain(lb, ub)
 	dom = dom.add_constraints(A_eq = np.ones((1,m)), b_eq = [ 0])
-	assert dom.is_point is True
+	assert dom.is_point == True
 
 def test_sample_grid(m = 3):
 	lb = 0*np.ones(m)
