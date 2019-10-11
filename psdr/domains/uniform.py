@@ -11,4 +11,4 @@ class UniformDomain(BoxDomain, RandomDomain):
 	
 	def _pdf(self, X):
 		area = np.prod([ (ub - lb) for lb, ub in zip(self.lb, self.ub)])
-		return np.ones(X.shape[0])/area
+		return self.isinside(X).astype(np.float)/area

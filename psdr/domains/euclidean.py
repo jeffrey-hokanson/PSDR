@@ -719,7 +719,8 @@ class EuclideanDomain(Domain):
 		"""
 		from .normal import NormalDomain
 		if isinstance(self, NormalDomain):
-			raise NotImplementedError
+			if self.truncate is not None:
+				raise NotImplementedError
 
 		# If we have a single point in the domain, we can't really integrate
 		if self.is_point:
