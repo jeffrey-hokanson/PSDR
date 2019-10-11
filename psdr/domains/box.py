@@ -26,7 +26,7 @@ class BoxDomain(LinIneqDomain):
 	"""
 	def __init__(self, lb, ub, names = None):
 		LinIneqDomain.__init__(self, lb = lb, ub = ub, names = names)	
-		assert np.all(np.isfinite(lb)) and np.all(np.isfinite(ub)), "Both lb and ub must be finite to construct a box domain"
+		#assert np.all(np.isfinite(lb)) and np.all(np.isfinite(ub)), "Both lb and ub must be finite to construct a box domain"
 
 	@property
 	def is_empty(self):
@@ -35,6 +35,23 @@ class BoxDomain(LinIneqDomain):
 		except AttributeError:
 			self._empty = np.any(self.lb > self.ub)
 			return self._empty
+	
+	@property
+	def is_point(self):
+		try:
+			return self._point
+		except AttributeError:
+			self._point = np.all(np.abs(self.ub - self.lb) < TOL)
+			return self._point
+
+	@property
+	def is_unbounded(self):
+		try:
+			return self._unbounded
+		except AttributeError:
+			self._unbounded = np.any(np.isinf(self.lb)) | np.any(np.isinf(self.ub))
+			return self._unbounded
+
 
 	# Due to the simplicity of this domain, we can use a more efficient sampling routine
 	def _sample(self, draw = 1):
