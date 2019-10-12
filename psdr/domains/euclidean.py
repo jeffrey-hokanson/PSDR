@@ -138,6 +138,7 @@ class EuclideanDomain(Domain):
 		except AttributeError:
 			try: 
 				U = ortho_group.rvs(len(self))
+				self._point = True
 				for u in U:
 					x1 = self.corner(u)
 					x2 = self.corner(-u)
