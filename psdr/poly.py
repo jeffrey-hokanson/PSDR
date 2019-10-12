@@ -11,6 +11,7 @@ from copy import copy
 from .basis import *
 from .function import BaseFunction
 
+from numpy.polynomial.legendre import legroots
 
 __all__ = ['PolynomialFunction', 'PolynomialApproximation']
 
@@ -58,7 +59,11 @@ class PolynomialFunction(BaseFunction):
 	"""
 	def __init__(self, dimension, degree, coef):
 		self.basis = LegendreTensorBasis(dimension, degree) 
-		self.coef = coef
+		self.coef = np.array(coef)
+
+	def roots(self):
+		return self.basis.roots(self.coef)	
+		
 
 	def V(self, X):	
 		return self.basis.V(X)

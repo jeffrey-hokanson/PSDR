@@ -17,7 +17,7 @@ from .gn import gauss_newton
 from .seqlp import sequential_lp
 from .exceptions import UnderdeterminedException
 from .initialization import initialize_subspace
-
+from .poly import PolynomialFunction
 class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function
 	"""
@@ -94,6 +94,12 @@ class PolynomialRidgeFunction(RidgeFunction):
 		else:
 			return DDf
 
+	@property
+	def profile(self):
+		prof = PolynomialFunction(self.subspace_dimension, self.degree, self.coef)
+		prof.basis = self.basis
+		return prof		
+	
 	def profile_grad(self, X):
 		r""" gradient of the profile function g
 		"""
@@ -101,16 +107,6 @@ class PolynomialRidgeFunction(RidgeFunction):
 		# Compute gradient on projected space
 		Df = np.tensordot(DV, self.coef, axes = (1,0))
 		return Df
-
-	def roots(self):
-		r""" Compute the roots of the polynomial
-		"""
-		raise NotImplementedError
-
-	def derivative_roots(self):
-		r""" Compute the roots of the derivative of the polynomial
-		"""
-		raise NotImplementedError
 
 
 ################################################################################

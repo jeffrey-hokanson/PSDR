@@ -185,3 +185,12 @@ def test_fit_two():
 	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2)
 	pra.fit(X, fX, verbose = True)
 	assert np.all(np.isclose(pra(X), fX))
+
+
+def test_profile(degree = 3, subspace_dimension = 1):
+	X, fX = exact_data()
+	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2)
+	pra.fit(X, fX, verbose = False)
+	
+	Y = pra.U.T.dot(X.T).T
+	assert np.all(np.isclose(pra.profile(Y), pra(X)))
