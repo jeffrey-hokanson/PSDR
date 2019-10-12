@@ -564,9 +564,6 @@ class EuclideanDomain(Domain):
 		else:
 			return self._normalize(X)
 
-	def _normalize(self, X):
-		raise NotImplementedError
-
 	def unnormalize(self, X_norm):
 		""" Convert points from normalized units into application units
 		
@@ -582,8 +579,6 @@ class EuclideanDomain(Domain):
 		else:
 			return self._unnormalize(X_norm)
 	
-	def _unnormalize(self, X_norm):
-		raise NotImplementedError
 	
 	def normalized_domain(self, **kwargs):
 		""" Return a domain with units normalized corresponding to this domain
@@ -1095,44 +1090,12 @@ class EuclideanDomain(Domain):
 		return c	
 
 	def _normalize(self, X):
-		# reshape so numpy's broadcasting works correctly
-		#lb = self.norm_lb.reshape(1, -1)
-		#ub = self.norm_ub.reshape(1, -1)
-		
-		# Those points with zero range get mapped to zero, so we only work on those
-		# with a non-zero range
-		#X_norm = np.zeros(X.shape)
-		#I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
-		#X_norm[:,I] = 2.0 * (X[:,I] - lb[:,I]) / (ub[:,I] - lb[:,I]) - 1.0
-		#I = (self.norm_ub != self.norm_lb)
-		#X_norm[:,I] = 0
-		#I = ~np.isfinite(self.norm_lb) | ~np.isfinite(self.norm_ub)
-		#X_norm[:,I] = X[:,I]
-		
 		c = self._center()
 		D = self._normalize_der()
 		X_norm = D.dot( (X - c.reshape(1,-1)).T ).T
 		return X_norm
 	
 	def _unnormalize(self, X_norm, **kwargs):
-#		# reshape so numpy's broadcasting works correctly
-#		lb = self.norm_lb.reshape(1, -1)
-#		ub = self.norm_ub.reshape(1, -1)
-#		
-#		# Idenify parameters with nonzero range
-#		X = np.zeros(X_norm.shape)
-#
-#		# unnormalize parameters with non-zero range and bounded
-#		I = (self.norm_ub != self.norm_lb) & np.isfinite(self.norm_lb) & np.isfinite(self.norm_ub)
-#		X[:,I] = (ub[:,I] - lb[:,I]) * (X_norm[:,I] + 1.0)/2.0 + lb[:,I]
-#	
-#		# for those with infinite bounds, apply no transformation
-#		I = ~np.isfinite(self.norm_lb) | ~np.isfinite(self.norm_ub) 
-#		X[:,I] = X_norm[:,I]	
-#		# for those dimensions with zero dimension, set to the center point lb[:,~I] = ub[:,~I]
-#		I = (self.norm_ub == self.norm_lb)
-#		X[:,I] = lb[:,I]
-		
 		c = self._center()
 		Dinv = self._unnormalize_der()
 		X = Dinv.dot(X_norm.T).T + c.reshape(1,-1)
