@@ -34,6 +34,8 @@ class BoxDomain(LinIneqDomain):
 			return self._empty
 		except AttributeError:
 			self._empty = np.any(self.lb > self.ub)
+			self._point = False
+			self._unbounded = False
 			return self._empty
 	
 	@property
@@ -65,6 +67,8 @@ class BoxDomain(LinIneqDomain):
 		x = np.copy(self.lb)
 		I = (p>=0)
 		x[I] = self.ub[I]
+		if not self.isinside(x):
+			raise EmptyDomainException
 		return x
 
 	def _extent(self, x, p):

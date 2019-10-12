@@ -85,7 +85,8 @@ class EuclideanDomain(Domain):
 		except AttributeError:
 			try:
 				# Try to find at least one point inside the domain
-				self.corner(np.ones(len(self)))
+				c = self.corner(np.ones(len(self)))
+				print(c)
 				self._empty = False
 			except EmptyDomainException:
 				# Corner actually sets this value, but we do it here again for clairity
@@ -1021,6 +1022,9 @@ class EuclideanDomain(Domain):
 				ei[i] = 1
 				if np.isfinite(self.lb[i]):
 					self._norm_lb[i] = self.lb[i]
+					# This ensures normalization maintains positive orientation
+					if np.isfinite(self.ub[i]):
+						self._norm_lb[i] = min(self._norm_lb[i], self.ub[i])
 				else:
 					try:
 						x_corner = self.corner(-ei)
@@ -1048,6 +1052,9 @@ class EuclideanDomain(Domain):
 				ei[i] = 1
 				if np.isfinite(self.ub[i]):
 					self._norm_ub[i] = self.ub[i]
+					# This ensures normalization maintains positive orientation
+					if np.isfinite(self.ub[i]):
+						self._norm_ub[i] = max(self._norm_ub[i], self.lb[i])
 				else:
 					try:
 						x_corner = self.corner(ei)
