@@ -37,7 +37,7 @@ class Domain(object):
 		"""
 		return self._is_linineq_domain()
 	
-	def _is_linquad_domain(self):
+	def _is_linineq_domain(self):
 		return False
 
 	@property
