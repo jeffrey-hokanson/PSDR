@@ -437,6 +437,8 @@ class EuclideanDomain(Domain):
 		y: np.ndarray (n,)
 			Length along sweep	
 		"""
+		n = int(n)
+
 		if x is None:
 			x = self.sample()
 		else:

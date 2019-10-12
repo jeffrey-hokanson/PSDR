@@ -1,5 +1,6 @@
 from __future__ import print_function
 import numpy as np
+from scipy.linalg import subspace_angles
 import psdr
 
 
@@ -89,6 +90,34 @@ def test_unbounded(m = 3):
 	assert dom._point == False
 	assert dom._unbounded == False
 
+
+def test_sweep(m = 5):
+	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
+
+	# Default arguments
+	X, y = dom.sweep()
+	assert np.all(dom.isinside(X))
+
+
+	# Specify sample	
+	x = dom.sample()
+	X, y = dom.sweep(x = x)
+	assert np.all(dom.isinside(X))
+	# Check x is on the line
+	dom2 = psdr.ConvexHullDomain(X)
+	assert dom2.isinside(x)
+
+	# Specify direction
+	p = np.random.randn(m)
+	X, y = dom.sweep(p = p)
+	assert np.all(dom.isinside(X))
+	d = (X[-1] - X[0]).reshape(-1,1)
+	assert np.isclose(subspace_angles(d, p.reshape(-1,1)),0)
+
+	# Check corner
+	X, y = dom.sweep(p = p, corner = True)
+	c = dom.corner(p)
+	assert np.any([np.isclose(x, c) for x in X])
 
 if __name__ == '__main__':
 	test_is_unbounded()
