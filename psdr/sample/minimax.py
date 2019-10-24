@@ -93,7 +93,10 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 
 	# Samples from the domain to cluster
 	# TODO: Should these be distributed with respect to the L norm?
-	X = domain.sample(N0)
+	# NOTE: In the original paper used Sobol sequence to generate these points
+	from sobol import sobol_sequence
+	X = sobol_sequence(domain, N0)	
+	#X = domain.sample(N0)
 	Y = L.dot(X.T).T
 
 	# Initial cluster centers
