@@ -7,6 +7,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from ..domains.domain import DEFAULT_CVXPY_KWARGS
 
 from .poisson import poisson_disk_sample
+from .sobol import sobol_sequence
 
 
 def _cq_center_cvxpy(Y, L, q = 10):
@@ -94,7 +95,6 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 	# Samples from the domain to cluster
 	# TODO: Should these be distributed with respect to the L norm?
 	# NOTE: In the original paper used Sobol sequence to generate these points
-	from sobol import sobol_sequence
 	X = sobol_sequence(domain, N0)	
 	#X = domain.sample(N0)
 	Y = L.dot(X.T).T
@@ -204,3 +204,40 @@ def minimax_covering_discrete(X, r, L = None, **kwargs):
 	# Convert to a boolean array
 	I = np.array(I.value > 0.5, dtype = np.bool)
 	return I
+
+
+def minimax_design_1d(domain, N, L = None):
+	r"""
+
+	"""
+	if L is None:
+		assert len(domain) == 1, "If no L matrix specified, need a 1-d domain"
+		L = np.array([1])
+	else:
+		L = np.atleast_2d(L)
+		assert L.shape[0] == 1, "must provide a 1 by m Lipschitz matrix"
+
+	c1 = domain.corner(L.flatten())
+	c2 = domain.corner(-L.flatten())
+
+	h = 1./N
+	avec = h/2 + h*np.arange(N)
+	X = np.array([a*c1 + (1-a)*c2 for a in avec]) 
+	return X 
+
+def minimax_design(domain, N, L = None, **kwargs):
+	r""" High level interface to minimax designs
+
+	The goal of this function is to automatically choose the best
+	minimax design algorithm.  Specifically, it uses the exact 1d 
+	solution if possible; if not, it defaults to minimax_cluster.	
+
+	
+	"""
+
+	try:
+		return minimax_design_1d(domain, N, L = L)
+	except AssertionError:
+		return minimax_cluster(domain, N, L = L, **kwargs)
+
+
