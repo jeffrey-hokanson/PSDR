@@ -1,34 +1,25 @@
 import numpy as np
 import psdr
 import psdr.demos
-from scipy.spatial.distance import pdist, squareform
-fun = psdr.demos.OTLCircuit()
+from psdr.initialization import initialize_subspace
+from psdr.local_linear import local_linear_grads
+from psdr.demos.polynomial import QuadraticFunction
 
-if False:
-	X = fun.domain.sample_grid(2)
-	X = np.vstack([X, fun.domain.sample(5)])
-	L1 = np.ones((1, len(fun.domain)))
-	L2 = np.zeros((1,len(fun.domain)))
-	L2[0,3] = 1.
-	Ls = [L1, L2]
+#fun = psdr.demos.Borehole()
+#X = fun.domain.sample(100)
+#fX = fun(X)
+#grads = fun.grad(X[0:10])
 
-	x = psdr.seq_maximin_sample(fun.domain, X, Ls = Ls)
+#U = initialize_subspace(X = X, fX = fX, grads = grads)
+#print(U)
+#print(U.shape)
 
-if True:
-	#domain = fun.domain
-	domain = psdr.BoxDomain([-1, -1, -1], [1, 1, 1])
-	L1 = np.random.randn(2,len(domain))
-	L2 = np.random.randn(1,len(domain))
+fun = QuadraticFunction()
+X = fun.domain.sample(20)
+fX = fun(X)
+print(fX)
+print(fX.shape)
+grads = fun.grad(X)
+print(grads)
+print(grads.shape)
 
-	I = np.eye(len(domain))
-	psdr.minimax_cluster(domain, 10, L = I, N0 = 100)
-	
-	
-	#L1 = np.ones((1, len(domain)))
-	#L1 = None
-	#X = psdr.lipschitz_sample(domain, 7, [L1,L2], verbose =True)
-	#X = psdr.sample.minimax_sample(domain, 5, L = L1, verbose = True, maxiter = 200)
-	#X = psdr.maximin_sample(fun.domain, 20, L = L1, verbose = True)
-	#print(X)
-	#print(X[:,:2])
-	#print(pdist(X[:,:2]))

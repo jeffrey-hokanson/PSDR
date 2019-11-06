@@ -7,7 +7,7 @@ from psdr.demos import OTLCircuit
 from checkder import *
 
 def test_lipschitz_grad(N = 10):
-	np.random.seed(0)
+	np.random.seed(1)
 
 	func = OTLCircuit()
 	X = func.domain.sample(N)

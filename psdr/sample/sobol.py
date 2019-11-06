@@ -50,9 +50,8 @@ def sobol_sequence(domain, n):
 		# Scale into the domain
 		X = (domain.norm_ub - domain.norm_lb)*X_norm + domain.norm_lb	
 		
-		# Remove those falling outside the domain
-		X = X[domain.isinside(X)]
-		Xsamp = np.vstack([Xsamp, X])
+		# Add only those points inside the domain
+		Xsamp = np.vstack([Xsamp, X[domain.isinside(X)]])
 		if Xsamp.shape[0] >= n:	
 			break
 

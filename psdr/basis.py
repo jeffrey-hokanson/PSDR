@@ -9,11 +9,11 @@ __all__ = ['PolynomialTensorBasis',
  ]
 
 import numpy as np
-from numpy.polynomial.polynomial import polyvander, polyder
+from numpy.polynomial.polynomial import polyvander, polyder, polyroots
 from numpy.polynomial.legendre import legvander, legder, legroots 
-from numpy.polynomial.chebyshev import chebvander, chebder
-from numpy.polynomial.hermite import hermvander, hermder
-from numpy.polynomial.laguerre import lagvander, lagder
+from numpy.polynomial.chebyshev import chebvander, chebder, chebroots
+from numpy.polynomial.hermite import hermvander, hermder, hermroots
+from numpy.polynomial.laguerre import lagvander, lagder, lagroots
 
 class Basis(object):
 	pass
@@ -331,12 +331,24 @@ class PolynomialTensorBasis(Basis):
 				DDV[:,:,ell, k] = DDV[:,:,k, ell]
 		return DDV
 
+	def roots(self, coef):
+		if self.n > 1:
+			raise NotImplementedError
+		r = legroots(coef)
+		return r*(self._ub[0] - self._lb[0])/2.0 + (self._ub[0] + self._lb[0])/2.
+		 
 
 class MonomialTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the monomials"""
 	def __init__(self, n, p):
 		PolynomialTensorBasis.__init__(self, n, p, polyvander, polyder)
-
+	
+	def roots(self, coef):
+		if self.n > 1:
+			raise NotImplementedError
+		r = polyroots(coef)
+		return r*(self._ub[0] - self._lb[0])/2.0 + (self._ub[0] + self._lb[0])/2.
+	
 class LegendreTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the Legendre polynomials
 
@@ -350,6 +362,12 @@ class ChebyshevTensorBasis(PolynomialTensorBasis):
 	"""
 	def __init__(self, n, p):
 		PolynomialTensorBasis.__init__(self, n, p, chebvander, chebder)
+	
+	def roots(self, coef):
+		if self.n > 1:
+			raise NotImplementedError
+		r = chebroots(coef)
+		return r*(self._ub[0] - self._lb[0])/2.0 + (self._ub[0] + self._lb[0])/2.
 
 class LaguerreTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the Laguerre polynomials
@@ -357,6 +375,12 @@ class LaguerreTensorBasis(PolynomialTensorBasis):
 	"""
 	def __init__(self, n, p):
 		PolynomialTensorBasis.__init__(self, n, p, lagvander, lagder)
+	
+	def roots(self, coef):
+		if self.n > 1:
+			raise NotImplementedError
+		r = lagroots(coef)
+		return r*(self._ub[0] - self._lb[0])/2.0 + (self._ub[0] + self._lb[0])/2.
 
 class HermiteTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the Hermite polynomials
@@ -381,3 +405,8 @@ class HermiteTensorBasis(PolynomialTensorBasis):
 		except AttributeError:
 			raise NotImplementedError
 
+	def roots(self, coef):
+		if self.n > 1:
+			raise NotImplementedError
+		r = hermroots(coef)
+		return r*self._std[0]*np.sqrt(2) + self._mean[0]

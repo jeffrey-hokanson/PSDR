@@ -9,7 +9,7 @@ from scipy.spatial import ConvexHull
 
 from .domain import TOL, DEFAULT_CVXPY_KWARGS
 from .linquad import LinQuadDomain
-from .linineq import LinIneqDomain
+from .box import BoxDomain
 from ..misc import merge
 
 
@@ -28,6 +28,28 @@ class ConvexHullDomain(LinQuadDomain):
 	----------
 	X: array-like (M, m)
 		Points from which to build the convex hull of points.
+	A: array-like (m,n)
+		Matrix in left-hand side of inequality constraint
+	b: array-like (m,)
+		Vector in right-hand side of the ineqaluty constraint
+	A_eq: array-like (p,n)
+		Matrix in left-hand side of equality constraint
+	b_eq: array-like (p,) 
+		Vector in right-hand side of equality constraint
+	lb: array-like (n,)
+		Vector of lower bounds 
+	ub: array-like (n,)
+		Vector of upper bounds 
+	Ls: list of array-likes (p,m)
+		List of matrices with m columns defining the quadratic constraints
+	ys: list of array-likes (m,)
+		Centers of the quadratic constraints
+	rhos: list of positive floats 
+		Radii of quadratic constraints
+	names: list of strings, optional
+		Names for each of the parameters in the space
+	kwargs: dict, optional
+		Additional parameters to be passed to cvxpy Problem.solve() 
 	"""
 
 	def __init__(self, X, A = None, b = None, lb = None, ub = None, 
@@ -58,6 +80,9 @@ class ConvexHullDomain(LinQuadDomain):
 		
 		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 
+	def _is_box_domain(self):
+		return False
+
 	def __str__(self):
 		ret = "<ConvexHullDomain on R^%d based on %d points" % (len(self), len(self._X_norm))
 		if len(self._Ls) > 0:
@@ -78,10 +103,14 @@ class ConvexHullDomain(LinQuadDomain):
 			hull = ConvexHull(self._X) 
 			A = hull.equations[:,:-1]
 			b = -hull.equations[:,-1]
-			dom = LinIneqDomain(A = A, b = b, names = self.names, **kwargs)
-			dom.vertices = np.copy(self._X[hull.vertices])
+			dom_hull = LinQuadDomain(A = A, b = b, names = self.names, **kwargs)
+			dom_hull.vertices = np.copy(self._X[hull.vertices])
+			dom = dom_hull.add_constraints(A = self.A, b = self.b, A_eq = self.A_eq, b_eq = self.b_eq,
+				Ls = self.Ls, ys = self.ys, rhos = self.rhos)
 		else:
-			dom = BoxDomain(self._lb, self._ub, names = names, **kwargs)
+			lb = self.corner([-1])
+			ub = self.corner([1])
+			dom = BoxDomain(lb, ub, names = self.names, **kwargs)
 
 		return dom
 
@@ -103,44 +132,62 @@ class ConvexHullDomain(LinQuadDomain):
 
 	def __len__(self):
 		return self._X.shape[1]
-	
-	def _closest_point(self, x0, L = None, **kwargs):
 
-		if self.isinside(x0):
-			return np.copy(x0)
 
-		if L is None:
-			L = np.eye(len(self))
-			
-		D = self._unnormalize_der() 	
-		LD = L.dot(D)
+	def _build_constraints(self, x):
 		
-		m = len(self)
-		x0_norm = self.normalize(x0)
-		x_norm = cp.Variable(m)					# Point inside the domain
-		alpha = cp.Variable(len(self._X))		# convex combination parameters
+		alpha = cp.Variable(len(self.X), name = 'alpha')
+		constraints = [x_norm == alpha.__rmatmul__(self._X.T), alpha >=0, cp.sum(alpha) == 1]
+		constraints += LinQuadDomain._build_constraints(self, x_norm)
+		return constraints
 		
-		obj = cp.Minimize(cp.norm(LD*x_norm - LD.dot(x0_norm) ))
+	def _build_constraints_norm(self, x_norm):
+		alpha = cp.Variable(len(self.X), name = 'alpha')
 		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
-		constraints += self._build_constraints_norm(x_norm)
+		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
+		return constraints
 	
-		prob = cp.Problem(obj, constraints)
-		prob.solve(**merge(self.kwargs, kwargs))
-
-		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
-	
-	def _corner(self, p, **kwargs):
-		D = self._unnormalize_der()
-		x_norm = cp.Variable(len(self))			# Point inside the domain
-		alpha = cp.Variable(len(self._X))		# convex combination parameters
-		obj = cp.Maximize(x_norm.__rmatmul__( D.dot(p)))
-		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
-		constraints += self._build_constraints_norm(x_norm)
-		prob = cp.Problem(obj, constraints)
-		prob.solve(**merge(self.kwargs, kwargs))
-		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+#	def _closest_point(self, x0, L = None, **kwargs):
+#
+#		if self.isinside(x0):
+#			return np.copy(x0)
+#
+#		if L is None:
+#			L = np.eye(len(self))
+#			
+#		D = self._unnormalize_der() 	
+#		LD = L.dot(D)
+#		
+#		m = len(self)
+#		x0_norm = self.normalize(x0)
+#		x_norm = cp.Variable(m)					# Point inside the domain
+#		alpha = cp.Variable(len(self._X))		# convex combination parameters
+#		
+#		obj = cp.Minimize(cp.norm(LD*x_norm - LD.dot(x0_norm) ))
+#		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+#		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
+#		#constraints += self._build_constraints_norm(x_norm)
+#	
+#		prob = cp.Problem(obj, constraints)
+#		prob.solve(**merge(self.kwargs, kwargs))
+#
+#		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
+#	
+#	def _corner(self, p, **kwargs):
+#		D = self._unnormalize_der()
+#		x_norm = cp.Variable(len(self))			# Point inside the domain
+#		alpha = cp.Variable(len(self._X))		# convex combination parameters
+#		obj = cp.Maximize(x_norm.__rmatmul__( D.dot(p)))
+#		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+#		#constraints += self._build_constraints_norm(x_norm)
+#		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
+#		prob = cp.Problem(obj, constraints)
+#		prob.solve(**merge(self.kwargs, kwargs))
+#		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
 	
 	def _extent(self, x, p, **kwargs):
+		# NB: We setup cached description of this problem because it is used repeatedly
+		# when hit and run sampling this domain
 		kwargs['warm_start'] = True
 		if not hasattr(self, '_extent_alpha'):
 			self._extent_alpha = cp.Variable(len(self._X))	# convex combination parameters
@@ -153,7 +200,8 @@ class ConvexHullDomain(LinQuadDomain):
 					self._extent_alpha >=0, 
 					cp.sum(self._extent_alpha) == 1,
 					]
-			self._extent_constraints += self._build_constraints_norm(self._extent_x_norm)
+			#self._extent_constraints += self._build_constraints_norm(self._extent_x_norm)
+			self._extent_constraints += LinQuadDomain._build_constraints_norm(self, self._extent_x_norm)
 			self._extent_prob = cp.Problem(self._extent_obj, self._extent_constraints)
 		
 		self._extent_x_norm.value = self.normalize(x)

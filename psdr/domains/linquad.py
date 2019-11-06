@@ -1,9 +1,20 @@
+r""" LinQuadDomain definition
+
+Philosophically, LinQuad domains consist of those convex domains specified by a combination
+of linear inequality, linear equality, and quadratic inequality constraints.
+
+From a code perspective, this is where a dependency on CVXPY is introduced to 
+handle domain properities from within this domain
+
+"""
+
 from __future__ import division
 
 import numpy as np
 import cvxpy as cp
 from .domain import TOL, DEFAULT_CVXPY_KWARGS
 from .euclidean import EuclideanDomain
+from .tensor import TensorProductDomain
 
 from ..misc import merge
 
@@ -227,6 +238,8 @@ class LinQuadDomain(EuclideanDomain):
 	@property
 	def rhos(self): return self._rhos
 
+
+
 		
 	################################################################################		
 	# Normalization 
@@ -347,7 +360,7 @@ class LinQuadDomain(EuclideanDomain):
 			return BoxDomain(lb = lb, ub = ub, names = self.names)
 
 	def __and__(self, other):
-		if isinstance(other, LinQuadDomain) or (isinstance(other, TensorProductDomain) and other._is_linquad()):
+		if isinstance(other, LinQuadDomain) or (isinstance(other, TensorProductDomain) and other.is_linquad_domain):
 			return self.add_constraints(lb = other.lb, ub = other.ub,
 				A = other.A, b = other.b, A_eq = other.A_eq, b_eq = other.b_eq,
 				Ls = other.Ls, ys = other.ys, rhos = other.rhos)
@@ -355,4 +368,4 @@ class LinQuadDomain(EuclideanDomain):
 			raise NotImplementedError
 
 	def __rand__(self, other):
-		return self.__and__(self, other)
+		return self.__and__(other)

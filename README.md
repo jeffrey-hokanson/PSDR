@@ -16,7 +16,10 @@ Given a function mapping some subset of an m-dimensional space to a scalar value
 of the input along which this function varies the most.
 Frequently we will choose to use a linear manifold
 and consequently identify linear combinations of input variables along 
-which the function varies the most.
+which the function varies the most; we call this subspace-based dimension reduction.
+There also techniques that identify a set of active variables (coordinate-based dimension reduction)
+and methods that identity low-dimensional nonlinear manifolds of the input (nonlinear dimension reduction).
+ 
 
 We emphasize that this library is for parameter space dimension reduction
 as the term 'dimension reduction' often appears in other contexts.
@@ -67,6 +70,7 @@ For further documentation, please see our page on [Read the Docs](https://psdr.r
 ## Similar Software
 
 * [SMT: Surrogate Modeling Toolbox](https://smt.readthedocs.io/en/latest/) ([github](https://github.com/SMTorg/smt))
+* [PySOT: Surrogate Optimization Toolbox](http://www.cs.cornell.edu/~bindel/blurbs/pysot.html) ([github](https://github.com/dme65/pySOT))
 
 
 ## Contributing

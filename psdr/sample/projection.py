@@ -12,6 +12,8 @@ except ImportError:
 from .util import low_rank_L
 from .maximin import maximin_sample
 from .latin import _score_maximin
+from ..geometry import voronoi_vertex
+from ..exceptions import EmptyDomainException
 
 def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs = False):
 	r""" Construct a maximin design with respect to multiple projections
@@ -55,9 +57,13 @@ def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs =
 		if _lhs:
 			# If constructing an LHS design, we use minimax points in each projection 
 			c1 = domain.corner(L.flatten())
+			a1 = L.dot(c1).flatten()
 			c2 = domain.corner(-L.flatten())
-			xi = np.linspace(domain.norm_lb[i], domain.norm_ub[i], Nsamp + 1)
-			X = (xi[1:]+xi[0:-1])/2.
+			a2 = L.dot(c2).flatten()
+			a1, a2 = min(a1, a2), max(a1, a2)
+			avec = np.linspace(a1, a2, Nsamp+1)
+			avec = 0.5*(avec[1:] + avec[0:-1])
+			X = np.array([L.flatten()*a for a in avec])
 		else:
 			# We use maximin points in general as these generalize two and higher dimensional projections
 			X = maximin_sample(domain, Nsamp, L)
@@ -262,3 +268,198 @@ def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs =
 			break
 	return X_best 
 
+
+#################################################################################################
+def _voronoi_cell_point(coord, domain, Ls, ys):
+	r"""
+	Parameters
+	----------
+	coord: array-like
+		index of which ys[i] should be target
+	domain: Domain
+		domain from which samples should be drawn
+	Ls: list of matrices
+		low-rank Lipschitz matrices associated with each constraint
+	"""
+	M = len(ys[0])
+	Lall = np.vstack(Ls)
+	# Generate inequality constraints based on each
+	A = []
+	b = []
+	for i, (L, y) in enumerate(zip(Ls, ys)):
+		for k in range(M):
+			j = coord[i]
+			if j != k:
+				n = y[k] - y[j]
+				p = 0.5*(y[j] + y[k])
+				A.append(n.T.dot(L))
+				b.append(n.dot(p))
+
+	A = np.vstack(A)
+	b = np.hstack(b)
+	subdom = domain.add_constraints(A = A, b = b) 
+
+	# Left and right hand sides of least squares problem
+	A = Lall
+	b = np.hstack([ys[i][coord[i]] for i in range(len(coord))]) 
+	
+	x = subdom.constrained_least_squares(A, b)
+	return x
+
+
+
+
+def _maximin_score(X):
+	D = squareform(pdist(X))
+	D += 10*np.max(D)*np.eye(D.shape)
+	d = np.sort(np.min(D, axis = 1))
+	return tuple(d)
+
+
+def projection_design(domain, M, Ls, ys = None, maxiter = 1000, verbose = True, use_assumptions = True):
+	from .minimax import minimax_design	
+
+
+
+	N = len(Ls)
+	
+	# Construct the design for each projection
+	if ys is None:
+		# Make low rank version for sampling purposes
+		Ls = [low_rank_L(L) for L in Ls]
+		ys = []
+		for i, L in enumerate(Ls):
+			X = minimax_design(domain, M, L = L)
+			ys.append(L.dot(X.T).T)
+	else:
+		assert np.all([len(y) == M for y in ys]), "length of ys should match number of points"
+
+
+	@lru_cache(maxsize = int(1e6))
+	def voronoi_cell_point(coord):
+		return tuple(_voronoi_cell_point(coord, domain, Ls, ys))
+	
+	def encode(metric, order, value):
+		# Python3 needs this explicitly an int to interface with pylgl
+		return int(metric*M*M + order*M + value + 1)
+	def decode(idx):
+		return (idx-1) // M**2, ((idx-1) % M**2)// M, (idx-1) % M
+
+	# Construct the geometric constraints we enforce with the SAT solver
+	# i.e., no repetition	
+	geo_cnf = []
+	for metric in range(len(Ls)):
+		for order in range(M):
+			# At least one must be one
+			geo_cnf += [ [encode(metric, order, value) for value in range(M)] ]	
+			# Not more than one is on
+			# we do this by checking not ( v1 and v2) which is equivalent to 
+			# not v1 or not v2 by DeMorgan
+			geo_cnf += [ [-encode(metric, order, v1), -encode(metric, order, v2)] 
+						for v1, v2 in zip(*np.triu_indices(M,1)) ]
+
+		# Each equality constraint cannot be selected more than once
+		for value in range(M):
+			geo_cnf += [ [-encode(metric, o1, value), -encode(metric, o2, value)] 
+						for o1, o2 in zip(*np.triu_indices(M, 1)) ]
+
+	# To fix ordering of the samples, we fix the ordering of the first metric
+	geo_cnf += [ [encode(0, value, value)]  for value in range(M)]
+
+	# Initialize the solver and tie its random seed to numpy's random state
+	sat_iter = picosat.itersolve(geo_cnf, initialization = 'random', seed = np.random.randint(2**16))
+	
+
+	it = 0
+	sat_solves = 0
+	X_best = None
+	score_best = tuple([0. for i in range(M)])
+	perms_best = None
+	d_best = None
+
+
+	# Main loop generating solutions
+	while True:
+		assumptions = []
+		if use_assumptions:
+			keep_range = reversed(range(max(M-2+1,1)))
+		else:
+			keep_range = range(1)
+	
+		for n_keep in keep_range:
+			if perms_best is not None: 
+				keep = np.argsort(-d_best)[0:n_keep]
+				assumptions = []
+				for j in keep:
+					assumptions += [encode(k, j, perms[k, j]) for k in range(N)]  
+			
+			sat_iter.assume(assumptions)
+			try:
+				sat_solves += 1
+				sol = sat_iter.next()
+				break
+			except (KeyboardInterrupt, SystemExit):
+				raise
+			except StopIteration:
+				pass
+		
+		# Convert the solution format into a permutation matrix
+		sol = np.array(sol)
+		perms = -np.ones((len(Ls), M), dtype = np.int)
+		for i in np.argwhere(sol > 0).flatten():
+			metric, order, value = decode(sol[i])
+			perms[metric, order] = value
+
+		# Build the sample 
+		X = []
+		for j in range(M):
+			try: 
+				x = voronoi_cell_point(tuple(perms[:,j]))
+				X.append(x)
+			except EmptyDomainException:
+				# Add constraint to prevent this cell from being sampled again
+				new_geo_cnf = [[-encode(k, o, perms[k,j]) for k in range(len(Ls))] for o in range(M)] 
+				sat_iter.add_clauses(new_geo_cnf)
+				geo_cnf += new_geo_cnf
+
+		if len(X) == M:
+			# score sample
+			score = _score_maximin(X)
+			if score > score_best:
+				# TODO: metric should ignore dimensions not fixed by Lall
+				X_best = np.array(X)
+				score_best = score
+				perms_best = perms
+				
+				# Compute minimum pairwise distances
+				D = squareform(pdist(X))
+				D += 10*np.max(D)*np.eye(D.shape[0])
+				d_best = np.min(D, axis = 1)
+				
+				update = True
+			else:
+				update = False
+		
+			it += 1
+
+			if verbose:
+				line = '%4d | %6d |' % (it, sat_solves)
+					
+				if update:
+					line += " U |"
+				else:
+					line += "   |"
+
+				line += " %3d |" % (len(assumptions)//N)
+
+				for k in range(M):
+					line += "%8.2e " % score_best[k]
+				print(line)	 
+			
+		
+		if it >= maxiter:
+			break
+
+	# TODO: now include a maximin step on best design
+
+	return X_best

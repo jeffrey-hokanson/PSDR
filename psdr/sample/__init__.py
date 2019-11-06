@@ -8,5 +8,6 @@ from .sobol import *
 from .latin import *
 from .seqmaximin import *
 from .projection import *
-from .random import *
+from .random_sample import *
 from .sample import *
+from .poisson import *

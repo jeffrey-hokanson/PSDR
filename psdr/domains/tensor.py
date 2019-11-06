@@ -137,7 +137,7 @@ class TensorProductDomain(EuclideanDomain):
 	@property
 	def A(self):
 		A = []
-		for dom, I in zip(self.domain, self._slices):
+		for dom, I in zip(self.domains, self._slices):
 			A_tmp = np.zeros((dom.A.shape[0] ,len(self)))
 			A_tmp[:,I] = dom.A
 			A.append(A_tmp)
@@ -150,7 +150,7 @@ class TensorProductDomain(EuclideanDomain):
 	@property
 	def A_eq(self):
 		A_eq = []
-		for dom, I in zip(self.domain, self._slices):
+		for dom, I in zip(self.domains, self._slices):
 			A_tmp = np.zeros((dom.A_eq.shape[0] ,len(self)))
 			A_tmp[:,I] = dom.A_eq
 			A_eq.append(A_tmp)

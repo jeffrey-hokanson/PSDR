@@ -74,9 +74,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	**kwargs: dict (optional)
 		Additional parameters to pass to cvxpy
 	"""
-	def __init__(self, epsilon = None, method = 'cvxopt', **kwargs):
+	def __init__(self, epsilon = None, method = 'cvxopt', L = None, **kwargs):
+		if L is not None:
+			self._L = np.atleast_2d(L)
 		self._U = None
-		self._L = None
 		self.kwargs = kwargs
 
 		assert method in ['cvxopt', 'param', 'cvxpy']
@@ -164,10 +165,11 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		ew, U = scipy.linalg.eigh(H)
 
 		# Because eigenvalues are in ascending order, the subspace basis needs to be flipped
+		U = U[:,::-1]
+		ew = ew[::-1]
 		# Fix the signs for the subspace directions 
-		self._fix_subspace_signs(U[:,::-1], X, fX/scale, grads/scale)
-		
-
+		U = self._fix_subspace_signs(U, X, fX/scale, grads/scale)
+		self._U = U	
 		# Force to be SPD
 		self._H = scale**2 * U.dot(np.diag(np.maximum(ew,0)).dot(U.T))
 
@@ -223,7 +225,8 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 
 		problem = cp.Problem(cp.Minimize(cp.trace(H)), constraints)
 		problem.solve(**self.kwargs)
-		
+		print("Inside Lipschitz")
+		print(np.array(H.value))	
 		return np.array(H.value).reshape(len(self),len(self))
 				
 	
@@ -575,6 +578,14 @@ class DiagonalLipschitzMatrix(CoordinateBasedDimensionReduction, LipschitzMatrix
 	this class computes a Lipschitz matrix except with the constraint the matrix is diagonal.
 	"""
 
+	def __init__(self, L = None, **kwargs):
+		if L is not None:
+			L = np.atleast_2d(L)
+			self._L = np.diag(np.diag(L))
+
+		LipschitzMatrix.__init__(self,**kwargs)
+		
+
 	def _fit(self, X, fX, grads, epsilon, scale):
 		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale, epsilon, structure = 'diag')
 		# Ensure entries are numerically positive
@@ -589,7 +600,12 @@ class DiagonalLipschitzMatrix(CoordinateBasedDimensionReduction, LipschitzMatrix
 class LipschitzConstant(LipschitzMatrix):
 	r""" Computes the scalar Lipschitz constant
 	"""
+	def __init__(self, L = None, **kwargs):
+		if L is not None:
+			self._L = float(L)	
 
+		self._dimension = 1	
+		LipschitzMatrix.__init__(self, **kwargs)
 
 	def _fit(self, X, fX, grads, epsilon, scale):
 		L = 0

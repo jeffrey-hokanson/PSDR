@@ -5,6 +5,7 @@ from scipy.spatial.distance import pdist
 
 from .domain import TOL
 from .linineq import LinIneqDomain
+from ..exceptions import EmptyDomainException
 
 
 class BoxDomain(LinIneqDomain):
@@ -25,10 +26,39 @@ class BoxDomain(LinIneqDomain):
 	"""
 	def __init__(self, lb, ub, names = None):
 		LinIneqDomain.__init__(self, lb = lb, ub = ub, names = names)	
-		assert np.all(np.isfinite(lb)) and np.all(np.isfinite(ub)), "Both lb and ub must be finite to construct a box domain"
+		#assert np.all(np.isfinite(lb)) and np.all(np.isfinite(ub)), "Both lb and ub must be finite to construct a box domain"
+
+	@property
+	def is_empty(self):
+		try:
+			return self._empty
+		except AttributeError:
+			self._empty = np.any(self.lb > self.ub)
+			self._point = False
+			self._unbounded = False
+			return self._empty
+	
+	@property
+	def is_point(self):
+		try:
+			return self._point
+		except AttributeError:
+			self._point = np.all(np.abs(self.ub - self.lb) < TOL)
+			return self._point
+
+	@property
+	def is_unbounded(self):
+		try:
+			return self._unbounded
+		except AttributeError:
+			self._unbounded = np.any(np.isinf(self.lb)) | np.any(np.isinf(self.ub))
+			return self._unbounded
+
 
 	# Due to the simplicity of this domain, we can use a more efficient sampling routine
 	def _sample(self, draw = 1):
+		if self.is_empty:
+			raise EmptyDomainException
 		x_sample = np.random.uniform(self.lb, self.ub, size = (draw, len(self)))
 		return x_sample
 
@@ -37,6 +67,8 @@ class BoxDomain(LinIneqDomain):
 		x = np.copy(self.lb)
 		I = (p>=0)
 		x[I] = self.ub[I]
+		if not self.isinside(x):
+			raise EmptyDomainException
 		return x
 
 	def _extent(self, x, p):

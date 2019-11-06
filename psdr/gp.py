@@ -160,13 +160,15 @@ class GaussianProcess(BaseFunction):
 			L = np.zeros((self.m*self.m,), dtype = ell.dtype)
 			L[self.tril_flat] = ell
 			L = L.reshape(self.m,self.m)
-			#ew, V = scipy.linalg.eigh(L.dot(L.conj().T) )
-			#Lexp2 = V.dot(np.diag(0.5*np.expm1(ew))).dot(V.conj().T)
-			#Lexp = scipy.linalg.expm(L) - np.eye(self.m)
+			
 			# This is a more numerically stable way to compute expm(L) - I
-			# (think of the Taylor series for this operator)
-			Lexp = L.dot(scipy.linalg.expm(L))
-			#print("error", np.linalg.norm(Lexp2 - Lexp))
+			#Lexp = L.dot(scipy.linalg.expm(L))
+			
+			# JMH 8 Aug 2019: I'm less sure about the value of parameterizing as L*expm(L)
+			# Specifically, having the zero matrix easily accessible doesn't seem like a good thing
+			# and he gradient is more accurately computed using this form. 
+			Lexp = scipy.linalg.expm(L)
+			
 			return Lexp
 
 	def _log_marginal_likelihood(self, ell, X = None, y = None, return_obj = True, return_grad = False, return_alpha_beta = False):

@@ -98,5 +98,19 @@ def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
 						assert False
 					#assert np.all(pa(X) >= fXnoise -1e-7)
 
+
+def test_roots(degree =  5):
+	X = np.random.randn(degree+1,1)
+	fX = np.random.randn(degree+1)
+	for basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']:
+		print("basis", basis)
+		pa = PolynomialApproximation(degree, basis = basis)
+		pa.fit(X, fX)
+		assert np.all(np.isclose(pa(X), fX)), "Approximation failed"
+		r = pa.roots()
+		for rr in r:
+			print(rr, pa(rr))
+			assert np.isclose(pa(rr), 0)
+
 if __name__ == '__main__':
 	test_dimensions()	

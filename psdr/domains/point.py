@@ -24,19 +24,20 @@ class PointDomain(BoxDomain):
 		self._empty = False
 		self._unbounded = False
 		self._x = np.array(x).flatten()
-		self._init_names(names)	
 		assert len(self._x.shape) == 1, "Must provide a one-dimensional point"
+		
+		BoxDomain.__init__(self, lb = self._x, ub = self._x, names = names)
 
 	def __len__(self):
 		return self._x.shape[0]
 		
-	def closest_point(self, x0):
+	def _closest_point(self, x0, **kwargs):
 		return np.copy(self._x)
 
-	def _corner(self, p):
+	def _corner(self, p, **kwargs):
 		return np.copy(self._x)
 
-	def _extent(self, x, p):
+	def _extent(self, x, p, **kwargs):
 		return 0
 
 	def _isinside(self, X, tol = TOL):
@@ -47,10 +48,10 @@ class PointDomain(BoxDomain):
 		return np.tile(self._x.reshape(1,-1), (draw, 1))
 
 
-	@property
-	def lb(self):
-		return np.copy(self._x)
-
-	@property
-	def ub(self):
-		return np.copy(self._x)
+#	@property
+#	def lb(self):
+#		return np.copy(self._x)
+#
+#	@property
+#	def ub(self):
+#		return np.copy(self._x)

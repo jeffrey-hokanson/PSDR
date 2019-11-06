@@ -142,7 +142,7 @@ def test_bad_scaling():
 	x2 = dom2.corner(p)
 	for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
 		print("x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_))
-	assert np.all(np.isclose(x1,x2))
+	assert np.all(np.isclose(x1,x2, rtol = 1e-4, atol = 1e-4))
 
 
 if __name__ == '__main__':

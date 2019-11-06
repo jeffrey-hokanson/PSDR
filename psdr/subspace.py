@@ -19,6 +19,8 @@ import cvxpy as cp
 import cvxopt
 
 from .pgf import PGF
+from .domains.domain import DEFAULT_CVXPY_KWARGS
+from .misc import merge
 
 __all__ = ['SubspaceBasedDimensionReduction',
 	'ActiveSubspace', 
@@ -142,7 +144,9 @@ class SubspaceBasedDimensionReduction(object):
 		else:
 			if len(U.shape) > 1:
 				U = U[:,0]
-				
+
+		# Since this is for plotting purposes, we reduce accuracy to 3 digits	
+		solver_kwargs = {'verbose': verbose, 'solver': 'OSQP', 'eps_abs': 1e-3, 'eps_rel': 1e-3}				
 
 		X = np.array(X)
 		fX = np.array(fX)
@@ -196,14 +200,14 @@ class SubspaceBasedDimensionReduction(object):
 		#ub0 = [ max(max(fX[j == i]), max(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[max(fX[j == ngrid - 1])]
 		#ub.value = np.array(ub0).flatten()
 		prob = cp.Problem(cp.Minimize(cp.sum(ub)), [A*ub >= fX.flatten()])
-		prob.solve(verbose = verbose, warm_start = True)
+		prob.solve(**solver_kwargs)
 		ub = ub.value
 		
 		lb = cp.Variable(len(yy))
 		#lb0 = [ min(min(fX[j == i]), min(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[min(fX[j == ngrid - 1])]
 		#lb.value = np.array(lb0).flatten()
 		prob = cp.Problem(cp.Maximize(cp.sum(lb)), [A*lb <= fX.flatten()])
-		prob.solve(verbose = verbose, warm_start = True)
+		prob.solve(**solver_kwargs)
 		lb = lb.value
 
 		if ax is not None:
@@ -220,7 +224,7 @@ class SubspaceBasedDimensionReduction(object):
 
 
 	def _init_dim(self, X = None, grads = None):
-		if X is not None:
+		if X is not None and len(X) > 0:
 			self._dimension = len(X[0])
 		elif grads is not None:
 			self._dimension = len(grads[0])
@@ -248,7 +252,8 @@ class SubspaceBasedDimensionReduction(object):
 
 		Since subspaces have no associated direction (they are invariant to a sign flip)
 		here we fix the sign such that the function is increasing on average along the direction
-		u_i.
+		u_i.  This approach uses either gradient or sample information, with a preference for
+		gradient information if it is availible.
 		"""
 		if grads is not None and len(grads) > 0:
 			return self._fix_subspace_signs_grads(U, grads)
@@ -262,12 +267,10 @@ class SubspaceBasedDimensionReduction(object):
 				for j in range(i+1, len(X)):
 					sgn[k] += (fX[i] - fX[j])/(U[:,k].dot(X[i] - X[j]))
 
-		self._U = U.dot(np.diag(np.sign(sgn)))	
-		return self._U	
+		return U.dot(np.diag(np.sign(sgn)))	
 
 	def _fix_subspace_signs_grads(self, U, grads):
-		self._U = U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
-		return self._U	
+		return U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
 
 	
 	def approximate_lipschitz(self, X = None, fX = None, grads = None,  dim = None):
@@ -328,7 +331,7 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 		self._C = self._U.dot(np.diag(self._s**2).dot(self._U.T))
 
 		# Fix +/- scaling so average gradient is positive	
-		self._fix_subspace_signs_grads(self._U, self._grads)		
+		self._U = self._fix_subspace_signs_grads(self._U, self._grads)		
 
 
 	def fit_function(self, fun, N_gradients):

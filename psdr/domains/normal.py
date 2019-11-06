@@ -155,5 +155,9 @@ class NormalDomain(LinQuadDomain, RandomDomain):
 		# Normalization term
 		p = np.exp(-0.5*d2) / np.sqrt((2*np.pi)**len(self) * np.abs(scipy.linalg.det(self.cov)))
 		if self.truncate is not None:
+			# Normalization term
 			p /= (1-self.truncate)
+			# probability is zero for those points outside of the domain
+			p *= self.isinside(X)
+			pass
 		return p

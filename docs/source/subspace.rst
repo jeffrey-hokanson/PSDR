@@ -29,4 +29,5 @@ Lipschitz Matrix
 .. autoclass:: psdr.LipschitzMatrix
    :members: fit, H, L, uncertainty, uncertainty_domain, shadow_uncertainty 
 
-
+.. autoclass:: psdr.LowRankLipschitzMatrix
+   :members: alpha, J, U
