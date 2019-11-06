@@ -10,68 +10,86 @@ from .poisson import poisson_disk_sample
 from .sobol import sobol_sequence
 
 
-def _cq_center_cvxpy(Y, L, q = 10):
+def _cq_center_cvxpy(Y, L, q = 10, xhat = None, solver_opts = {'warm_start': True}):
+	xhat_value = xhat
+		
 	xhat = cp.Variable(L.shape[1])
-	obj = cp.sum([cp.norm(L*xhat - y)**q for y in Y])
-	#obj = cp.sum([cp.norm(L*xhat - y) for y in Y])
+	if xhat_value is not None:
+		xhat.value = xhat_value	
+	
+	# This is the objective we want to solve, but
+	# all the reductions make this formulation too 
+	# expensive to use.
+	# obj = cp.sum([cp.norm(L*xhat - y)**q for y in Y])
+
+	# Instead we formulate the objective using only
+	# matrix operations 
+	# L @ xhat 
+	Lxhat = cp.reshape(xhat.__rmatmul__(L), (L.shape[1],1))
+	# outer product so copied over all points
+	LXhat = Lxhat.T.__rmatmul__(np.ones( (len(Y),1)))
+	# 2-norm error for all points
+	norms = cp.sum((LXhat - Y)**2, axis = 1)
+	obj = cp.sum(norms**(q/2.))
+
 	prob = cp.Problem(cp.Minimize(obj))
-	#prob.solve(**DEFAULT_CVXPY_KWARGS)
-	prob.solve()
+	prob.solve(**solver_opts)
 	return np.array(xhat.value)
 
 
-def _cq_center_agd(X, L, q = 10, maxiter = 1000, verbose = False, xtol = 1e-7, xhat0 = None):
-	r""" This computes Cq center using accelerated gradient descent
-	See Algorithm 2 in [MJ18]_.
+#def _cq_center_agd(X, L, q = 10, maxiter = 1000, verbose = False, xtol = 1e-7, xhat0 = None):
+#	r""" This computes Cq center using accelerated gradient descent
+#	See Algorithm 2 in [MJ18]_.
+#
+#	"""
+#
+#	assert q>= 4, "Require q >= 4"
+#
+#	# Initialization of the two variables
+#	if xhat0 is None:
+#		xhat0 = np.mean(X, axis = 0)
+#	z = np.copy(xhat0)
+#	u = np.copy(xhat0)
+#
+#	lam = 1
+#
+#	Y = L.dot(X.T).T
+#
+#	# Compute Lipschitz-smooth constant
+#	D = squareform(pdist(Y))
+#	beta = (q-1)*(q-2)*np.max(np.sum(D**(q-2), axis = 1))/(len(X)*(q-2))
+#	Lnorm = np.linalg.norm(L)	 # TODO: Cache this?
+#	beta *= Lnorm**2			# This is added b/c beta is proportional to derivative, and LT*L appears in the derivative
+#
+#	for it in range(maxiter):
+#		lam_new = (1 + np.sqrt(1 + 4*lam**2))/2.
+#		gam = (1 - lam)/lam_new
+#
+#		dZ = np.tile(z, (len(X),1)) - X
+#		LLdZ = L.T.dot(L.dot(dZ.T)).T
+#
+#		d = cdist(L.dot(z).reshape(1,-1), Y).T
+#
+#		grad = np.sum(LLdZ*d**(q-2), axis = 0)/len(X)
+#		u_new = z - 1./beta*grad
+#		z_new = (1 - gam)*u_new + gam * u
+#		dx = np.linalg.norm(z - z_new)
+#
+#		# update all the variables		
+#		z = z_new
+#		lam = lam_new
+#		u = u_new
+#		
+#		if verbose:
+#			d = cdist((L.dot(z)).reshape(1,-1), Y)
+#			obj = 1/(len(X)*q)*np.sum(d**q)
+#			print("\t%4d | %7.3e | %7.3e" % (it, obj, dx))
+#		if dx < xtol and it > 10:
+#			break
+#	
+#	return z
 
-	"""
-	assert q>= 4, "Require q >= 4"
-
-	# Initialization of the two variables
-	if xhat0 is None:
-		xhat0 = np.mean(X, axis = 0)
-	z = np.copy(xhat0)
-	u = np.copy(xhat0)
-
-	lam = 1
-
-	Y = L.dot(X.T).T
-
-	# Compute Lipschitz-smooth constant
-	D = squareform(pdist(Y))
-	beta = (q-1)*(q-2)*np.max(np.sum(D**(q-2), axis = 1))/(len(X)*(q-2))
-	Lnorm = np.linalg.norm(L)	 # TODO: Cache this?
-	beta *= Lnorm**2			# This is added b/c beta is proportional to derivative, and LT*L appears in the derivative
-
-	for it in range(maxiter):
-		lam_new = (1 + np.sqrt(1 + 4*lam**2))/2.
-		gam = (1 - lam)/lam_new
-
-		dZ = np.tile(z, (len(X),1)) - X
-		LLdZ = L.T.dot(L.dot(dZ.T)).T
-
-		d = cdist(L.dot(z).reshape(1,-1), Y).T
-
-		grad = np.sum(LLdZ*d**(q-2), axis = 0)/len(X)
-		u_new = z - 1./beta*grad
-		z_new = (1 - gam)*u_new + gam * u
-		dx = np.linalg.norm(z - z_new)
-
-		# update all the variables		
-		z = z_new
-		lam = lam_new
-		u = u_new
-		
-		if verbose:
-			d = cdist((L.dot(z)).reshape(1,-1), Y)
-			obj = 1/(len(X)*q)*np.sum(d**q)
-			print("%4d | %7.3e | %7.3e" % (it, obj, dx))
-		if dx < xtol and it > 10:
-			break
-	
-	return z
-
-def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, verbose = True, q = 10):
+def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, verbose = True, q = 10, solver_opts = {}):
 	r"""Identifies an approximate minimax design using a clustering technique due to Mak and Joseph
 
 	This function implements a clustering based approach for minimax sampling following [MJ18]_.
@@ -89,6 +107,9 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 		N0 = min(N*100, int(1e4))
 	N0 = int(N0)
 
+	if 'warm_start' not in solver_opts:
+		solver_opts['warm_start'] = True
+
 	if L is None:
 		L = np.eye(len(domain))
 
@@ -101,10 +122,11 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 
 	# Initial cluster centers
 	# We use the first N random points so that we don't end up with 
-	# empty regions 
+	# empty regions. This also has the consequence of spreading these initial points
+	# well as the leading terms of the Sobol' sequence are widely separated 
 	Xhat = X[0:N]
-	#Xhat = domain.sample(N)
 
+	# movement cluster centers
 	dx = 0
 	I_old = np.zeros(len(X))
 	for it in range(maxiter):
@@ -112,22 +134,22 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 		# Assign each point to its nearest neighbor in L-norm
 		D = cdist(Yhat, Y)
 		I = np.argmin(D, axis = 0)
+
 		if verbose:
-			print("%4d obj: %7.3e; dx %7.3e" % (it, np.max(np.min(D, axis = 0)), dx)) 
+			if it == 0:
+				print('%4s | %9s | %9s |' % ('iter', 'objective', 'movement'))
+				print('-----|-----------|-----------|')
+			
+			print("%4d | %9.3e | %9.3e |" % (it, np.max(np.min(D, axis = 0)), dx)) 
+
 		if np.all(I_old == I):
 			if verbose: print("point sets unchanged")
-		#	break
+			break
 		
 		dx = 0
 		for i in range(N):
-			#xhat = _cq_center_cvxpy(Y[I == i], L, q = 10)
-			#Ii = (I == i)
-			#if np.all(I_old[Ii] == I[Ii]):
-			#	# If we haven't changed the elements of this set between iterations
-			#	xhat = _cq_center_agd(X[Ii], L, q = q, xhat0 = Xhat[i])
-			#else:
-			#	xhat = _cq_center_agd(X[Ii], L, q = q, xhat0 = Xhat[i])
-			xhat = _cq_center_agd(X[I == i], L, q = q, xhat0 = Xhat[i])
+			xhat = _cq_center_cvxpy(Y[I == i], L, q = 10, xhat = Xhat[i], solver_opts = solver_opts)
+			#xhat = _cq_center_agd(X[I == i], L, q = q, xhat0 = Xhat[i])
 			dx = max(dx, np.linalg.norm(xhat - Xhat[i]))
 			Xhat[i] = xhat
 
