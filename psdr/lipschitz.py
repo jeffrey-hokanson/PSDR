@@ -74,9 +74,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	**kwargs: dict (optional)
 		Additional parameters to pass to cvxpy
 	"""
-	def __init__(self, epsilon = None, method = 'cvxopt', **kwargs):
+	def __init__(self, epsilon = None, method = 'cvxopt', L = None, **kwargs):
+		if L is not None:
+			self._L = np.atleast_2d(L)
 		self._U = None
-		self._L = None
 		self.kwargs = kwargs
 
 		assert method in ['cvxopt', 'param', 'cvxpy']
@@ -577,6 +578,14 @@ class DiagonalLipschitzMatrix(CoordinateBasedDimensionReduction, LipschitzMatrix
 	this class computes a Lipschitz matrix except with the constraint the matrix is diagonal.
 	"""
 
+	def __init__(self, L = None, **kwargs):
+		if L is not None:
+			L = np.atleast_2d(L)
+			self._L = np.diag(np.diag(L))
+
+		LipschitzMatrix.__init__(self,**kwargs)
+		
+
 	def _fit(self, X, fX, grads, epsilon, scale):
 		H = self._build_lipschitz_matrix(X, fX/scale, grads/scale, epsilon, structure = 'diag')
 		# Ensure entries are numerically positive
@@ -591,7 +600,12 @@ class DiagonalLipschitzMatrix(CoordinateBasedDimensionReduction, LipschitzMatrix
 class LipschitzConstant(LipschitzMatrix):
 	r""" Computes the scalar Lipschitz constant
 	"""
+	def __init__(self, L = None, **kwargs):
+		if L is not None:
+			self._L = float(L)	
 
+		self._dimension = 1	
+		LipschitzMatrix.__init__(self, **kwargs)
 
 	def _fit(self, X, fX, grads, epsilon, scale):
 		L = 0
