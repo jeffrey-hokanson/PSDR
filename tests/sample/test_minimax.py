@@ -1,29 +1,35 @@
 import numpy as np
-
 from scipy.spatial.distance import cdist
+import cvxpy as cp
 
 import psdr
+from psdr.sample.minimax import _cq_center_cvxpy
 
-#from psdr.sample.minimax import _cq_center_cvxpy, _cq_center_agd
-#def test_cq_center(m = 3):
-#	np.random.seed(1)
-#	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
-#	X = dom.sample(10)
-#	
-#	# Isotropic case
-#	I = np.eye(len(dom))
-#	L1 = np.random.randn(2,m)
-#	L2 = np.random.randn(m,m)
-#	for L in [I, L1, L2]:
-#		Y = L.dot(X.T).T
-#		xhat1 = _cq_center_cvxpy(Y, L, q = 10)
-#		xhat2 = _cq_center_agd(X, L, q = 10, verbose = False, xtol = 1e-10, maxiter = int(1e4))
-#
-#		print(xhat1)
-#		print(xhat2)
-#		
-#		print("mismatch", np.linalg.norm(L.dot(xhat1 - xhat2)))
-#		assert np.linalg.norm(L.dot(xhat1 - xhat2)) < 2e-3
+
+def test_cq_center(m = 3, q = 10):
+	np.random.seed(1)
+	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
+	X = dom.sample(10)
+	
+	# Isotropic case
+	I = np.eye(len(dom))
+	L1 = np.random.randn(2,m)
+	L2 = np.random.randn(m,m)
+	for L in [I, L1, L2]:
+		Y = L.dot(X.T).T
+		xhat1 = _cq_center_cvxpy(Y, L, q = q)
+
+		# Naive solve
+		xhat = cp.Variable(m)
+		obj = cp.sum([cp.norm(xhat.__rmatmul__(L) - y)**q for y in Y])
+		prob = cp.Problem(cp.Minimize(obj))
+		prob.solve()
+		xhat2 = xhat.value
+		print(xhat1)
+		print(xhat2)
+		
+		print("mismatch", np.linalg.norm(L.dot(xhat1 - xhat2)))
+		assert np.linalg.norm(L.dot(xhat1 - xhat2)) < 1e-5
 
 
 def test_minimax(m = 3, N = 5):

@@ -25,7 +25,7 @@ def _cq_center_cvxpy(Y, L, q = 10, xhat = None, solver_opts = {'warm_start': Tru
 	# Instead we formulate the objective using only
 	# matrix operations 
 	# L @ xhat 
-	Lxhat = cp.reshape(xhat.__rmatmul__(L), (L.shape[1],1))
+	Lxhat = cp.reshape(xhat.__rmatmul__(L), (L.shape[0],1))
 	# outer product so copied over all points
 	LXhat = Lxhat.T.__rmatmul__(np.ones( (len(Y),1)))
 	# 2-norm error for all points
