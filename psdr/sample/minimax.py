@@ -15,7 +15,7 @@ def _cq_center_cvxpy(Y, L, q = 10, xhat = None, solver_opts = {'warm_start': Tru
 		
 	xhat = cp.Variable(L.shape[1])
 	if xhat_value is not None:
-		xhat.value = xhat_value	
+		xhat.value = np.copy(xhat_value)	
 	
 	# This is the objective we want to solve, but
 	# all the reductions make this formulation too 
@@ -37,62 +37,14 @@ def _cq_center_cvxpy(Y, L, q = 10, xhat = None, solver_opts = {'warm_start': Tru
 	return np.array(xhat.value)
 
 
-#def _cq_center_agd(X, L, q = 10, maxiter = 1000, verbose = False, xtol = 1e-7, xhat0 = None):
-#	r""" This computes Cq center using accelerated gradient descent
-#	See Algorithm 2 in [MJ18]_.
-#
-#	"""
-#
-#	assert q>= 4, "Require q >= 4"
-#
-#	# Initialization of the two variables
-#	if xhat0 is None:
-#		xhat0 = np.mean(X, axis = 0)
-#	z = np.copy(xhat0)
-#	u = np.copy(xhat0)
-#
-#	lam = 1
-#
-#	Y = L.dot(X.T).T
-#
-#	# Compute Lipschitz-smooth constant
-#	D = squareform(pdist(Y))
-#	beta = (q-1)*(q-2)*np.max(np.sum(D**(q-2), axis = 1))/(len(X)*(q-2))
-#	Lnorm = np.linalg.norm(L)	 # TODO: Cache this?
-#	beta *= Lnorm**2			# This is added b/c beta is proportional to derivative, and LT*L appears in the derivative
-#
-#	for it in range(maxiter):
-#		lam_new = (1 + np.sqrt(1 + 4*lam**2))/2.
-#		gam = (1 - lam)/lam_new
-#
-#		dZ = np.tile(z, (len(X),1)) - X
-#		LLdZ = L.T.dot(L.dot(dZ.T)).T
-#
-#		d = cdist(L.dot(z).reshape(1,-1), Y).T
-#
-#		grad = np.sum(LLdZ*d**(q-2), axis = 0)/len(X)
-#		u_new = z - 1./beta*grad
-#		z_new = (1 - gam)*u_new + gam * u
-#		dx = np.linalg.norm(z - z_new)
-#
-#		# update all the variables		
-#		z = z_new
-#		lam = lam_new
-#		u = u_new
-#		
-#		if verbose:
-#			d = cdist((L.dot(z)).reshape(1,-1), Y)
-#			obj = 1/(len(X)*q)*np.sum(d**q)
-#			print("\t%4d | %7.3e | %7.3e" % (it, obj, dx))
-#		if dx < xtol and it > 10:
-#			break
-#	
-#	return z
-
-def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, verbose = True, q = 10, solver_opts = {}):
+def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, 
+	verbose = True, q = 10, solver_opts = {}):
 	r"""Identifies an approximate minimax design using a clustering technique due to Mak and Joseph
 
 	This function implements a clustering based approach for minimax sampling following [MJ18]_.
+	We do not implement the particle swarm optimization here; only the clustering approach.
+	Futher, we do not use their recommended gradient descent approach to find the C_q cluster centers,
+	instead relying on CVXPY (and by default, ECOS) to solve this problem efficiently and accurately.
 
 
 	References
@@ -101,6 +53,25 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 		Minimax and Minimax Projection Designs Using Clustering.
 	 	Journal of Computational and Graphical Statistics. 2018, vol 27:1 pp 166-178
 		DOI:10.1080/10618600.2017.1302881
+
+	Parameters
+	----------
+	domain: Domain
+		Domain on which to construct the design
+	N: int
+		Number of points in the design
+	L: None or array-like
+		If specified, the weighted 2-norm metric for distance on this space
+	maxiter: int
+		Maximum number of clustering iterations to pursue
+	xtol: float
+		Smallest movement in cluster centers before iteration stops
+	verbose: bool
+		If true, print convergence information
+	q: positive float
+		Power to raise the 2-norm to, such that we better approximate sup-norm
+	solver_opts: dict
+		Additional arguments to pass to cvxpy when solving each step	
 	"""
 
 	if N0 is None:
@@ -117,7 +88,6 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 	# TODO: Should these be distributed with respect to the L norm?
 	# NOTE: In the original paper used Sobol sequence to generate these points
 	X = sobol_sequence(domain, N0)	
-	#X = domain.sample(N0)
 	Y = L.dot(X.T).T
 
 	# Initial cluster centers
@@ -129,6 +99,8 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 	# movement cluster centers
 	dx = 0
 	I_old = np.zeros(len(X))
+
+
 	for it in range(maxiter):
 		Yhat = L.dot(Xhat.T).T
 		# Assign each point to its nearest neighbor in L-norm
@@ -145,13 +117,12 @@ def minimax_cluster(domain, N, L = None, maxiter = 30, N0 = None, xtol = 1e-5, v
 		if np.all(I_old == I):
 			if verbose: print("point sets unchanged")
 			break
-		
-		dx = 0
-		for i in range(N):
-			xhat = _cq_center_cvxpy(Y[I == i], L, q = 10, xhat = Xhat[i], solver_opts = solver_opts)
-			#xhat = _cq_center_agd(X[I == i], L, q = q, xhat0 = Xhat[i])
-			dx = max(dx, np.linalg.norm(xhat - Xhat[i]))
-			Xhat[i] = xhat
+
+		# TODO: This is easy to parallelize, but attempts have not improved wall clock time
+		Xhat_new = [ _cq_center_cvxpy(Y[I == i], L, q = q, xhat = Xhat[i], solver_opts = solver_opts) for i in range(N)]
+		Xhat_new = np.array(Xhat_new)
+		dx = np.max(Xhat_new - Xhat)	
+		Xhat = Xhat_new
 
 		if dx < xtol:
 			print('stopped due to small movement')
