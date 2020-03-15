@@ -38,9 +38,7 @@ services:
  #- if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install python ; fi
  # Currently there is an issue with 1.16 and SCS; this installs a custom version
  # https://stackoverflow.com/a/48185032
- - pip install -U --only-binary=numpy, scipy numpy==1.15.4
- - pip install -U --only-binary=numpy --only-binary=scipy numpy scipy scs osqp cvxopt cvxpy
- - pip install scs==2.1.1
+ - pip install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs osqp cvxopt cvxpy
 # - sudo apt-get update
 # - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]] ; then sudo apt-get install -y swig python-numpy python-scipy; else sudo apt-get install -y swig python3-numpy python3-scipy ; fi 
 
