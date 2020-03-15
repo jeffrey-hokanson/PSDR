@@ -6,6 +6,7 @@ __all__ = ['PolynomialTensorBasis',
 	'ChebyshevTensorBasis',
 	'LaguerreTensorBasis',
 	'HermiteTensorBasis',
+	'ArnoldiPolynomialBasis',
  ]
 
 import numpy as np
@@ -410,3 +411,81 @@ class HermiteTensorBasis(PolynomialTensorBasis):
 			raise NotImplementedError
 		r = hermroots(coef)
 		return r*self._std[0]*np.sqrt(2) + self._mean[0]
+
+
+class ArnoldiPolynomialBasis(Basis):
+	r""" Construct a stable polynomial basis for arbitrary points using Vandermonde+Arnoldi
+	"""
+	def __init__(self, X, degree):
+		self.X = np.copy(np.atleast_2d(X))
+		self.dim = self.X.shape[1]
+		self.degree = int(degree)
+		self.idx = index_set(self.degree, self.dim)
+
+		self.Q, self.R = self.arnoldi()
+
+	def _update_vec(self, ids):
+		# Determine which column to multiply by
+		diff = self.idx - ids
+		# Here we pick the most recent column that is one off
+		j = np.max(np.argwhere( (np.sum(np.abs(diff), axis = 1) <= 1) & (np.min(diff, axis = 1) == -1)))
+		i = int(np.argwhere(diff[j] == -1))
+		return i, j	
+
+	def arnoldi(self):
+		r""" Apply the Arnoldi proceedure to build up columns of the Vandermonde matrix
+		"""
+		idx = self.idx
+		M = self.X.shape[0]
+
+		# Allocate memory for matrices
+		Q = np.zeros((M, len(idx)))
+		R = np.zeros((len(idx), len(idx)))
+	
+		# Generate columns of the Vandermonde matrix
+		iteridx = enumerate(idx)
+		# As the first column is the ones vector, we treat it as a special case
+		next(iteridx)
+		Q[:,0] = 1/np.sqrt(M)
+		R[0,0] = np.sqrt(M)	
+
+		# Now work on the remaining columns
+		for k, ids in iteridx:
+			i, j = self._update_vec(ids) 
+			# Form new column
+			q = self.X[:,i] * Q[:,j]
+	
+			for j in range(k):
+				R[j,k] = Q[:,j].T @ q/M
+				q -= R[j,k]*Q[:,j]
+			
+			R[k,k] = np.linalg.norm(q)
+			Q[:,k] = q/R[k,k]
+
+		return Q, R
+
+	def V(self, X = None):
+		if X is not None:
+			raise NotImplementedError
+
+		return self.Q
+
+
+	def DV(self, X = None):
+		M, N = self.Q.shape
+		n = self.X.shape[1]
+		DV = np.zeros((M, N, n), dtype = self.Q.dtype)
+
+		for k in range(n):
+			for j, ids in enumerate(self.idx):
+				# now apply the chain rule recursively
+				ids = np.copy(ids)
+				while True:
+					ids[k] -= 1
+					if np.min(ids) < 0:
+						break
+					i = int(np.argwhere([np.all(idx == ids) for idx in self.idx]).flatten())
+					DV[:,j,k] += self.Q[:,i]
+		
+		return DV
+

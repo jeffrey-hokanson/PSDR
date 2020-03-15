@@ -6,7 +6,8 @@ from psdr import (MonomialTensorBasis,
 	LegendreTensorBasis, 
 	ChebyshevTensorBasis, 
 	LaguerreTensorBasis, 
-	HermiteTensorBasis)
+	HermiteTensorBasis,
+	ArnoldiPolynomialBasis)
 
 from checkder import check_jacobian, check_hessian 
 
@@ -108,3 +109,38 @@ def test_hessian(m = 2, p = 5):
 			hess = lambda x: basis.DDV(x.reshape(1,-1))[0,i]
 			assert check_hessian(X[0], obj, hess) < 5e-5
 
+
+def test_arnoldi(dim = 2, N = 1000):
+	np.random.seed(0)
+	X = np.random.rand(N,dim)
+
+	degree = 10
+	basis1 = LegendreTensorBasis(dim, degree)
+	basis2 = ArnoldiPolynomialBasis(X, degree)
+
+
+	# check basis represents same object
+	V1 = basis1.V(X)
+	V2 = basis2.V()
+	for k in range(1,V1.shape[1]):
+		phi = scipy.linalg.subspace_angles(V1[:,:k], V2[:,:k])
+		print(k, np.max(phi))
+		assert np.max(phi) < 1e-8, "Subspace angle too large"
+	
+	# check basis represents same object
+	DV1 = basis1.DV(X)
+	DV2 = basis2.DV()
+
+	for ell in range(X.shape[1]):
+		for k in range(2,DV1.shape[1]):
+			#print(DV1[:10,:k,ell])
+			#print(DV2[:10,:k,ell])
+			#print(k, ell)
+			phi = scipy.linalg.subspace_angles(DV1[:,:k,ell], DV2[:,:k,ell])
+			if len(phi) >0:
+				print(phi)
+				print(k, np.max(phi))
+				assert np.max(phi) < 1e-8, "Subspace angle too large"
+
+if __name__ == '__main__':
+	test_arnoldi()

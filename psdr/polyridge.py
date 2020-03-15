@@ -18,6 +18,8 @@ from .seqlp import sequential_lp
 from .exceptions import UnderdeterminedException
 from .initialization import initialize_subspace
 from .poly import PolynomialFunction
+
+
 class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function
 	"""
