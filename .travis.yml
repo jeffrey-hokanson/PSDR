@@ -54,6 +54,7 @@ services:
 
 
 install:
+ - pip install --update scs==2.1.1
  - pip install -U pytest pytest-cov coveralls
  - python setup.py install 
 
