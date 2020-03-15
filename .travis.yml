@@ -7,9 +7,9 @@ matrix:
   - os: linux
     dist: bionic
     python: "3.7"
-  - os: linux
-    dist: bionic
-    python: "3.8"
+#  - os: linux
+#    dist: bionic
+#    python: "3.8"
 # Does not support docker in osx
 #  - os: osx
 #   osx_image: xcode10.2
@@ -33,15 +33,16 @@ services:
  - docker
 
 before_install:
- - pip3 install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs osqp cvxopt cvxpy
+# - pip3 install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs osqp cvxopt cvxpy
+ - pip3 install -U --only-binary=numpy --only-binary=scipy numpy scipy scs osqp cvxopt cvxpy
 
 
 install:
- - pip install -U pytest pytest-cov coveralls
- - python setup.py install 
+ - pip3 install -U pytest pytest-cov coveralls
+ - python3 setup.py install 
 
 script:
- - pip freeze --local 
+ - pip3 freeze --local 
 # Pre-pull docker images
 # - docker pull jeffreyhokanson/oas:v1
 # - docker pull jeffreyhokanson/multif:v25
