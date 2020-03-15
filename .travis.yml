@@ -33,7 +33,7 @@ services:
  - docker
 
 before_install:
- - pip install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs osqp cvxopt cvxpy
+ - pip3 install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs osqp cvxopt cvxpy
 
 
 install:
@@ -43,9 +43,9 @@ install:
 script:
  - pip freeze --local 
 # Pre-pull docker images
- - docker pull jeffreyhokanson/oas:v1
- - docker pull jeffreyhokanson/multif:v25
- - docker pull jeffreyhokanson/naca0012
+# - docker pull jeffreyhokanson/oas:v1
+# - docker pull jeffreyhokanson/multif:v25
+# - docker pull jeffreyhokanson/naca0012
  - pytest --cov=psdr --cov-branch --cov-config=.coveragerc tests/
 
 after_success:
