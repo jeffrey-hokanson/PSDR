@@ -464,14 +464,43 @@ class ArnoldiPolynomialBasis(Basis):
 
 		return Q, R
 
-	def V(self, X = None):
-		if X is not None:
-			raise NotImplementedError
+	def arnoldi_X(self, X):
+		r""" Generate a Vandermonde matrix corresponding to a different set of points
+		"""
+		M = self.Q.shape[0]	
+		iteridx = enumerate(self.idx)
+		# As the first column is the ones vector, we treat it as a special case
+		next(iteridx)
+		W = np.zeros(self.Q.shape, dtype = self.Q.dtype)
+		W[:,0] = 1/np.sqrt(M)
 
-		return self.Q
+		# Now work on the remaining columns
+		for k, ids in iteridx:
+			i, j = self._update_vec(ids) 
+			# Form new column
+			w = self.X[:,i] * W[:,j]
+	
+			for j in range(k):
+				w -= self.R[j,k]*W[:,j]
+			
+			W[:,k] = w/self.R[k,k]
+
+		return W
+		
+
+	def V(self, X = None):
+		if X is None or np.all(X == self.X):
+			return self.Q
+		else:
+			return self.arnoldi_X(X)
 
 
 	def DV(self, X = None):
+		if X is None or np.all(X == self.X):
+			V = self.Q
+		else:
+			V = self.arnoldi_X(X)
+
 		M, N = self.Q.shape
 		n = self.X.shape[1]
 		DV = np.zeros((M, N, n), dtype = self.Q.dtype)
@@ -480,12 +509,10 @@ class ArnoldiPolynomialBasis(Basis):
 			for j, ids in enumerate(self.idx):
 				# now apply the chain rule recursively
 				ids = np.copy(ids)
-				while True:
-					ids[k] -= 1
-					if np.min(ids) < 0:
-						break
+				ids[k] -= 1
+				if np.min(ids) >= 0:
 					i = int(np.argwhere([np.all(idx == ids) for idx in self.idx]).flatten())
-					DV[:,j,k] += self.Q[:,i]
+					DV[:,j,k] = V[:,i] + DV[:,i,k]
 		
 		return DV
 

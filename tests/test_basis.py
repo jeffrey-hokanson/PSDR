@@ -127,7 +127,7 @@ def test_arnoldi(dim = 2, N = 1000):
 		print(k, np.max(phi))
 		assert np.max(phi) < 1e-8, "Subspace angle too large"
 	
-	# check basis represents same object
+	# check basis represents same derivatives
 	DV1 = basis1.DV(X)
 	DV2 = basis2.DV()
 
@@ -138,9 +138,21 @@ def test_arnoldi(dim = 2, N = 1000):
 			#print(k, ell)
 			phi = scipy.linalg.subspace_angles(DV1[:,:k,ell], DV2[:,:k,ell])
 			if len(phi) >0:
-				print(phi)
 				print(k, np.max(phi))
 				assert np.max(phi) < 1e-8, "Subspace angle too large"
+
+
+	# Check when evaluating at new points
+	X2 = np.random.rand(N, dim)
+
+	print("Checking with a different set of points")	
+	V1 = basis1.V(X)
+	V2 = basis2.V(X2)
+	for k in range(1,V1.shape[1]):
+		phi = scipy.linalg.subspace_angles(V1[:,:k], V2[:,:k])
+		print(k, np.max(phi))
+		assert np.max(phi) < 1e-8, "Subspace angle too large"
+
 
 if __name__ == '__main__':
 	test_arnoldi()
