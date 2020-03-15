@@ -44,9 +44,9 @@ install:
 script:
  - pip3 freeze --local 
 # Pre-pull docker images
-# - docker pull jeffreyhokanson/oas:v1
-# - docker pull jeffreyhokanson/multif:v25
-# - docker pull jeffreyhokanson/naca0012
+ - docker pull jeffreyhokanson/oas:v1
+ - docker pull jeffreyhokanson/multif:v25
+ - docker pull jeffreyhokanson/naca0012
  - pytest --cov=psdr --cov-branch --cov-config=.coveragerc tests/
 
 after_success:
