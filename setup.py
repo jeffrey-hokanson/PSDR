@@ -14,20 +14,10 @@ install_requires = [
 		'satyrn>=0.3.2',
 	]
 
-if sys.version_info[0] < 3:
-	install_requires += [
-		'matplotlib<3.0.0',
-		# Required for python 2.7 from dask distributed
-		'tornado<6.0.0',
-		# LRU Cache
-		'backports.functools_lru_cache',
-		'scipy<=1.2.0', 
-		]
-else:
-	install_requires += [
-		'matplotlib',
-		'scipy>=1.1.0', 
-		]
+install_requires += [
+	'matplotlib',
+	'scipy>=1.1.0',
+	]
 
 
 
