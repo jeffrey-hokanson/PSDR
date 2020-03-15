@@ -46,7 +46,6 @@ services:
 
 
 install:
- - pip install scs==2.1.1 # There is a bug when installing scs==2.1.1-2
  - pip install -U pytest pytest-cov coveralls
  - python setup.py install 
 
