@@ -90,11 +90,16 @@ class PolynomialTensorBasis(Basis):
 		Function providing the derivatives of scalar polynomials (i.e., numpy.polynomial.polynomial.polyder)	
  
 	"""
-	def __init__(self, dim, degree, polyvander, polyder):
-		self.dim = int(dim)
+
+	def __init__(self, degree, X = None, dim = None):
 		self.degree = int(degree)
-		self.vander = polyvander
-		self.der = polyder
+		if X is not None:
+			self.X = np.atleast_2d(X)
+			self.dim = self.X.shape[1]
+			self.set_scale(self.X)
+		elif dim is not None:
+			self.dim = int(dim)
+	
 		self.indices = index_set(self.degree, self.dim).astype(int)
 		self._build_Dmat()
 
@@ -105,10 +110,9 @@ class PolynomialTensorBasis(Basis):
 		""" Constructs the (scalar) derivative matrix
 		"""
 		self.Dmat = np.zeros( (self.degree+1, self.degree))
+		I = np.eye(self.degree + 1)
 		for j in range(self.degree + 1):
-			ej = np.zeros(self.degree + 1)
-			ej[j] = 1.
-			self.Dmat[j,:] = self.der(ej)
+			self.Dmat[j,:] = self.polyder(I[:,j])
 
 	def set_scale(self, X):
 		r""" Construct an affine transformation of the domain to improve the conditioning
@@ -320,7 +324,7 @@ class PolynomialTensorBasis(Basis):
 							# We need the second derivative
 							eq = np.zeros(self.degree+1)
 							eq[alpha[q]] = 1.
-							der2 = self.der(eq, 2)
+							der2 = self.polyder(eq, 2)
 							DDV[:,j,k,ell] *= V_coordinate[q][:,0:len(der2)].dot(der2)
 						elif q == k or q == ell:
 							DDV[:,j,k,ell] *= np.dot(V_coordinate[q][:,0:-1], self.Dmat[alpha[q],:])
@@ -335,60 +339,60 @@ class PolynomialTensorBasis(Basis):
 	def roots(self, coef):
 		if self.dim > 1:
 			raise NotImplementedError
-		r = legroots(coef)
+		r = self.polyroots(coef)
 		return r*(self._ub[0] - self._lb[0])/2.0 + (self._ub[0] + self._lb[0])/2.
 		 
 
 class MonomialTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the monomials"""
-	def __init__(self, dim, degree):
-		PolynomialTensorBasis.__init__(self, dim, degree, polyvander, polyder)
-	
-	def roots(self, coef):
-		if self.dim > 1:
-			raise NotImplementedError
-		r = polyroots(coef)
-		return r*(self._ub[0] - self._lb[0])/2.0 + (self._ub[0] + self._lb[0])/2.
+	def __init__(self, *args, **kwargs):
+		self.vander = np.polynomial.polynomial.polyvander
+		self.polyder = np.polynomial.polynomial.polyder
+		self.polyroots = np.polynomial.polynomial.polyroots
+		PolynomialTensorBasis.__init__(self, *args, **kwargs)	
+
 	
 class LegendreTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the Legendre polynomials
 
 	"""
-	def __init__(self, dim, degree):
-		PolynomialTensorBasis.__init__(self, dim, degree, legvander, legder)
+	def __init__(self, *args, **kwargs):
+		self.vander = legvander
+		self.polyder = legder
+		self.polyroots = legroots
+		PolynomialTensorBasis.__init__(self, *args, **kwargs)	
 
 class ChebyshevTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the Chebyshev polynomials
 	
 	"""
-	def __init__(self, dim, degree):
-		PolynomialTensorBasis.__init__(self, dim, degree, chebvander, chebder)
+	def __init__(self, *args, **kwargs):
+		self.vander = chebvander
+		self.polyder = chebder
+		self.polyroots = chebroots
+		PolynomialTensorBasis.__init__(self, *args, **kwargs)	
 	
-	def roots(self, coef):
-		if self.dim > 1:
-			raise NotImplementedError
-		r = chebroots(coef)
-		return r*(self._ub[0] - self._lb[0])/2.0 + (self._ub[0] + self._lb[0])/2.
+	
 
 class LaguerreTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the Laguerre polynomials
 
 	"""
-	def __init__(self, dim, degree):
-		PolynomialTensorBasis.__init__(self, dim, degree, lagvander, lagder)
-	
-	def roots(self, coef):
-		if self.dim > 1:
-			raise NotImplementedError
-		r = lagroots(coef)
-		return r*(self._ub[0] - self._lb[0])/2.0 + (self._ub[0] + self._lb[0])/2.
+	def __init__(self, *args, **kwargs):
+		self.vander = lagvander
+		self.polyder = lagder
+		self.polyroots = lagroots
+		PolynomialTensorBasis.__init__(self, *args, **kwargs)	
 
 class HermiteTensorBasis(PolynomialTensorBasis):
 	"""A tensor product basis of bounded total degree built from the Hermite polynomials
 
 	"""
-	def __init__(self, dim, degree):
-		PolynomialTensorBasis.__init__(self, dim, degree, hermvander, hermder)
+	def __init__(self, *args, **kwargs):
+		self.vander = hermvander
+		self.polyder = hermder
+		self.polyroots = hermroots
+		PolynomialTensorBasis.__init__(self, *args, **kwargs)	
 
 	def _set_scale(self, X):
 		self._mean = np.mean(X, axis = 0)
@@ -416,7 +420,7 @@ class HermiteTensorBasis(PolynomialTensorBasis):
 class ArnoldiPolynomialBasis(Basis):
 	r""" Construct a stable polynomial basis for arbitrary points using Vandermonde+Arnoldi
 	"""
-	def __init__(self, X, degree):
+	def __init__(self, degree, X):
 		self.X = np.copy(np.atleast_2d(X))
 		self.dim = self.X.shape[1]
 		self.degree = int(degree)

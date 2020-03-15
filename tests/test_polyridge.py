@@ -31,8 +31,8 @@ def test_polyridge_der():
 	p = 3
 	
 	U = scipy.linalg.orth(np.random.randn(m,n))
-	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
-	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
+	coef = np.random.randn(len(LegendreTensorBasis(p, dim = n)))
+	prf = PolynomialRidgeFunction(LegendreTensorBasis(p, dim = n), coef, U)
 
 	x = np.random.randn(m)
 
@@ -158,8 +158,8 @@ def test_exact():
 
 def exact_data(M = 100, m = 10, n = 1, p = 3):
 	U = scipy.linalg.orth(np.random.randn(m,n))
-	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
-	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
+	coef = np.random.randn(len(LegendreTensorBasis(p, dim = n)))
+	prf = PolynomialRidgeFunction(LegendreTensorBasis(p, dim = n), coef, U)
 	
 	X = np.random.randn(M,m)
 	fX = prf.eval(X) 

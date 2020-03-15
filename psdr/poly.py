@@ -58,7 +58,7 @@ class PolynomialFunction(BaseFunction):
 		Coefficients of polynomial	
 	"""
 	def __init__(self, dimension, degree, coef):
-		self.basis = LegendreTensorBasis(dimension, degree) 
+		self.basis = LegendreTensorBasis(degree, dim = dimension) 
 		self.coef = np.array(coef)
 
 	def roots(self):
@@ -150,20 +150,20 @@ class PolynomialApproximation(PolynomialFunction):
 
 		# Since we don't know the input dimension until we get the data, we initialize the basis here
 		if self.basis_name == 'legendre':
-			self.basis = LegendreTensorBasis(m, self.degree) 
+			self.basis = LegendreTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'monomial':
-			self.basis = MonomialTensorBasis(m, self.degree) 
+			self.basis = MonomialTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'chebyshev':
-			self.basis = ChebyshevTensorBasis(m, self.degree) 
+			self.basis = ChebyshevTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'laguerre':
-			self.basis = LaguerreTensorBasis(m, self.degree) 
+			self.basis = LaguerreTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'hermite':
-			self.basis = HermiteTensorBasis(m, self.degree) 
+			self.basis = HermiteTensorBasis(self.degree, X = X) 
 		else:
 			raise NotImplementedError('Unknown basis type specified')
 
 		# Scale the basis to the problem
-		self.basis.set_scale(X)
+		#self.basis.set_scale(X)
 		
 		V = self.basis.V(X)
 

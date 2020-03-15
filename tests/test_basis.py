@@ -19,11 +19,11 @@ def test_equivalence(m = 3, p = 5):
 	np.random.seed(0)
 	M = 100
 	X = np.random.randn(M, m)
-	bases = [MonomialTensorBasis(m, p),
-		LegendreTensorBasis(m, p),
-		ChebyshevTensorBasis(m, p),
-		LaguerreTensorBasis(m, p),
-		HermiteTensorBasis(m, p),
+	bases = [MonomialTensorBasis(p, dim=m),
+		LegendreTensorBasis(p, dim=m),
+		ChebyshevTensorBasis(p, dim=m),
+		LaguerreTensorBasis(p, dim=m),
+		HermiteTensorBasis(p, dim=m),
 		]
 
 	Vs = [basis.V(X) for  basis in bases]
@@ -38,11 +38,11 @@ def test_VC(m = 3, p = 5):
 	np.random.seed(0)
 	M = 100
 	X = np.random.randn(M, m)
-	bases = [MonomialTensorBasis(m, p),
-		LegendreTensorBasis(m, p),
-		ChebyshevTensorBasis(m, p),
-		LaguerreTensorBasis(m, p),
-		HermiteTensorBasis(m, p),
+	bases = [MonomialTensorBasis(p, dim=m),
+		LegendreTensorBasis(p, dim=m),
+		ChebyshevTensorBasis(p, dim=m),
+		LaguerreTensorBasis(p, dim=m),
+		HermiteTensorBasis(p, dim=m),
 		]
 
 	for basis in bases:
@@ -65,11 +65,11 @@ def test_der(m = 3, p = 5, M = 10):
 	X = np.random.randn(M, m)
 		
 
-	bases = [MonomialTensorBasis(m, p),
-		LegendreTensorBasis(m, p),
-		ChebyshevTensorBasis(m, p),
-		LaguerreTensorBasis(m, p),
-		HermiteTensorBasis(m, p),
+	bases = [MonomialTensorBasis(p, dim=m),
+		LegendreTensorBasis(p, dim=m),
+		ChebyshevTensorBasis(p, dim=m),
+		LaguerreTensorBasis(p, dim=m),
+		HermiteTensorBasis(p, dim=m),
 		]
 
 	for basis in bases:
@@ -87,11 +87,11 @@ def test_hessian(m = 2, p = 5):
 	X = np.random.randn(10, m)
 		
 
-	bases = [MonomialTensorBasis(m, p),
-		LegendreTensorBasis(m, p),
-		ChebyshevTensorBasis(m, p),
-		LaguerreTensorBasis(m, p),
-		HermiteTensorBasis(m, p),
+	bases = [MonomialTensorBasis(p, dim=m),
+		LegendreTensorBasis(p, dim=m),
+		ChebyshevTensorBasis(p, dim=m),
+		LaguerreTensorBasis(p, dim=m),
+		HermiteTensorBasis(p, dim=m),
 		]
 
 	for basis in bases:
@@ -115,8 +115,8 @@ def test_arnoldi(dim = 2, N = 1000):
 	X = np.random.rand(N,dim)
 
 	degree = 10
-	basis1 = LegendreTensorBasis(dim, degree)
-	basis2 = ArnoldiPolynomialBasis(X, degree)
+	basis1 = LegendreTensorBasis(degree, dim = dim)
+	basis2 = ArnoldiPolynomialBasis(degree, X = X)
 
 
 	# check basis represents same object

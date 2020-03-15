@@ -6,7 +6,7 @@ from checkder import *
 
 def test_poly_der(dimension = 3, degree = 5):
 	np.random.seed(0)
-	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
+	coef = np.random.randn(len(LegendreTensorBasis(degree, dim = dimension)))
 	pf = PolynomialFunction(dimension, degree, coef)
 
 	x = np.random.randn(dimension)
@@ -18,7 +18,7 @@ def test_poly_der(dimension = 3, degree = 5):
 
 def test_poly_hess(dimension = 3, degree = 5):
 	np.random.seed(0)
-	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
+	coef = np.random.randn(len(LegendreTensorBasis(degree, dim = dimension)))
 	pf = PolynomialFunction(dimension, degree, coef)
 	
 	x = np.random.randn(dimension)
@@ -30,7 +30,7 @@ def test_poly_hess(dimension = 3, degree = 5):
 
 def test_dimensions(dimension = 3, degree = 5):
 	np.random.seed(0)
-	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
+	coef = np.random.randn(len(LegendreTensorBasis(degree, dim = dimension)))
 	pf = PolynomialFunction(dimension, degree, coef)
 
 	x = np.random.randn(dimension)
@@ -57,7 +57,7 @@ def test_dimensions(dimension = 3, degree = 5):
 def test_poly_basis(dimension = 2, degree = 5):
 	""" test different bases"""	
 	np.random.seed(0)
-	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
+	coef = np.random.randn(len(LegendreTensorBasis(degree, dim = dimension)))
 	pf = PolynomialFunction(dimension, degree, coef)
 
 	dom = BoxDomain(-np.ones(dimension), np.ones(dimension))

@@ -277,15 +277,15 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		self.basis_name = copy(basis)
 
 		if basis == 'legendre':
-			self.basis = LegendreTensorBasis(self.subspace_dimension, self.degree) 
+			self.basis = LegendreTensorBasis(self.degree, dim = self.subspace_dimension) 
 		elif basis == 'monomial':
-			self.basis = MonomialTensorBasis(self.subspace_dimension, self.degree) 
+			self.basis = MonomialTensorBasis(self.degree, dim = self.subspace_dimension) 
 		elif basis == 'chebyshev':
-			self.basis = ChebyshevTensorBasis(self.subspace_dimension, self.degree) 
+			self.basis = ChebyshevTensorBasis(self.degree, dim = self.subspace_dimension) 
 		elif basis == 'laguerre':
-			self.basis = LaguerreTensorBasis(self.subspace_dimension, self.degree) 
+			self.basis = LaguerreTensorBasis(self.degree, dim = self.subspace_dimension) 
 		elif basis == 'hermite':
-			self.basis = HermiteTensorBasis(self.subspace_dimension, self.degree) 
+			self.basis = HermiteTensorBasis(self.degree, dim = self.subspace_dimension) 
 		else:
 			raise NotImplementedError
 
