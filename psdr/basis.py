@@ -471,18 +471,18 @@ class ArnoldiPolynomialBasis(Basis):
 	def arnoldi_X(self, X):
 		r""" Generate a Vandermonde matrix corresponding to a different set of points
 		"""
-		M = self.Q.shape[0]	
+		W = np.zeros((X.shape[0], len(self.idx)), dtype = X.dtype)
+
 		iteridx = enumerate(self.idx)
 		# As the first column is the ones vector, we treat it as a special case
 		next(iteridx)
-		W = np.zeros(self.Q.shape, dtype = self.Q.dtype)
-		W[:,0] = 1/np.sqrt(M)
+		W[:,0] = 1/self.R[0,0]
 
 		# Now work on the remaining columns
 		for k, ids in iteridx:
 			i, j = self._update_vec(ids) 
 			# Form new column
-			w = self.X[:,i] * W[:,j]
+			w = X[:,i] * W[:,j]
 	
 			for j in range(k):
 				w -= self.R[j,k]*W[:,j]
@@ -493,14 +493,16 @@ class ArnoldiPolynomialBasis(Basis):
 		
 
 	def V(self, X = None):
-		if X is None or np.all(X == self.X):
+		if X is None or np.array_equal(X, self.X):
+			print("called V with X")
 			return self.Q
 		else:
+			print("called V with ", X.shape)
 			return self.arnoldi_X(X)
 
 
 	def DV(self, X = None):
-		if X is None or np.all(X == self.X):
+		if X is None or np.array_equal(X, self.X):
 			V = self.Q
 		else:
 			V = self.arnoldi_X(X)

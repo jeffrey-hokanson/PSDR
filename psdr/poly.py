@@ -133,7 +133,7 @@ class PolynomialApproximation(PolynomialFunction):
 		assert degree >= 0, "Degree must be positive"
 		self.degree = degree
 
-		assert basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
+		assert basis in ['arnoldi', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
 		self.basis_name = copy(basis)
 
 		self.basis = None
@@ -149,7 +149,9 @@ class PolynomialApproximation(PolynomialFunction):
 		M, m = X.shape
 
 		# Since we don't know the input dimension until we get the data, we initialize the basis here
-		if self.basis_name == 'legendre':
+		if self.basis_name == 'arnoldi':
+			self.basis = ArnoldiPolynomialBasis(self.degree, X = X) 
+		elif self.basis_name == 'legendre':
 			self.basis = LegendreTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'monomial':
 			self.basis = MonomialTensorBasis(self.degree, X = X) 

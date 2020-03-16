@@ -143,10 +143,10 @@ def test_arnoldi(dim = 2, N = 1000):
 
 
 	# Check when evaluating at new points
-	X2 = np.random.rand(N, dim)
+	X2 = np.random.rand(2*N, dim)
 
 	print("Checking with a different set of points")	
-	V1 = basis1.V(X)
+	V1 = basis1.V(X2)
 	V2 = basis2.V(X2)
 	for k in range(1,V1.shape[1]):
 		phi = scipy.linalg.subspace_angles(V1[:,:k], V2[:,:k])

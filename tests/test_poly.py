@@ -66,9 +66,14 @@ def test_poly_basis(dimension = 2, degree = 5):
 	Xtest = dom.sample(1000)
 	fXtest = pf(Xtest)
 	
-	for basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']:
+	for basis in ['arnoldi', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']:
+		print("basis ", basis)
 		pa = PolynomialApproximation(degree, basis = basis)
+		print("fitting")
 		pa.fit(X, fX)
+		print(pa.basis.V(Xtest).shape)
+		print(pa(Xtest).shape)
+		print(fXtest.shape)	
 		assert np.linalg.norm(pa(Xtest) - fXtest, np.inf) < 1e-7
 
 
