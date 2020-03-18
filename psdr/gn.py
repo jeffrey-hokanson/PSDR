@@ -173,7 +173,9 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 	if gnsolver is None:
 		# Scipy seems to properly check for proper allocation of working space, reporting an error with gelsd
 		# so we specify using gelss (an SVD based solver)
-		gnsolver = lambda f_eval, F_eval: sp.linalg.lstsq(F_eval, -f_eval, lapack_driver = 'gelss')[[0,3]]
+		def gnsolver(F_eval, f_eval):
+			dx, _, _, s = sp.linalg.lstsq(F_eval, -f_eval, lapack_driver = 'gelss')
+			return dx, s
 
 	x = np.copy(x0)
 	f_eval = f(x)
