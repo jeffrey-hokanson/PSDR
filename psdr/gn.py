@@ -21,7 +21,7 @@ def trajectory_linear(x0, p, t):
 	return x0 + t * p
 
 
-def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, trajectory = trajectory_linear):
+def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, trajectory = trajectory_linear, fx0 = None):
 	"""Back-Tracking Line Search to satify Armijo Condition
 
 		f(x0 + alpha*p) < f(x0) + alpha * ftol * <g,p>
@@ -55,7 +55,10 @@ def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, traject
 
 	alpha = 1
 
-	fx0 = f(x0)
+	if fx0 is None:
+		fx0 = f(x0)
+
+	fx0_norm = np.linalg.norm(fx0)
 	x = np.copy(x0)
 	fx = np.inf
 	success = False
@@ -63,7 +66,8 @@ def linesearch_armijo(f, g, p, x0, bt_factor=0.5, ftol=1e-4, maxiter=40, traject
 		try:
 			x = trajectory(x0, p, alpha)
 			fx = f(x)
-			if fx < fx0 + alpha * ftol * dg:
+			fx_norm = np.linalg.norm(fx)
+			if fx_norm < fx0_norm + alpha * ftol * dg:
 				success = True
 				break
 		except BadStep:
@@ -165,59 +169,67 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 
 	if linesearch is None:
 		linesearch = linesearch_armijo
+			
+	if gnsolver is None:
+		# Scipy seems to properly check for proper allocation of working space, reporting an error with gelsd
+		# so we specify using gelss (an SVD based solver)
+		gnsolver = lambda f_eval, F_eval: sp.linalg.lstsq(F_eval, -f_eval, lapack_driver = 'gelss')[[0,3]]
 
-	x = x0
-	grad = F(x).T.dot(f(x))
+	x = np.copy(x0)
+	f_eval = f(x)
+	F_eval = F(x)
+	grad = F_eval.T @ f_eval
+
 	normgrad = np.linalg.norm(grad)
 
 	#rescale tol by norm of initial gradient
 	tol = max(tol*normgrad, 1e-14)
+
 	normdx = 1
 	for it in range(maxiter):
 		residual_increased = False
 		
-		f_eval = f(x)
-		F_eval = F(x)
+		# Compute search direction
+		dx, s = gnsolver(F_eval, f_eval)
 		
-		# Breaks intermetently due to bug in lapack_lite used by Numpy
-		# See: numpy/linalg.py line #2038
-		#dx, _, rank, s = np.linalg.lstsq(F_eval, -f_eval, rcond = -1)
-	   
-		# Scipy seems to properly check for proper allocation of working space, reporting an error with gelsd
-		# so we specify using gelss (an SVD based solver)
-		if gnsolver is None:
-			dx, _, _, s = sp.linalg.lstsq(F_eval, -f_eval, lapack_driver = 'gelss')
-		else:
-			dx, s = gnsolver(F_eval, f_eval)
-
+		# Check we got a valid search direction
 		if not np.all(np.isfinite(dx)):
 			raise RuntimeError("Non-finite search direction returned") 
+		
+		# If Gauss-Newton step is not a descent direction, use -gradient instead
+		if np.inner(grad, dx) >= 0:
+			dx = -grad
+		
+		# Back tracking line search
+		x_new, alpha, f_eval_new = linesearch(f, grad, dx, x, trajectory=trajectory)
+		
 
+		normf = np.linalg.norm(f_eval_new)	
+		if np.linalg.norm(f_eval_new) >= np.linalg.norm(f_eval):
+			residual_increased = True
+		else:
+			#f_eval = f(x)
+			f_eval = f_eval_new
+			x = x_new
+
+		normdx = np.linalg.norm(dx)
+		F_eval = F(x)
+		grad = F_eval.T @ f_eval_new
+		
+
+		#########################################################################
+		# Printing section 
 		if s[-1] == 0:
 			cond = np.inf
 		else:	
 			cond = s[0] / s[-1]
-
-		# If Gauss-Newton step is not a descent direction, use -gradient instead
-		if np.inner(grad, dx) >= 0:
-			dx = -grad
-
-		x_new, alpha, f_eval_new = linesearch(lambda x: np.linalg.norm(f(x)), grad, dx, x, trajectory=trajectory)
 		
-		if f_eval_new >= np.linalg.norm(f_eval):
-			residual_increased = True
-		else:
-			x = x_new
-
-		normf = np.linalg.norm(f_eval_new)
-		normdx = np.linalg.norm(dx)
-		# TODO: Remove this additional evaluation of F and f
-		grad = F(x).T.dot(f(x))
-		normgrad = np.linalg.norm(grad)
 		if verbose >= 1:
+			normgrad = np.linalg.norm(grad)
 			print(
 				'    %3d  |  %1.4e  |  %8.2e  |  %8.2e  |  %8.2e  |  %8.2e' % (
 				it, normf, normdx, cond, alpha, normgrad))
+		# Termination conditions
 		if normgrad < tol:
 			if verbose: print("norm gradient %1.3e less than tolerance %1.3e" % 
 				(normgrad, tol))
