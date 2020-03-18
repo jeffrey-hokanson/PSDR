@@ -117,10 +117,10 @@ def test_minimax_gradient():
 	# Random point
 	U, _ = np.linalg.qr(np.random.randn(m,n))
 
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False)
+	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False, maxiter = 0)
 	
 	# Initialize subspace
-	pra.fit(X, fX, maxiter = 0)
+	pra.fit(X, fX)
 	#pra.set_scale(X, U)
 	#pra._fit_fixed_U_inf_norm(X, fX, U)
 	#c = pra.coef	
@@ -164,8 +164,8 @@ def test_exact():
 
 	for basis in ['legendre', 'arnoldi']:
 
-		pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True, basis = basis)
-		pra.fit(X, fX, U0 = U, verbose = 1)
+		pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True, basis = basis, verbose = True)
+		pra.fit(X, fX, U0 = U)
 		# Because the data is an exact ridge function, we should (I think) converge to the global solution
 		for fX1, fX2 in zip(pra(X), fX):
 			print("%+10.5e  %+10.5e | %10.5e" % (fX1,fX2, np.abs(fX1 - fX2)))
@@ -186,29 +186,29 @@ def exact_data(M = 100, m = 10, n = 1, p = 3):
 def test_fit_inf():
 	X, fX, Uopt = exact_data()
 
-	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = np.inf)
-	pra.fit(X, fX, verbose = True)
+	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = np.inf, verbose = True)
+	pra.fit(X, fX)
 	assert np.all(np.isclose(pra(X), fX))
 
 def test_fit_one():
 	X, fX, Uopt = exact_data()
 
-	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 1)
-	pra.fit(X, fX, verbose = True)
+	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 1, verbose = True)
+	pra.fit(X, fX)
 	assert np.all(np.isclose(pra(X), fX))
 	
 def test_fit_two():
 	X, fX, Uopt = exact_data()
 
-	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2)
-	pra.fit(X, fX, verbose = True)
+	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2, verbose = True)
+	pra.fit(X, fX)
 	assert np.all(np.isclose(pra(X), fX))
 
 
 def test_profile(degree = 3, subspace_dimension = 1):
 	X, fX, Uopt = exact_data()
-	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2)
-	pra.fit(X, fX, verbose = False)
+	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2, verbose = True)
+	pra.fit(X, fX)
 	
 	Y = pra.U.T.dot(X.T).T
 	assert np.all(np.isclose(pra.profile(Y), pra(X)))

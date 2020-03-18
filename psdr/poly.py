@@ -118,7 +118,7 @@ class PolynomialApproximation(PolynomialFunction):
 	----------
 	degree: int
 		Degree of polynomial
-	basis: ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
+	basis: ['arnold', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
 		Basis in which to express the polynomial
 	norm: [1, 2, np.inf]
 		Norm in which to find the approximation
