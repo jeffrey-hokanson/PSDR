@@ -16,6 +16,8 @@ from numpy.polynomial.chebyshev import chebvander, chebder, chebroots
 from numpy.polynomial.hermite import hermvander, hermder, hermroots
 from numpy.polynomial.laguerre import lagvander, lagder, lagroots
 
+from itertools import product
+
 class Basis(object):
 	pass
 
@@ -99,6 +101,7 @@ class PolynomialTensorBasis(Basis):
 			self.set_scale(self.X)
 		elif dim is not None:
 			self.dim = int(dim)
+			self.X = None
 	
 		self.indices = index_set(self.degree, self.dim).astype(int)
 		self._build_Dmat()
@@ -141,7 +144,7 @@ class PolynomialTensorBasis(Basis):
 		except AttributeError:
 			raise NotImplementedError
 
-	def V(self, X):
+	def V(self, X = None):
 		r""" Builds the Vandermonde matrix associated with this basis
 
 		Given points :math:`\mathbf x_i \in \mathbb{R}^n`, 
@@ -164,6 +167,11 @@ class PolynomialTensorBasis(Basis):
 		V: np.array
 			Vandermonde matrix
 		"""
+		if X is None and self.X is not None:
+			X = self.X
+		elif X is None:
+			raise NotImplementedError
+
 		X = X.reshape(-1, self.dim)
 		X = self._scale(np.array(X))
 		M = X.shape[0]
@@ -424,13 +432,16 @@ class ArnoldiPolynomialBasis(Basis):
 		self.X = np.copy(np.atleast_2d(X))
 		self.dim = self.X.shape[1]
 		self.degree = int(degree)
-		self.idx = index_set(self.degree, self.dim)
+		self.indices = index_set(self.degree, self.dim)
 
 		self.Q, self.R = self.arnoldi()
+	
+	def __len__(self):
+		return len(self.indices)
 
 	def _update_vec(self, ids):
 		# Determine which column to multiply by
-		diff = self.idx - ids
+		diff = self.indices - ids
 		# Here we pick the most recent column that is one off
 		j = np.max(np.argwhere( (np.sum(np.abs(diff), axis = 1) <= 1) & (np.min(diff, axis = 1) == -1)))
 		i = int(np.argwhere(diff[j] == -1))
@@ -439,7 +450,7 @@ class ArnoldiPolynomialBasis(Basis):
 	def arnoldi(self):
 		r""" Apply the Arnoldi proceedure to build up columns of the Vandermonde matrix
 		"""
-		idx = self.idx
+		idx = self.indices
 		M = self.X.shape[0]
 
 		# Allocate memory for matrices
@@ -460,7 +471,7 @@ class ArnoldiPolynomialBasis(Basis):
 			q = self.X[:,i] * Q[:,j]
 	
 			for j in range(k):
-				R[j,k] = Q[:,j].T @ q/M
+				R[j,k] = Q[:,j].T @ q
 				q -= R[j,k]*Q[:,j]
 			
 			R[k,k] = np.linalg.norm(q)
@@ -471,9 +482,9 @@ class ArnoldiPolynomialBasis(Basis):
 	def arnoldi_X(self, X):
 		r""" Generate a Vandermonde matrix corresponding to a different set of points
 		"""
-		W = np.zeros((X.shape[0], len(self.idx)), dtype = X.dtype)
+		W = np.zeros((X.shape[0], len(self.indices)), dtype = X.dtype)
 
-		iteridx = enumerate(self.idx)
+		iteridx = enumerate(self.indices)
 		# As the first column is the ones vector, we treat it as a special case
 		next(iteridx)
 		W[:,0] = 1/self.R[0,0]
@@ -494,31 +505,36 @@ class ArnoldiPolynomialBasis(Basis):
 
 	def V(self, X = None):
 		if X is None or np.array_equal(X, self.X):
-			print("called V with X")
 			return self.Q
 		else:
-			print("called V with ", X.shape)
 			return self.arnoldi_X(X)
 
 
 	def DV(self, X = None):
 		if X is None or np.array_equal(X, self.X):
+			X = self.X
 			V = self.Q
 		else:
 			V = self.arnoldi_X(X)
 
-		M, N = self.Q.shape
+		M = X.shape[0]
+		N = self.Q.shape[1]
 		n = self.X.shape[1]
 		DV = np.zeros((M, N, n), dtype = self.Q.dtype)
 
-		for k in range(n):
-			for j, ids in enumerate(self.idx):
-				# now apply the chain rule recursively
-				ids = np.copy(ids)
-				ids[k] -= 1
-				if np.min(ids) >= 0:
-					i = int(np.argwhere([np.all(idx == ids) for idx in self.idx]).flatten())
-					DV[:,j,k] = V[:,i] + DV[:,i,k]
+		for ell in range(n):
+			index_iterator = enumerate(self.indices)
+			next(index_iterator)
+			for k, ids in index_iterator:
+				i, j = self._update_vec(ids)
+				# Q[:,k] = X[:,i] * Q[:,j] - sum_s Q[:,s] * R[s, k]
+				if i == ell:
+					DV[:,k,ell] = V[:,j] + X[:,i] * DV[:,j,ell] - DV[:,0:k,ell] @ self.R[0:k,k] 
+				else:
+					DV[:,k,ell] = X[:,i] * DV[:,j,ell] - DV[:,0:k,ell] @ self.R[0:k,k] 
+				DV[:,k,ell] /= self.R[k,k]	
 		
 		return DV
 
+	def DDV(self, X = None):
+		raise NotImplementedError

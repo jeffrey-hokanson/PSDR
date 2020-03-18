@@ -119,9 +119,13 @@ def test_arnoldi(dim = 2, N = 1000):
 	basis2 = ArnoldiPolynomialBasis(degree, X = X)
 
 
-	# check basis represents same object
 	V1 = basis1.V(X)
-	V2 = basis2.V()
+	V2 = basis2.V(X)
+	# Check that V2 is orthonormal
+	assert np.max(np.abs(V2.T @ V2 - np.eye(V2.shape[1]))) < 1e-10
+
+
+	# check basis represents same object
 	for k in range(1,V1.shape[1]):
 		phi = scipy.linalg.subspace_angles(V1[:,:k], V2[:,:k])
 		print(k, np.max(phi))
@@ -129,7 +133,7 @@ def test_arnoldi(dim = 2, N = 1000):
 	
 	# check basis represents same derivatives
 	DV1 = basis1.DV(X)
-	DV2 = basis2.DV()
+	DV2 = basis2.DV(X)
 
 	for ell in range(X.shape[1]):
 		for k in range(2,DV1.shape[1]):
@@ -154,5 +158,38 @@ def test_arnoldi(dim = 2, N = 1000):
 		assert np.max(phi) < 1e-8, "Subspace angle too large"
 
 
+def test_arnoldi_der(dim = 3, N = 1000):
+#	np.random.seed(1)
+	X = np.random.rand(N,dim)
+	X2 = np.random.rand(N+10, dim)
+	degree = 10
+	basis1 = LegendreTensorBasis(degree, dim = dim)
+	basis2 = ArnoldiPolynomialBasis(degree, X = X)
+
+	# Construct on polynomial
+	V1 = basis1.V(X)
+	V2 = basis2.V(X)
+	DV1 = basis1.DV(X2)
+	DV2 = basis2.DV(X2)
+	for k in range(V1.shape[1]):
+		ek = np.zeros(V1.shape[1])
+		ek[k] = 1
+		fX = V1 @ ek
+	
+		c2 = V2.T @ fX
+		assert np.linalg.norm(fX - V2 @ c2) < 1e-10, "Did not approximate correctly"
+		# Check derivative
+		
+		fXp1 = np.einsum('ijk,j->ik', DV1, ek) 
+		fXp2 = np.einsum('ijk,j->ik', DV2, c2) 
+		err = np.max(np.abs(fXp1 - fXp2))
+		print('ek', k)
+		for j in range(1):
+			print(fXp1[j,:], '\t', fXp2[j,:], '\t', fXp1[j,:]/fXp2[j,:], '\t', X[j,:])
+		print(err)
+		assert err < 1e-8
+
+
 if __name__ == '__main__':
-	test_arnoldi()
+#	test_arnoldi()
+	test_arnoldi_der()

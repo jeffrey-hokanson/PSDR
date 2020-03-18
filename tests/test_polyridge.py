@@ -47,10 +47,10 @@ def test_polyridge_der():
 
 def test_varpro_jacobian():
 	np.random.seed(1)
-	M = 100
-	m = 10
-	n = 2
-	p = 5
+	M = 6
+	m = 2
+	n = 1
+	p = 2
 	
 	# Samples
 	X = np.random.uniform(-1,1, size = (M,m))
@@ -65,18 +65,23 @@ def test_varpro_jacobian():
 
 	U_flat = U.flatten()
 
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False)
-	res = lambda U: pra._varpro_residual(X, fX, U)
-	jac = lambda U: pra._varpro_jacobian(X, fX, U)
+	for basis in ['legendre', 'arnoldi']:
+		pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False, basis = basis)
+		# This sets the basis
+		Y = (U.T @ X.T).T
+	#	pra.basis = pra.Basis(pra.degree, Y) 
+		#pra._varpro_jacobian(X, fX, U)
+		res = lambda U: pra._varpro_residual(X, fX, U)
+		jac = lambda U: pra._varpro_jacobian(X, fX, U)
 
-	err = check_jacobian(U_flat, res, jac)	
+		err = check_jacobian(U_flat, res, jac, hvec = [1e-7])	
 
-	assert err < 1e-6
+		assert err < 1e-6
 	
 
 	# Check with scaling on
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True)
-	pra.set_scale(X, U)
+	#pra.set_scale(X, U)
 	res = lambda U: pra._varpro_residual(X, fX, U)
 	jac = lambda U: pra._varpro_jacobian(X, fX, U)
 
@@ -86,7 +91,7 @@ def test_varpro_jacobian():
 
 	# Check with scaling on for Hermite basis
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True, basis = 'hermite')
-	pra.set_scale(X, U)
+#	pra.set_scale(X, U)
 	res = lambda U: pra._varpro_residual(X, fX, U)
 	jac = lambda U: pra._varpro_jacobian(X, fX, U)
 
@@ -116,7 +121,7 @@ def test_minimax_gradient():
 	#pra.set_scale(X, U)
 	#pra._fit_fixed_U_inf_norm(X, fX, U)
 	#c = pra.coef	
-	c = np.random.randn(len(pra.basis))	
+	c = np.random.randn(len(pra.Basis(p, dim = n)))	
 
 	U_c = np.hstack([U.flatten(), c])
 
@@ -131,30 +136,36 @@ def test_minimax_gradient():
 
 def test_exact():
 	np.random.seed(1)
-	M = 100
-	m = 10
-	n = 2
-	p = 5
-	
-	# Samples
-	X = np.random.randn(M,m)
-	
-	# Synthetic function
-	a = np.random.randn(m)
-	b = np.random.randn(m)
-	fX = np.dot(a,X.T)**2 + np.dot(b, X.T)**3
+#	M = 100
+#	m = 10
+#	n = 2
+#	p = 5
+#	
+#	# Samples
+#	X = np.random.randn(M,m)
+#	
+#	# Synthetic function
+#	a = np.random.randn(m)
+#	b = np.random.randn(m)
+#	fX = np.dot(a,X.T)**2 + np.dot(b, X.T)**3
+	m, n = 10, 2
+	p = 3
+	X, fX, Uopt = exact_data(m = m, n = n, p =p)
 
 	# Random point
 	U, _ = np.linalg.qr(np.random.randn(m,n))
 	# Actual ridge subspace
 	#U, _ = np.linalg.qr(np.vstack([a,b]).T)	
+	#U += Uopt
 
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True)
-	pra.fit(X, fX, U0 = U, verbose = 1)
-	# Because the data is an exact ridge function, we should (I think) converge to the global solution
-	for fX1, fX2 in zip(pra(X), fX):
-		print("%10.5e  %10.5e" % (fX1,fX2))
-	assert np.all(np.isclose(pra(X), fX))
+	for basis in ['legendre', 'arnoldi']:
+
+		pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = True, basis = basis)
+		pra.fit(X, fX, U0 = U, verbose = 1)
+		# Because the data is an exact ridge function, we should (I think) converge to the global solution
+		for fX1, fX2 in zip(pra(X), fX):
+			print("%+10.5e  %+10.5e | %10.5e" % (fX1,fX2, np.abs(fX1 - fX2)))
+		assert np.all(np.isclose(pra(X), fX))
 
 def exact_data(M = 100, m = 10, n = 1, p = 3):
 	U = scipy.linalg.orth(np.random.randn(m,n))
@@ -163,24 +174,24 @@ def exact_data(M = 100, m = 10, n = 1, p = 3):
 	
 	X = np.random.randn(M,m)
 	fX = prf.eval(X) 
-	return X, fX
+	return X, fX, U
 
 def test_fit_inf():
-	X, fX = exact_data()
+	X, fX, Uopt = exact_data()
 
 	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = np.inf)
 	pra.fit(X, fX, verbose = True)
 	assert np.all(np.isclose(pra(X), fX))
 
 def test_fit_one():
-	X, fX = exact_data()
+	X, fX, Uopt = exact_data()
 
 	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 1)
 	pra.fit(X, fX, verbose = True)
 	assert np.all(np.isclose(pra(X), fX))
 	
 def test_fit_two():
-	X, fX = exact_data()
+	X, fX, Uopt = exact_data()
 
 	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2)
 	pra.fit(X, fX, verbose = True)
@@ -188,9 +199,15 @@ def test_fit_two():
 
 
 def test_profile(degree = 3, subspace_dimension = 1):
-	X, fX = exact_data()
+	X, fX, Uopt = exact_data()
 	pra = PolynomialRidgeApproximation(degree = 3, subspace_dimension = 1, norm = 2)
 	pra.fit(X, fX, verbose = False)
 	
 	Y = pra.U.T.dot(X.T).T
 	assert np.all(np.isclose(pra.profile(Y), pra(X)))
+
+
+if __name__ == '__main__':
+	test_exact()
+#	test_varpro_jacobian()
+

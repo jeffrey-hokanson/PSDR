@@ -211,6 +211,7 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 
 		normf = np.linalg.norm(f_eval_new)
 		normdx = np.linalg.norm(dx)
+		# TODO: Remove this additional evaluation of F and f
 		grad = F(x).T.dot(f(x))
 		normgrad = np.linalg.norm(grad)
 		if verbose >= 1:
