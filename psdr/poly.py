@@ -57,8 +57,8 @@ class PolynomialFunction(BaseFunction):
 	coef: array-like
 		Coefficients of polynomial	
 	"""
-	def __init__(self, dimension, degree, coef):
-		self.basis = LegendreTensorBasis(degree, dim = dimension) 
+	def __init__(self, basis, coef):
+		self.basis = basis
 		self.coef = np.array(coef)
 
 	def roots(self):
@@ -161,12 +161,8 @@ class PolynomialApproximation(PolynomialFunction):
 			self.basis = LaguerreTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'hermite':
 			self.basis = HermiteTensorBasis(self.degree, X = X) 
-		else:
-			raise NotImplementedError('Unknown basis type specified')
 
-		# Scale the basis to the problem
-		#self.basis.set_scale(X)
-		
+		# Construct Vandermonde matrix
 		V = self.basis.V(X)
 
 		self.coef = linear_fit(V, fX, norm = self.norm, bound = self.bound)

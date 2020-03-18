@@ -1,9 +1,9 @@
 from __future__ import print_function
 import numpy as np
 import scipy.linalg
-from psdr import PolynomialRidgeApproximation, LegendreTensorBasis, PolynomialRidgeFunction
+from psdr import PolynomialRidgeApproximation, LegendreTensorBasis, PolynomialRidgeFunction, ArnoldiPolynomialBasis
 from checkder import *
-
+from itertools import product
 
 def test_affine():
 	X = np.random.randn(100, 5)
@@ -118,6 +118,9 @@ def test_minimax_gradient():
 	U, _ = np.linalg.qr(np.random.randn(m,n))
 
 	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension = n, scale = False)
+	
+	# Initialize subspace
+	pra.fit(X, fX, maxiter = 0)
 	#pra.set_scale(X, U)
 	#pra._fit_fixed_U_inf_norm(X, fX, U)
 	#c = pra.coef	
@@ -148,9 +151,10 @@ def test_exact():
 #	a = np.random.randn(m)
 #	b = np.random.randn(m)
 #	fX = np.dot(a,X.T)**2 + np.dot(b, X.T)**3
+	M = 1000
 	m, n = 10, 2
 	p = 3
-	X, fX, Uopt = exact_data(m = m, n = n, p =p)
+	X, fX, Uopt = exact_data(M = M, m = m, n = n, p =p)
 
 	# Random point
 	U, _ = np.linalg.qr(np.random.randn(m,n))
@@ -169,11 +173,14 @@ def test_exact():
 
 def exact_data(M = 100, m = 10, n = 1, p = 3):
 	U = scipy.linalg.orth(np.random.randn(m,n))
-	coef = np.random.randn(len(LegendreTensorBasis(p, dim = n)))
-	prf = PolynomialRidgeFunction(LegendreTensorBasis(p, dim = n), coef, U)
+	fX = np.random.randn(M,)
+	X = np.random.rand(M, m)
+	Y = (U.T @ X.T).T
+	basis = ArnoldiPolynomialBasis(p, Y)
+	V = basis.V()
 	
-	X = np.random.randn(M,m)
-	fX = prf.eval(X) 
+	# Project to be exact
+	fX = V @ (V.T @ fX)
 	return X, fX, U
 
 def test_fit_inf():
@@ -207,7 +214,33 @@ def test_profile(degree = 3, subspace_dimension = 1):
 	assert np.all(np.isclose(pra.profile(Y), pra(X)))
 
 
-if __name__ == '__main__':
-	test_exact()
-#	test_varpro_jacobian()
+def test_same_solution(degree = 5, dim = 2):
+	np.random.seed(0)
+	X, fX, U = exact_data(M = 1000, m = 10, n = dim, p = degree)
 
+	bases = ['arnoldi', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']	
+
+	#
+	#U0 = U + 0.01*np.random.randn(*U.shape)
+	U0 = None
+	for norm, bound in product([1, 2, np.inf], [None]): # , 'lower', 'upper']):
+		print("="*50)
+		print("Norm", norm, "bound" ,bound)
+		Us = []
+		for basis in bases:
+			print('basis', basis)
+			pra = PolynomialRidgeApproximation(degree = 5, subspace_dimension = dim, basis = basis, bound = bound, verbose = True)
+			pra.fit(X, fX, U0 = U0)
+			Us.append(np.copy(pra.U))
+
+		angles = np.zeros((len(Us), len(Us)))
+		for (i, j) in zip(*np.triu_indices(len(Us))):
+			angles[i,j] = np.max(scipy.linalg.subspace_angles(Us[i], Us[j]))
+
+		print(angles)
+		assert np.max(angles) < 1e-10, "Did not find same solution using a different basis"
+
+if __name__ == '__main__':
+#	test_exact()
+#	test_varpro_jacobian()
+	test_same_solution()

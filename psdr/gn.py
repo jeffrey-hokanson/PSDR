@@ -240,7 +240,7 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 			break
 		if residual_increased:
 			if verbose: print("residual increased during line search from %1.5e to %1.5e" % 
-				(np.linalg.norm(f_eval), f_eval_new))
+				(np.linalg.norm(f_eval), np.linalg.norm(f_eval_new)))
 			break
 
 	if normgrad <= tol:
@@ -255,7 +255,7 @@ def gauss_newton(f, F, x0, tol=1e-10, tol_normdx=1e-12,
 		info = 2
 		if verbose >= 1:
 			print ('Gauss-Newton did not converge: max iterations reached')
-	elif f_eval_new >= np.linalg.norm(f_eval):
+	elif np.linalg.norm(f_eval_new) >= np.linalg.norm(f_eval):
 		info = 3
 		if verbose >= 1:
 			print ('No progress made during line search')
