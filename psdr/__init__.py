@@ -24,3 +24,5 @@ from .sample import *
 # Optimization
 from .minimax import *
 from .gn import *
+
+from .nonlin import *
