@@ -620,6 +620,11 @@ class EuclideanDomain(Domain):
 			If we are unable to find a point in the domain satisfying the constraints
 		"""
 		draw = int(draw)
+		
+		# If request a non positive number of samples, simply return zero
+		if draw <= 0:
+			return np.zeros((0, len(self)))
+
 		x_sample = self._sample(draw = draw)
 		if draw == 1: 
 			x_sample = x_sample.flatten()
