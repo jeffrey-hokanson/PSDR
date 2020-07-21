@@ -22,7 +22,7 @@ install_requires += [
 
 
 setup(name='psdr',
-	version = '0.2',
+	version = '0.3.4',
 	description = 'Parameter Space Dimension Reduction Toolbox',
 	author = 'Jeffrey M. Hokanson',
 	packages = ['psdr', 'psdr.demos', 'psdr.domains', 'psdr.sample', 'psdr.geometry'],
