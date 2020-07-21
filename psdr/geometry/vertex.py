@@ -4,7 +4,7 @@ r""" Tools for computing Voronoi vertices
 from __future__ import print_function
 
 import numpy as np
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cdist, pdist
 import scipy.linalg
 from cvxopt import matrix, solvers
 solvers.options['show_progress'] = False
@@ -14,6 +14,8 @@ from .cdist import cdist
 from .geometry import unique_points
 
 from scipy.spatial.qhull import QhullError
+
+
 
 def voronoi_vertex(domain, Xhat, L = None):
 	r""" Construct the bounded Voronoi vertices on a domain 
@@ -28,10 +30,15 @@ def voronoi_vertex(domain, Xhat, L = None):
 	"""
 
 	assert np.all(domain.isinside(Xhat))
+
 	if L is None:
 		L = np.eye(len(domain))
+		Linv = np.eye(len(domain))
+	else:
+		U, s, VT = np.linalg.svd(L)
+		Linv = VT.T @ np.diag(1./s) @ U.T
 
-	LV = []
+
 
 	# Half spaces from the domain
 	A, b = domain.A_aug, domain.b_aug
@@ -41,36 +48,40 @@ def voronoi_vertex(domain, Xhat, L = None):
 		hs = HalfspaceIntersection(halfspaces, Xhat[0])
 		return hs.intersections	
 
+	Yhat = (L @ Xhat.T).T
+	LV = []
 	for k, xhat in enumerate(Xhat):
-		Ak = np.vstack([L @ (Xhat[j] - xhat) for j in range(len(Xhat)) if j != k])
-		center = np.vstack([ 0.5*L @ (xhat + Xhat[j]) for j in range(len(Xhat)) if j != k]) 
+		Ak = Yhat - Yhat[k] 
+		#Ak = np.vstack([L @ (Xhat[j] - xhat) for j in range(len(Xhat)) if j != k])
+		center = 0.5 * (Yhat[k] + Yhat)
+		#center = np.vstack([ 0.5*L @ (xhat + Xhat[j]) for j in range(len(Xhat)) if j != k]) 
 		bk = np.sum(Ak * center, axis = 1)
-
-		halfspaces = np.hstack([np.vstack([A, Ak]) @ L , -np.hstack([b, bk]).reshape(-1,1)])
+		
+		# If two Xhat are the same, we can end up with a situation 
+		# where the constraint stops  so we filter these out
+		I = np.argwhere(np.sum(Ak**2, axis = 1) > 0).flatten()
+		Ak, bk = Ak[I], bk[I]
+	
+		halfspaces = np.hstack([np.vstack([A @ Linv , Ak  ]) , -np.hstack([b, bk]).reshape(-1,1)])
 
 		try:
 			hs = HalfspaceIntersection(halfspaces, xhat)
 		except QhullError:
-		
 			# The point xhat isn't strictly inside the constraints, so we try with a point that is
 			# Here we use the code from scipy documentation 
-			# TODO: We should probably have one implementation of this; cf. chebyschev_center in domain/linineq.py 
 			norm_vector = np.reshape(np.linalg.norm(halfspaces[:, :-1], axis=1),(halfspaces.shape[0], 1))
 			cc = np.zeros((halfspaces.shape[1],))
 			cc[-1] = -1
 			AA = np.hstack((halfspaces[:, :-1], norm_vector))
 			bb = -halfspaces[:, -1:]
-			# Scipy's linprog 
+			
+			# Solve the linear program with CVXOPT as scipy's linprog reports ill-conditioning 
 			sol = solvers.lp(matrix(cc), matrix(AA), matrix(bb))
-			#res = linprog(cc, A_ub=AA, b_ub=bb, bounds = (None, None))
 			xhat2 = np.array(sol['x'][:-1]).flatten()
-
+			
 			try:
 				hs = HalfspaceIntersection(halfspaces, xhat2)
 			except QhullError as e:
-				print(halfspaces)
-				print(xhat)
-				print(xhat2)
 				raise e
 
 
@@ -78,13 +89,9 @@ def voronoi_vertex(domain, Xhat, L = None):
 		LV.append(np.copy(hs.intersections))
 
 	LV = np.vstack(LV)
-	I = unique_points(LV)
-	LV = LV[I]
-	
-	if L.shape[0] == len(domain):
-		V = np.linalg.solve(L, LV.T).T
-	else:
-		raise NotImplemented
+	V = (Linv @ LV.T).T
+	I = unique_points(V)
+	V = V[I]
 	
 	I = domain.isinside(V)
 	V = V[I]

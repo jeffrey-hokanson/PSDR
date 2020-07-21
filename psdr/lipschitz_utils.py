@@ -2,8 +2,6 @@ import numpy as np
 import scipy.linalg
 from scipy.optimize import brenth, brentq
 
-
-
 def _quad_form(A, X):
 	r""" Computes x[i].T @ A @ x[i] efficiently
 	"""
