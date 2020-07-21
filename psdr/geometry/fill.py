@@ -3,7 +3,30 @@ from __future__ import print_function, division
 import numpy as np
 from scipy.spatial.distance import cdist
 
-from .vertex import voronoi_vertex_sample
+from .vertex import voronoi_vertex_sample, voronoi_vertex
+
+def fill_distance(domain, Xhat, L = None):
+	r""" Compute the exact fill distance by constructing the bounded Voronoi vertices
+
+
+	Parameters
+	----------
+	domain: Domain
+		Domain on which to compute the dispersion
+	Xhat: array-like (?, m)
+		Existing samples on the domain
+	L: array-like (?, m) optional
+		Matrix defining the distance metric on the domain
+	
+	Returns
+	-------
+	d: float
+		Fill distance 
+	"""
+
+	V = voronoi_vertex(domain, Xhat, L = L)
+    D = psdr.cdist(X, V, L = L)
+    return np.max(np.min(D, axis= 0))	
 
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):
 	r""" Estimate the fill distance of the points Xhat in the domain
