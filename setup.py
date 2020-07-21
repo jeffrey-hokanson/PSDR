@@ -12,6 +12,7 @@ install_requires = [
 		'distributed',
 		'sobol_seq',
 		'satyrn>=0.3.2',
+		'iterprinter',
 	]
 
 install_requires += [
@@ -22,7 +23,7 @@ install_requires += [
 
 
 setup(name='psdr',
-	version = '0.3.4',
+	version = '0.3.5',
 	description = 'Parameter Space Dimension Reduction Toolbox',
 	author = 'Jeffrey M. Hokanson',
 	packages = ['psdr', 'psdr.demos', 'psdr.domains', 'psdr.sample', 'psdr.geometry'],
