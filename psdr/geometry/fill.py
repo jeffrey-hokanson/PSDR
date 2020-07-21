@@ -3,7 +3,7 @@ from __future__ import print_function, division
 import numpy as np
 from scipy.spatial.distance import cdist
 
-from .vertex import voronoi_vertex
+from .vertex import voronoi_vertex_sample
 
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):
 	r""" Estimate the fill distance of the points Xhat in the domain
@@ -17,7 +17,7 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None )
 
 		\sup_{\mathbf{x} \in \mathcal{D}} \min_{j=1,\ldots,M} \|\mathbf{L}(\mathbf{x} - \widehat{\mathbf{x}}_j)\|_2.
 
-	Similar to :meth:`psdr.seq_maximin_sample`, this uses :meth:`psdr.voronoi_vertex` to find 
+	Similar to :meth:`psdr.seq_maximin_sample`, this uses :meth:`psdr.voronoi_vertex_sample` to find 
 	a subset of local maximizers and returns the best of these.
 
 	Parameters
@@ -31,7 +31,7 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None )
 	Nsamp: int, default 1e4
 		Number of samples to use for vertex sampling
 	X0: array-like (?, m)
-		Samples from the domain to use in :meth:`psdr.voronoi_vertex`
+		Samples from the domain to use in :meth:`psdr.voronoi_vertex_sample`
 
 	Returns
 	-------
@@ -56,7 +56,7 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None )
 
 	# Since we only care about distance in L, we can terminate early if L is rank-deficient
 	# and hence we turn off the randomization
-	Xcan = voronoi_vertex(domain, Xhat, X0, L = L, randomize = False)
+	Xcan = voronoi_vertex_sample(domain, Xhat, X0, L = L, randomize = False)
 
 	# Euclidean distance
 	D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)

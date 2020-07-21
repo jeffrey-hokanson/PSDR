@@ -1,12 +1,96 @@
+r""" Tools for computing Voronoi vertices
+"""
+
 from __future__ import print_function
 
 import numpy as np
 from scipy.spatial.distance import cdist
 import scipy.linalg
+from cvxopt import matrix, solvers
+solvers.options['show_progress'] = False
 
-#from .domains import Domain
+from scipy.spatial import HalfspaceIntersection
+from .cdist import cdist
+from .geometry import unique_points
 
-def voronoi_vertex(domain, Xhat, X0, L = None, randomize = True):
+from scipy.spatial.qhull import QhullError
+
+def voronoi_vertex(domain, Xhat, L = None):
+	r""" Construct the bounded Voronoi vertices on a domain 
+
+
+
+
+	Note: 
+	Pro17 claims that these bounded Voronoi vertices can be computed using WP89.  
+	This approach may offer some speedup, but I trust Q-hull more than my own implementation.
+
+	"""
+
+	assert np.all(domain.isinside(Xhat))
+	if L is None:
+		L = np.eye(len(domain))
+
+	LV = []
+
+	# Half spaces from the domain
+	A, b = domain.A_aug, domain.b_aug
+
+	if len(Xhat) == 1:
+		halfspaces = np.hstack([A, -b.reshape(-1,1)])
+		hs = HalfspaceIntersection(halfspaces, Xhat[0])
+		return hs.intersections	
+
+	for k, xhat in enumerate(Xhat):
+		Ak = np.vstack([L @ (Xhat[j] - xhat) for j in range(len(Xhat)) if j != k])
+		center = np.vstack([ 0.5*L @ (xhat + Xhat[j]) for j in range(len(Xhat)) if j != k]) 
+		bk = np.sum(Ak * center, axis = 1)
+
+		halfspaces = np.hstack([np.vstack([A, Ak]) @ L , -np.hstack([b, bk]).reshape(-1,1)])
+
+		try:
+			hs = HalfspaceIntersection(halfspaces, xhat)
+		except QhullError:
+		
+			# The point xhat isn't strictly inside the constraints, so we try with a point that is
+			# Here we use the code from scipy documentation 
+			# TODO: We should probably have one implementation of this; cf. chebyschev_center in domain/linineq.py 
+			norm_vector = np.reshape(np.linalg.norm(halfspaces[:, :-1], axis=1),(halfspaces.shape[0], 1))
+			cc = np.zeros((halfspaces.shape[1],))
+			cc[-1] = -1
+			AA = np.hstack((halfspaces[:, :-1], norm_vector))
+			bb = -halfspaces[:, -1:]
+			# Scipy's linprog 
+			sol = solvers.lp(matrix(cc), matrix(AA), matrix(bb))
+			#res = linprog(cc, A_ub=AA, b_ub=bb, bounds = (None, None))
+			xhat2 = np.array(sol['x'][:-1]).flatten()
+
+			try:
+				hs = HalfspaceIntersection(halfspaces, xhat2)
+			except QhullError as e:
+				print(halfspaces)
+				print(xhat)
+				print(xhat2)
+				raise e
+
+
+		# TODO: Do we want to keep indexing information, or only return the vertices 
+		LV.append(np.copy(hs.intersections))
+
+	LV = np.vstack(LV)
+	I = unique_points(LV)
+	LV = LV[I]
+	
+	if L.shape[0] == len(domain):
+		V = np.linalg.solve(L, LV.T).T
+	else:
+		raise NotImplemented
+	
+	I = domain.isinside(V)
+	V = V[I]
+	return V
+
+def voronoi_vertex_sample(domain, Xhat, X0, L = None, randomize = True):
 	r""" Constructs a subset of the Voronoi vertices on a given domain 
 
 

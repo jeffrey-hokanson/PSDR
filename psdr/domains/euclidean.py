@@ -6,10 +6,7 @@ from scipy.stats import ortho_group
 from scipy.linalg import orth
 from scipy.spatial.distance import pdist
 
-try:
-    from functools import lru_cache
-except ImportError:
-    from backports.functools_lru_cache import lru_cache
+from functools import lru_cache
 
 import cvxpy as cp
 
@@ -803,15 +800,22 @@ class EuclideanDomain(Domain):
 
 			# However, we need to include a correction to account for the 
 			# volume of this domain
-			if self.is_box_domain:
-				# if the domain is a box domain, this is simple
-				vol = np.prod(self.ub - self.lb)
-			else:
-				# Otherwise we estimate the volume of domain using Monte-Carlo
-				Xt = np.random.uniform(self.norm_lb, self.norm_ub, size = (10*N, len(self)))
-				vol = np.prod(self.norm_ub - self.norm_lb)*(np.sum(self.isinside(Xt))/(10.*N))
+			vol = self.volume()
 			w *= vol
 			return X, w
+
+	@lru_cache()
+	def volume(self, N = 1e4):
+		if self.is_box_domain:
+			# if the domain is a box domain, this is simple
+			vol = np.prod(self.ub - self.lb)
+		else:
+			# Otherwise we estimate the volume of domain using Monte-Carlo
+			Xt = np.random.uniform(self.norm_lb, self.norm_ub, size = (N, len(self)))
+			vol = np.prod(self.norm_ub - self.norm_lb)*(np.sum(self.isinside(Xt))/(N))
+
+		return vol	
+
 
 	@property
 	def _A_eq_basis(self):
