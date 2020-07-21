@@ -113,7 +113,8 @@ try:
 	from .lipschitz_fast import dist_grad_constraints
 except ImportError as e:
 	import warnings
-	warnings.warn('Could not load fast gradient code')
+	# TODO: Reinclude this comment before adding in fast Lipschitz code
+	#warnings.warn('Could not load fast gradient code')
 	dist_grad_constraints = dist_grad_constraints_slow
 
 
