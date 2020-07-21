@@ -1,4 +1,5 @@
 # PSDR: Parameter Space Dimension Reduction Toolbox
+[![PyPI version](https://badge.fury.io/py/psdr.svg)](https://badge.fury.io/py/psdr)
 [![Documentation Status](https://readthedocs.org/projects/psdr/badge/?version=latest)](https://psdr.readthedocs.io/en/latest/?badge=latest)
 [![Build Status](https://travis-ci.org/jeffrey-hokanson/PSDR.svg?branch=master)](https://travis-ci.org/jeffrey-hokanson/PSDR)
 [![Coverage Status](https://coveralls.io/repos/github/jeffrey-hokanson/PSDR/badge.svg?branch=master)](https://coveralls.io/github/jeffrey-hokanson/PSDR?branch=master)
