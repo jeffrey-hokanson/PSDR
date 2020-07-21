@@ -39,7 +39,7 @@ def check_voronoi(dom, Xhat, V, L = None, randomize = True):
 
 def check_vertex_sample(dom, Xhat, X0, L = None, randomize = True):
 	V = voronoi_vertex_sample(dom, Xhat, X0, L = L, randomize = randomize )
-	check_voronoi(dom, Xhat, V, L = L)
+	check_voronoi(dom, Xhat, V, L = L, randomize = randomize)
 
 def check_vertex(dom, Xhat, L = None):
 	V = voronoi_vertex(dom, Xhat, L = L )
