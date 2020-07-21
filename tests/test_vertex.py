@@ -1,11 +1,11 @@
 from __future__ import print_function
 import numpy as np
 from scipy.spatial.distance import cdist 
-from psdr import voronoi_vertex, BoxDomain
+from psdr import voronoi_vertex_sample, BoxDomain
 
 
 def check_vertex(dom, Xhat, X0, L = None, randomize = True):
-	X = voronoi_vertex(dom, Xhat, X0, L = L, randomize = randomize )
+	X = voronoi_vertex_sample(dom, Xhat, X0, L = L, randomize = randomize )
 	if L is None:
 		L = np.eye(len(dom))
 	Lrank = np.linalg.matrix_rank(L)

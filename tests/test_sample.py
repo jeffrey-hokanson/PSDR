@@ -62,7 +62,7 @@ def no_test_seqmaximin():
 def test_maximin(N = 11, m = 5):
 	dom = BoxDomain(-np.ones(m), np.ones(m))
 	L = np.ones((1,m))
-	X = psdr.maximin_sample(dom, N, L = L, maxiter = 500)
+	X = psdr.maximin_block(dom, N, L = L, maxiter = 500)
 	print(X)
 	d = L.dot(X.T).flatten()
 	d = np.sort(d)
@@ -73,7 +73,7 @@ def test_maximin(N = 11, m = 5):
 		
 	# Now do a 2-d version
 	L = np.random.randn(2, m)
-	X = psdr.maximin_sample(dom, N, L = L, maxiter = 50, verbose = True)
+	X = psdr.maximin_block(dom, N, L = L, maxiter = 50, verbose = True)
 
 
 def no_test_lipschitz_sample(N = 5, m = 3):

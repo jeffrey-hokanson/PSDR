@@ -810,6 +810,7 @@ class EuclideanDomain(Domain):
 			# if the domain is a box domain, this is simple
 			vol = np.prod(self.ub - self.lb)
 		else:
+			N = int(N)
 			# Otherwise we estimate the volume of domain using Monte-Carlo
 			Xt = np.random.uniform(self.norm_lb, self.norm_ub, size = (N, len(self)))
 			vol = np.prod(self.norm_ub - self.norm_lb)*(np.sum(self.isinside(Xt))/(N))

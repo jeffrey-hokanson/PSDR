@@ -24,7 +24,7 @@ from .misc import merge
 from .subspace import SubspaceBasedDimensionReduction
 from .coord import CoordinateBasedDimensionReduction
 from .sample import initial_sample
-from .geometry import voronoi_vertex
+from .geometry import voronoi_vertex_sample
 from .geometry import unique_points
 from .minimax import minimax
 from .function import BaseFunction
@@ -442,7 +442,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	
 		# Force these to be far apart
 		X0 = initial_sample(domain, self.L, Nsamp = Nsamp) 
-		X0 = voronoi_vertex(domain, X, X0, L = self.L, randomize = False)
+		X0 = voronoi_vertex_sample(domain, X, X0, L = self.L, randomize = False)
 
 		# Remove duplicates
 		I = unique_points(X0)
