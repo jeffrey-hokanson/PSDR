@@ -5,7 +5,7 @@ import numpy as np
 import scipy
 from scipy.spatial.distance import cdist
 
-from ..geometry import voronoi_vertex, unique_points
+from ..geometry import voronoi_vertex_sample, unique_points
 from .initial import initial_sample
 
 def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, slack = 0.9):
@@ -23,7 +23,7 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 			\min_{j=1,\ldots,M} \|\mathbf{L}_i (\mathbf{x} - \widehat{\mathbf{x}}_j)\|_2
 			\right\rbrace_{i}
 
-	This algorithm uses :meth:`psdr.voronoi_vertex` to generate local maximizers of this problem
+	This algorithm uses :meth:`psdr.voronoi_vertex_sample` to generate local maximizers of this problem
 	for each metric and then tries to greedily satisfy the distance requirements for each metric.
 
 	A typical use case will have Ls that are of size (1,m)	
@@ -31,7 +31,7 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 	the Coffee-House Designs of Muller [Mul01]_. However, the approach of Muller
 	allows for a generic nonlinear solve for each sample point.  Here though
 	we restrict the domain to a polytope specified by linear inequalities
-	so we can invoke :meth:`psdr.voronoi_vertex` to solve each step. 
+	so we can invoke :meth:`psdr.voronoi_vertex_sample` to solve each step. 
 
 	Parameters
 	----------
@@ -88,7 +88,7 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 
 		# find the Voronoi vertices; we don't randomize as we are only interested
 		# in the component that satisfies the constraint
-		vert = voronoi_vertex(domain, Xhat, X, L = L, randomize = False) 
+		vert = voronoi_vertex_sample(domain, Xhat, X, L = L, randomize = False) 
 		
 		# Remove duplicates in the L norm
 		I = unique_points(L.dot(vert.T).T)
@@ -167,7 +167,7 @@ def seq_maximin_sample(domain, Xhat, Ls = None, Nsamp = int(1e3), X0 = None, sla
 		
 		# Generate candidates 
 		X0 = initial_sample(domain_samp, np.eye(len(domain)), Nsamp = 100)
-		Xcan_new = voronoi_vertex(domain_samp, Xhat, X0)
+		Xcan_new = voronoi_vertex_sample(domain_samp, Xhat, X0)
 		
 		# Score samples: product of distances in each of the L metrics
 		score_Ls_new = np.ones(Xcan_new.shape[0])

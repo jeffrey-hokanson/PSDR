@@ -10,9 +10,9 @@ except ImportError:
     from backports.functools_lru_cache import lru_cache
 
 from .util import low_rank_L
-from .maximin import maximin_sample
+from .maximin import maximin_block
 from .latin import _score_maximin
-from ..geometry import voronoi_vertex
+from ..geometry import voronoi_vertex_sample
 from ..exceptions import EmptyDomainException
 
 def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs = False):
@@ -66,7 +66,7 @@ def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs =
 			X = np.array([L.flatten()*a for a in avec])
 		else:
 			# We use maximin points in general as these generalize two and higher dimensional projections
-			X = maximin_sample(domain, Nsamp, L)
+			X = maximin_block(domain, Nsamp, L)
 		y = L.dot(X.T).T
 		ys.append(y)
 
@@ -218,7 +218,7 @@ def projection_sample(domain, Nsamp, Ls, maxiter = 1000, verbose = False, _lhs =
 						Xt = X[mask,:]
 						# Reset the mask
 						mask[i] = True 
-						x = voronoi_vertex(consubdoms[i], Xt, X[i])	
+						x = voronoi_vertex_sample(consubdoms[i], Xt, X[i])	
 	
 						# Compute movement of this point
 						move = np.linalg.norm(X[i] - x.flatten(), np.inf)
