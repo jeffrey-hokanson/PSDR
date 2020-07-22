@@ -17,7 +17,7 @@ from .local_linear import *
 #from opt.shared import LinProgException, InfeasibleConstraints
 
 from .quadrature import *
-from .geometry import voronoi_vertex, fill_distance_estimate
+from .geometry import voronoi_vertex, fill_distance_estimate, fill_distance
 
 from .sample import *
 

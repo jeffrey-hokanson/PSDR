@@ -1,7 +1,7 @@
 from __future__ import print_function, division
 
 import numpy as np
-from scipy.spatial.distance import cdist
+from .cdist import cdist
 
 from .vertex import voronoi_vertex_sample, voronoi_vertex
 
@@ -25,7 +25,7 @@ def fill_distance(domain, Xhat, L = None):
 	"""
 
 	V = voronoi_vertex(domain, Xhat, L = L)
-	D = psdr.cdist(X, V, L = L)
+	D = cdist(Xhat, V, L = L)
 	return np.max(np.min(D, axis= 0))	
 
 def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None ):
@@ -82,7 +82,7 @@ def fill_distance_estimate(domain, Xhat, L = None, Nsamp = int(1e3), X0 = None )
 	Xcan = voronoi_vertex_sample(domain, Xhat, X0, L = L, randomize = False)
 
 	# Euclidean distance
-	D = cdist(L.dot(Xcan.T).T, L.dot(Xhat.T).T)
+	D = cdist(Xcan, Xhat, L)
 
 	d = np.min(D, axis = 1)
 	return float(np.max(d))
