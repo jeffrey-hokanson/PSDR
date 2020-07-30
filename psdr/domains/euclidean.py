@@ -662,6 +662,27 @@ class EuclideanDomain(Domain):
 		I = self.isinside(Xgrid)
 		return Xgrid[I]	
 
+
+	def sample_boundary(self, draw):
+		r""" Sample points on the boundary of the domain
+
+		Parameters
+		----------
+		draw : int
+			Number of points to sample
+		"""
+		draw = int(draw)
+	
+		dirs = [self.random_direction(self.center) for i in range(draw)]
+		X = np.array([self.corner(d) for d in dirs])
+	
+		if draw == 1:
+			return X.flatten()
+		
+		return X
+	
+
+
 	def random_direction(self, x):
 		r""" Returns a random direction that can be moved and still remain in the domain
 
