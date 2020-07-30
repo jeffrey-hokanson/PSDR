@@ -117,7 +117,7 @@ def inf_norm_fit(A, b):
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore', PendingDeprecationWarning)
 		x = cp.Variable(A.shape[1])
-		obj = cp.norm_inf(x.__rmatmul__(A) - b)
+		obj = cp.norm_inf(A @ x - b.flatten())
 		problem = cp.Problem(cp.Minimize(obj))
 		problem.solve(solver = 'ECOS')
 		return x.value
@@ -294,6 +294,16 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 	def __str__(self):
 		return "<PolynomialRidgeApproximation degree %d, subspace dimension %d>" % (self.degree, self.subspace_dimension)
+
+
+	def fit_fixed_subspace(self, X, fX, U):
+		r"""
+
+		"""
+		assert U.shape[0] == X.shape[1], "U has %d rows, expected %d based on X" % (U.shape[0], X.shape[1])
+		assert U.shape[1] == self.subspace_dimension, "U has %d columns; expected %d" % (U.shape[1], self.subspace_dimension)
+		self._finish(X, fX, U)
+		
 
 	def fit(self, X, fX, U0 = None):
 		r""" Given samples, fit the polynomial ridge approximation.
