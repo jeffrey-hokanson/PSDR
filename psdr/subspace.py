@@ -269,6 +269,8 @@ class SubspaceBasedDimensionReduction(object):
 					if np.abs(denom) > 0:
 						sgn[k] += (fX[i] - fX[j])/denom
 
+		# If the sign is zero, keep the current orientation
+		sgn[sgn == 0] = 1
 		return U.dot(np.diag(np.sign(sgn)))	
 
 	def _fix_subspace_signs_grads(self, U, grads):
