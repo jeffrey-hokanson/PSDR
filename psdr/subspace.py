@@ -265,7 +265,9 @@ class SubspaceBasedDimensionReduction(object):
 		for k in range(len(U[0])):
 			for i in range(len(X)):
 				for j in range(i+1, len(X)):
-					sgn[k] += (fX[i] - fX[j])/(U[:,k].dot(X[i] - X[j]))
+					denom = U[:,k] @ (X[i] - X[j])
+					if np.abs(denom) > 0:
+						sgn[k] += (fX[i] - fX[j])/denom
 
 		return U.dot(np.diag(np.sign(sgn)))	
 
