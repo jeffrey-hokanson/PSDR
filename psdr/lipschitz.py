@@ -212,7 +212,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		# Sample constraint	
 		for i in range(len(X)):
 			for j in range(i+1, len(X)):
-				lhs = (np.abs(fX[i] - fX[j]) - epsilon)**2
+				lhs = max(np.abs(fX[i] - fX[j]) - epsilon,0)**2
 				y = X[i] - X[j]
 				# y.T M y
 				#rhs = H.__matmul__(y).__rmatmul__(y.T)
@@ -260,7 +260,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			for j in range(i+1,len(X)):
 				p = X[i] - X[j]
 				A[row, :] = [p.dot(E.dot(p)) for E in Es]
-				b[row] = (np.abs(fX[i] - fX[j]) - epsilon)**2
+				b[row] = (max(np.abs(fX[i] - fX[j]) - epsilon, 0))**2
 				row += 1
 
 		if A.shape[0] > 0:	
@@ -313,7 +313,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 				G = -np.tensordot(np.tensordot(Eten, p/p_norm, axes = (2,0)), p/p_norm, axes = (1,0))
 
 				Gs.append(cvxopt.matrix(G).T)
-				hs.append(cvxopt.matrix( [[ -(np.abs(fX[i] - fX[j]) - epsilon)**2/p_norm**2]]))
+				hs.append(cvxopt.matrix( [[ -(max(np.abs(fX[i] - fX[j]) - epsilon,0))**2/p_norm**2]]))
 
 		# Add constraint to enforce H is positive-semidefinite
 		# Flatten in Fortran---column major order
