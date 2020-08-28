@@ -4,19 +4,34 @@ from psdr.pgf import PGF
 
 from joblib import Memory
 memory = Memory('.cache', verbose = False)
-
-
 fun = psdr.demos.Borehole()
+
+
+
 
 if False:
 	fun = psdr.demos.HartmannMHD()
 	X = fun.domain.sample_grid(4)
 
 	fX = fun(X)[:,0]
-if True:
-	fun = psdr.demos.OTLCircuit()
-	X = fun.domain.sample_grid(3)
-	fX = fun(X)
+
+fun = psdr.demos.OTLCircuit()
+
+np.random.seed(0)
+@memory.cache
+def generate_X(fun, M):
+	np.random.seed(0)
+	X = fun.domain.sample(1000)
+	grads = fun.grad(X)
+	lip = psdr.LipschitzMatrix()
+	lip.fit(grads = grads)
+	L = lip.L
+	
+	X = psdr.minimax_lloyd(fun.domain, M, L = L, verbose = True)
+	return X
+
+X = generate_X(fun, 200)
+fX = fun(X)
 
 print(len(fX))
 	

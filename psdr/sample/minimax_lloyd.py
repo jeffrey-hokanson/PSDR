@@ -37,7 +37,7 @@ def _update_voronoi_sample(domain, Xhat, X0, L, M0):
 
 	# Perform one step of trying to fill missing data
 	V[k:] = domain.sample(M0 - k)
-	V[k:] = voronoi_vertex(domain, Xhat, V[k:], L = L)
+	V[k:] = voronoi_vertex_sample(domain, Xhat, V[k:], L = L)
 	
 	I = unique_points(V)
 
@@ -49,7 +49,6 @@ def _update_voronoi_full(domain, Xhat, X0, L, M0):
 	return voronoi_vertex(domain, Xhat, L = L)
 
 
-#TODO: rename as minimax_lloyd
 def minimax_lloyd(domain, M, L = None, maxiter = 100, Xhat = None, verbose = True, xtol = 1e-5, full = None):
 	r""" A fixed point iteration for a minimax design
 

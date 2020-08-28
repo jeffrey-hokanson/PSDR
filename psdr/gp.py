@@ -149,13 +149,13 @@ class GaussianProcess(BaseFunction):
 		"""
 
 
-		if self.structure is 'const':
+		if self.structure == 'const':
 			return np.exp(ell)*np.eye(self.m)
-		elif self.structure is 'scalar_mult':
+		elif self.structure == 'scalar_mult':
 			return np.exp(ell)*self.Lfixed
-		elif self.structure is 'diag':
+		elif self.structure == 'diag':
 			return np.diag(np.exp(ell))	
-		elif self.structure is 'tril':
+		elif self.structure == 'tril':
 			# Construct the L matrix	
 			L = np.zeros((self.m*self.m,), dtype = ell.dtype)
 			L[self.tril_flat] = ell
