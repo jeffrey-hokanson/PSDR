@@ -70,7 +70,7 @@ class SubspaceBasedDimensionReduction(object):
 		ax: matplotlib.pyplot.axis
 			Axis on which the plot is drawn
 		"""
-		if ax is 'auto':
+		if ax == 'auto':
 			if dim == 1:
 				fig, ax = plt.subplots(figsize = (6,6))
 			else:
