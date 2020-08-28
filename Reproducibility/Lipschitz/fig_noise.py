@@ -11,47 +11,65 @@ mat = loadmat('Trefethen_700.mat')
 A = mat['Problem'][0][0][2]
 
 # Initial random vector
-np.random.seed(0)
-v0 = np.random.randn(A.shape[0])
+v0 = np.ones(A.shape[0])
 B = np.eye(A.shape[0])[:,0:2]
 #B = 10*np.random.randn(A.shape[0], 2)
 
 
-def partial_trace_fun(x, tol = 0.1):
-	ew = eigsh(A + diags(B @ x), which = 'SM', v0 = v0, tol = tol, return_eigenvectors = False)
+def partial_trace_fun(x, tol = 0.10):
+	Ax = A + 2.5 * diags(B @ (x + 1) )
+	ew = eigsh(Ax, k = 5, which = 'SM', v0 = v0, tol = tol, return_eigenvectors = False)
 	return float(np.sum(ew))
 
-domain = psdr.BoxDomain([0,0], [1,1])
+domain = psdr.BoxDomain([-1,-1], [1,1])
 fun = psdr.Function(partial_trace_fun, domain)
 
 fun_true = psdr.Function(lambda x: partial_trace_fun(x, tol = 1e-4), domain)
 
 X = fun.domain.sample_grid(10)
+#np.random.seed(0)
+#X = fun.domain.sample(200)
 fX = fun(X)
 fX_true = fun_true(X)
 
 
 epsilon = float(max(np.abs(fX - fX_true)))
-
+#epsilon = 0.2*np.max(np.abs(fX_true))
+#print(np.max(fX_true))
+#print(epsilon)
 
 lip = psdr.LipschitzMatrix(verbose = True)
 lip.fit(X, fX)
-print("noisy", lip.L)
+print("========noisy=========")
+print("L", lip.L)
 print(np.linalg.norm(lip.L, 'fro'))
+ew, ev = np.linalg.eigh(lip.L)
+print("ew", ew)
+print("ev", ev)
 
 lip.fit(X, fX_true)
-print("true", lip.L)
+print("========true=========")
+print("L", lip.L)
 print(np.linalg.norm(lip.L, 'fro'))
+ew, ev = np.linalg.eigh(lip.L)
+print("ew", ew)
+print("ev", ev)
+
+
+lip = psdr.LipschitzMatrix(verbose = True, epsilon = epsilon)
+lip.fit(X, fX)
+print("========epsilon=========")
+print("L", lip.L)
+print("epsilon-Lipschitz", lip.L)
+print(np.linalg.norm(lip.L, 'fro'))
+ew, ev = np.linalg.eigh(lip.L)
+print("ew", ew)
+print("ev", ev)
 
 print("epsilon", epsilon)
 print("max fX true", np.max(fX_true))
 
-lip = psdr.LipschitzMatrix(verbose = True, epsilon = 2*epsilon)
-lip.fit(X, fX)
-print("epsilon-Lipschitz", lip.L)
-print(np.linalg.norm(lip.L, 'fro'))
-
-if True:
+if False:
 	import matplotlib.pyplot as plt
 	fig, ax = plt.subplots(2)
 	tc0 = ax[0].tricontourf(X[:,0], X[:,1], fX[:,0], levels = 20)
