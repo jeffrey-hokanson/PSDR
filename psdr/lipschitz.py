@@ -24,7 +24,7 @@ from .misc import merge
 from .subspace import SubspaceBasedDimensionReduction
 from .coord import CoordinateBasedDimensionReduction
 from .sample import initial_sample
-from .geometry import voronoi_vertex
+from .geometry import voronoi_vertex_sample
 from .geometry import unique_points
 from .minimax import minimax
 from .function import BaseFunction
@@ -212,12 +212,13 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		# Sample constraint	
 		for i in range(len(X)):
 			for j in range(i+1, len(X)):
-				lhs = (np.abs(fX[i] - fX[j]) - epsilon)**2
+				lhs = max(np.abs(fX[i] - fX[j]) - epsilon,0)**2
 				y = X[i] - X[j]
 				# y.T M y
 				#rhs = H.__matmul__(y).__rmatmul__(y.T)
 				rhs = cp.quad_form(y, H)
-				constraints.append(lhs <= rhs)
+				if lhs > 0:
+					constraints.append(lhs <= rhs)
 			
 		# gradient constraints
 		for g in grads:
@@ -260,8 +261,12 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			for j in range(i+1,len(X)):
 				p = X[i] - X[j]
 				A[row, :] = [p.dot(E.dot(p)) for E in Es]
-				b[row] = (np.abs(fX[i] - fX[j]) - epsilon)**2
+				b[row] = (max(np.abs(fX[i] - fX[j]) - epsilon, 0))**2
 				row += 1
+
+		# Remove inactive rows
+		A = A[b!= 0]
+		b = b[b!= 0]
 
 		if A.shape[0] > 0:	
 			constraints.append( b <= alpha.__rmatmul__(A) )
@@ -305,15 +310,16 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		# Construct linear inequality constraints for samples
 		for i in range(len(X)):
 			for j in range(i+1,len(X)):
-				p = X[i] - X[j]
-				# Normalizing here seems to reduce the normalization once inside CVXOPT
-				p_norm = np.linalg.norm(p)	
-				# Vectorize to improve performance
-				#G = [-p.dot(E.dot(p)) for E in Es]
-				G = -np.tensordot(np.tensordot(Eten, p/p_norm, axes = (2,0)), p/p_norm, axes = (1,0))
+				if np.abs(fX[i] - fX[j]) > epsilon:
+					p = X[i] - X[j]
+					# Normalizing here seems to reduce the normalization once inside CVXOPT
+					p_norm = np.linalg.norm(p)	
+					# Vectorize to improve performance
+					#G = [-p.dot(E.dot(p)) for E in Es]
+					G = -np.tensordot(np.tensordot(Eten, p/p_norm, axes = (2,0)), p/p_norm, axes = (1,0))
 
-				Gs.append(cvxopt.matrix(G).T)
-				hs.append(cvxopt.matrix( [[ -(np.abs(fX[i] - fX[j]) - epsilon)**2/p_norm**2]]))
+					Gs.append(cvxopt.matrix(G).T)
+					hs.append(cvxopt.matrix( [[ -(max(np.abs(fX[i] - fX[j]) - epsilon,0))**2/p_norm**2]]))
 
 		# Add constraint to enforce H is positive-semidefinite
 		# Flatten in Fortran---column major order
@@ -442,7 +448,7 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 	
 		# Force these to be far apart
 		X0 = initial_sample(domain, self.L, Nsamp = Nsamp) 
-		X0 = voronoi_vertex(domain, X, X0, L = self.L, randomize = False)
+		X0 = voronoi_vertex_sample(domain, X, X0, L = self.L, randomize = False)
 
 		# Remove duplicates
 		I = unique_points(X0)

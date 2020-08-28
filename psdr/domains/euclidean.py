@@ -6,10 +6,7 @@ from scipy.stats import ortho_group
 from scipy.linalg import orth
 from scipy.spatial.distance import pdist
 
-try:
-    from functools import lru_cache
-except ImportError:
-    from backports.functools_lru_cache import lru_cache
+from functools import lru_cache
 
 import cvxpy as cp
 
@@ -620,6 +617,11 @@ class EuclideanDomain(Domain):
 			If we are unable to find a point in the domain satisfying the constraints
 		"""
 		draw = int(draw)
+		
+		# If request a non positive number of samples, simply return zero
+		if draw <= 0:
+			return np.zeros((0, len(self)))
+
 		x_sample = self._sample(draw = draw)
 		if draw == 1: 
 			x_sample = x_sample.flatten()
@@ -659,6 +661,27 @@ class EuclideanDomain(Domain):
 		Xgrid = np.vstack([X.flatten() for X in Xs]).T
 		I = self.isinside(Xgrid)
 		return Xgrid[I]	
+
+
+	def sample_boundary(self, draw):
+		r""" Sample points on the boundary of the domain
+
+		Parameters
+		----------
+		draw : int
+			Number of points to sample
+		"""
+		draw = int(draw)
+	
+		dirs = [self.random_direction(self.center) for i in range(draw)]
+		X = np.array([self.corner(d) for d in dirs])
+	
+		if draw == 1:
+			return X.flatten()
+		
+		return X
+	
+
 
 	def random_direction(self, x):
 		r""" Returns a random direction that can be moved and still remain in the domain
@@ -798,15 +821,23 @@ class EuclideanDomain(Domain):
 
 			# However, we need to include a correction to account for the 
 			# volume of this domain
-			if self.is_box_domain:
-				# if the domain is a box domain, this is simple
-				vol = np.prod(self.ub - self.lb)
-			else:
-				# Otherwise we estimate the volume of domain using Monte-Carlo
-				Xt = np.random.uniform(self.norm_lb, self.norm_ub, size = (10*N, len(self)))
-				vol = np.prod(self.norm_ub - self.norm_lb)*(np.sum(self.isinside(Xt))/(10.*N))
+			vol = self.volume()
 			w *= vol
 			return X, w
+
+	@lru_cache()
+	def volume(self, N = 1e4):
+		if self.is_box_domain:
+			# if the domain is a box domain, this is simple
+			vol = np.prod(self.ub - self.lb)
+		else:
+			N = int(N)
+			# Otherwise we estimate the volume of domain using Monte-Carlo
+			Xt = np.random.uniform(self.norm_lb, self.norm_ub, size = (N, len(self)))
+			vol = np.prod(self.norm_ub - self.norm_lb)*(np.sum(self.isinside(Xt))/(N))
+
+		return vol	
+
 
 	@property
 	def _A_eq_basis(self):

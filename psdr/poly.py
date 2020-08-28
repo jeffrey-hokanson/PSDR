@@ -57,8 +57,8 @@ class PolynomialFunction(BaseFunction):
 	coef: array-like
 		Coefficients of polynomial	
 	"""
-	def __init__(self, dimension, degree, coef):
-		self.basis = LegendreTensorBasis(dimension, degree) 
+	def __init__(self, basis, coef):
+		self.basis = basis
 		self.coef = np.array(coef)
 
 	def roots(self):
@@ -118,7 +118,7 @@ class PolynomialApproximation(PolynomialFunction):
 	----------
 	degree: int
 		Degree of polynomial
-	basis: ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
+	basis: ['arnold', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
 		Basis in which to express the polynomial
 	norm: [1, 2, np.inf]
 		Norm in which to find the approximation
@@ -133,7 +133,7 @@ class PolynomialApproximation(PolynomialFunction):
 		assert degree >= 0, "Degree must be positive"
 		self.degree = degree
 
-		assert basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
+		assert basis in ['arnoldi', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
 		self.basis_name = copy(basis)
 
 		self.basis = None
@@ -149,22 +149,20 @@ class PolynomialApproximation(PolynomialFunction):
 		M, m = X.shape
 
 		# Since we don't know the input dimension until we get the data, we initialize the basis here
-		if self.basis_name == 'legendre':
-			self.basis = LegendreTensorBasis(m, self.degree) 
+		if self.basis_name == 'arnoldi':
+			self.basis = ArnoldiPolynomialBasis(self.degree, X = X) 
+		elif self.basis_name == 'legendre':
+			self.basis = LegendreTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'monomial':
-			self.basis = MonomialTensorBasis(m, self.degree) 
+			self.basis = MonomialTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'chebyshev':
-			self.basis = ChebyshevTensorBasis(m, self.degree) 
+			self.basis = ChebyshevTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'laguerre':
-			self.basis = LaguerreTensorBasis(m, self.degree) 
+			self.basis = LaguerreTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'hermite':
-			self.basis = HermiteTensorBasis(m, self.degree) 
-		else:
-			raise NotImplementedError('Unknown basis type specified')
+			self.basis = HermiteTensorBasis(self.degree, X = X) 
 
-		# Scale the basis to the problem
-		self.basis.set_scale(X)
-		
+		# Construct Vandermonde matrix
 		V = self.basis.V(X)
 
 		self.coef = linear_fit(V, fX, norm = self.norm, bound = self.bound)

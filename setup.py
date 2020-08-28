@@ -12,29 +12,36 @@ install_requires = [
 		'distributed',
 		'sobol_seq',
 		'satyrn>=0.3.2',
+		'iterprinter',
 	]
 
-if sys.version_info[0] < 3:
-	install_requires += [
-		'matplotlib<3.0.0',
-		# Required for python 2.7 from dask distributed
-		'tornado<6.0.0',
-		# LRU Cache
-		'backports.functools_lru_cache',
-		'scipy<=1.2.0', 
-		]
-else:
-	install_requires += [
-		'matplotlib',
-		'scipy>=1.1.0', 
-		]
+install_requires += [
+	'matplotlib',
+	'scipy>=1.1.0',
+	]
 
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
 setup(name='psdr',
-	version = '0.2',
+	version = '0.3.7',
 	description = 'Parameter Space Dimension Reduction Toolbox',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
 	author = 'Jeffrey M. Hokanson',
+	author_email = 'jeffrey@hokanson.us',
+	url = 'https://github.com/jeffrey-hokanson/PSDR',
 	packages = ['psdr', 'psdr.demos', 'psdr.domains', 'psdr.sample', 'psdr.geometry'],
 	install_requires = install_requires,
+	classifiers = [
+		'Development Status :: 4 - Beta',
+		'Intended Audience :: Science/Research',
+		'License :: OSI Approved :: GNU Affero General Public License v3',
+		'Operating System :: OS Independent',
+		'Programming Language :: Python :: 3.6',
+		'Programming Language :: Python :: 3.7',
+		'Programming Language :: Python :: 3.8',
+		'Topic :: Scientific/Engineering :: Mathematics'
+		]
 	)

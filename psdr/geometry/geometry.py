@@ -8,6 +8,8 @@ from scipy.spatial.distance import cdist, pdist, squareform
 __all__ = ['sample_sphere', 'unique_points', 'sample_simplex']
 
 
+
+
 def sample_sphere(dim, n, k = 100):
 	""" Sample points on a high-dimensional sphere 
 

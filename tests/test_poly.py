@@ -6,8 +6,9 @@ from checkder import *
 
 def test_poly_der(dimension = 3, degree = 5):
 	np.random.seed(0)
-	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
-	pf = PolynomialFunction(dimension, degree, coef)
+	basis = LegendreTensorBasis(degree, dim = dimension)
+	coef = np.random.randn(len(basis))
+	pf = PolynomialFunction(basis, coef)
 
 	x = np.random.randn(dimension)
 	print(x)
@@ -18,8 +19,9 @@ def test_poly_der(dimension = 3, degree = 5):
 
 def test_poly_hess(dimension = 3, degree = 5):
 	np.random.seed(0)
-	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
-	pf = PolynomialFunction(dimension, degree, coef)
+	basis = LegendreTensorBasis(degree, dim = dimension)
+	coef = np.random.randn(len(basis))
+	pf = PolynomialFunction(basis, coef)
 	
 	x = np.random.randn(dimension)
 	print(x)
@@ -30,8 +32,9 @@ def test_poly_hess(dimension = 3, degree = 5):
 
 def test_dimensions(dimension = 3, degree = 5):
 	np.random.seed(0)
-	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
-	pf = PolynomialFunction(dimension, degree, coef)
+	basis = LegendreTensorBasis(degree, dim = dimension)
+	coef = np.random.randn(len(basis))
+	pf = PolynomialFunction(basis, coef)
 
 	x = np.random.randn(dimension)
 	X = np.random.randn(10, dimension)
@@ -57,8 +60,9 @@ def test_dimensions(dimension = 3, degree = 5):
 def test_poly_basis(dimension = 2, degree = 5):
 	""" test different bases"""	
 	np.random.seed(0)
-	coef = np.random.randn(len(LegendreTensorBasis(dimension, degree)))
-	pf = PolynomialFunction(dimension, degree, coef)
+	basis = LegendreTensorBasis(degree, dim = dimension)
+	coef = np.random.randn(len(basis))
+	pf = PolynomialFunction(basis, coef)
 
 	dom = BoxDomain(-np.ones(dimension), np.ones(dimension))
 	X = dom.sample(100)
@@ -66,9 +70,14 @@ def test_poly_basis(dimension = 2, degree = 5):
 	Xtest = dom.sample(1000)
 	fXtest = pf(Xtest)
 	
-	for basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']:
+	for basis in ['arnoldi', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']:
+		print("basis ", basis)
 		pa = PolynomialApproximation(degree, basis = basis)
+		print("fitting")
 		pa.fit(X, fX)
+		print(pa.basis.V(Xtest).shape)
+		print(pa(Xtest).shape)
+		print(fXtest.shape)	
 		assert np.linalg.norm(pa(Xtest) - fXtest, np.inf) < 1e-7
 
 
@@ -81,7 +90,7 @@ def test_poly_fit(dimension = 2, degree = 5, tol = 1e-6):
 
 	for bound in ['lower', 'upper', None]:
 		for norm in [1,2, np.inf]:
-			for basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']:
+			for basis in ['arnoldi', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']:
 				pa = PolynomialApproximation(degree, basis = basis, norm = norm, bound = bound)
 				pa.fit(X, fXnoise)
 				if bound == 'lower':

@@ -1,15 +1,15 @@
 from __future__ import print_function, division
-
 import numpy as np
 from scipy.spatial.distance import pdist
+from iterprinter import IterationPrinter 
 
-from ..geometry import voronoi_vertex 
+from ..geometry import voronoi_vertex_sample 
 
 from .util import low_rank_L
 from .initial import initial_sample
 
 
-def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500):
+def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500, Xhat = None):
 	r""" Construct a maximin design by block coordinate descent
 
 
@@ -67,7 +67,15 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 		c2 = domain.corner(-L.flatten())
 		return np.vstack([(1-alpha)*c1 + c2*alpha for alpha in np.linspace(0,1, Nsamp)]) 	
 
-	X = initial_sample(domain, L, Nsamp)
+	if Xhat is None:
+		X = initial_sample(domain, L, Nsamp)
+	else:
+		X = Xhat
+
+	if verbose:
+		printer = IterationPrinter(it = '4d', maximin = '16.8e', dx = '10.3e')
+		printer.print_header(it = 'iter', maximin = 'maximin dist.', dx = 'Δx')
+
 	
 	mask = np.ones(Nsamp, dtype = np.bool)
 	for it in range(maxiter):
@@ -78,7 +86,7 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 			Xt = X[mask,:]
 			# Reset the mask
 			mask[i] = True 
-			x = voronoi_vertex(domain, Xt, X[i], L = L, randomize = False)		
+			x = voronoi_vertex_sample(domain, Xt, X[i], L = L, randomize = False)		
 		
 			# Compute movement of this point
 			move = np.linalg.norm(L.dot(X[i] - x.flatten()), np.inf)
@@ -88,8 +96,8 @@ def maximin_sample(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxite
 			X[i] = x
 			
 		if verbose:
-			d = np.min(pdist(L.dot(X.T).T))
-			print('iter %5d: movement %6e; min pairwise distance %6e' % (it,max_move,d ) )
+			d = np.min(pdist( (L @ X.T).T))
+			printer.print_iter(it = it, maximin = d, dx = max_move)
 
 		# Only break at the end of a cycle
 		if max_move < xtol:

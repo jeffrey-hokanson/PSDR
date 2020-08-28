@@ -303,8 +303,7 @@ class GaussianProcess(BaseFunction):
 
 		# Cache Vandermonde matrix on sample points
 		if self.degree is not None:
-			self.basis = LegendreTensorBasis(X.shape[1], self.degree)
-			self.basis.set_scale(X)
+			self.basis = LegendreTensorBasis(self.degree, X = X)
 			self.V = self.basis.V(X)
 		else:
 			self.V = np.zeros((X.shape[0],0))

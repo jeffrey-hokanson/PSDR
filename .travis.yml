@@ -1,69 +1,43 @@
-
 matrix:
- include:
+  include:
   - os: linux
     dist: bionic
-    python: "2.7"
-  - os: linux
-    dist: bionic
-    python: "3.7"
-# Does not support docker in osx
-#  - os: osx
-#   osx_image: xcode10.2
-#    language: generic 
-
-# Broken as per: https://github.com/travis-ci/travis-ci/issues/9929#issuecomment-410710458
-#  - os: osx
-#   osx_image: xcode10.2
-#    python: "3.6-dev"
-
-# Merging parallel build results https://docs.coveralls.io/parallel-build-webhook
-env: 
- - COVERALLS_PARALLEL=true
+    python: '3.7'
+env:
+- COVERALLS_PARALLEL=true
 
 notifications:
- webhooks: https://coveralls.io/webhook
+  webhooks: https://coveralls.io/webhook
 
 language: python
 
 services:
- - docker
+- docker
 
 before_install:
- # Ensures we have a recent python3 
- # https://docs.python-guide.org/starting/install3/osx/
- #- if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install python ; fi
- # Currently there is an issue with 1.16 and SCS; this installs a custom version
- # https://stackoverflow.com/a/48185032
-# - pip install -U --only-binary=numpy, scipy numpy==1.15.4
- - |
-   pip install -U --only-binary=numpy --only-binary=scipy numpy scipy scs osqp cvxopt cvxpy
-   if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]] ; then 
-      #pip install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs==2.1.1-2
-      # dask.distributed dropped support for python2 so we need to install the last compatabile version
-      pip install -U distributed==1.28.1
-   #else
-   #   pip3 install -U --only-binary=numpy --only-binary=scipy numpy==1.15.4 scipy scs==2.1.1-2
-   fi
-
-# - sudo apt-get update
-# - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]] ; then sudo apt-get install -y swig python-numpy python-scipy; else sudo apt-get install -y swig python3-numpy python3-scipy ; fi 
-
+- pip3 install -U --only-binary=numpy --only-binary=scipy numpy scipy scs osqp cvxopt
+  cvxpy
 
 install:
- - pip install -U pytest pytest-cov coveralls
- - python setup.py install 
+- pip3 install -U pytest pytest-cov coveralls
+- python3 setup.py install
 
 script:
- - pip freeze --local 
-# Pre-pull docker images
- - docker pull jeffreyhokanson/oas:v1
- - docker pull jeffreyhokanson/multif:v25
- - docker pull jeffreyhokanson/naca0012
- - pytest --cov=psdr --cov-branch --cov-config=.coveragerc tests/
+- pip3 freeze --local
+- docker pull jeffreyhokanson/oas:v1
+- docker pull jeffreyhokanson/multif:v25
+- docker pull jeffreyhokanson/naca0012
+- pytest --cov=psdr --cov-branch --cov-config=.coveragerc tests/
 
 after_success:
- - coveralls
+- coveralls
 
-notifications:
-  webhooks: https://coveralls.io/webhook
+deploy:
+  distributions: "sdist"
+  on:
+    branch: master
+    tags: true
+  provider: pypi
+  username: __token__
+  password:
+    secure: f9rJzIWu7WCVeCcKsONjAwU3e9zw1qDvHa9PJGeoL9dN9S3skW44lEuHtyE6BXl13ngribX5RTfMYUgjTVRBsn79qt7oOyjxhhHWwO+19mVfr4UgDitvwLpIyqXcLof7l4BwzKuB8W/JepcDpB25VJU65bqiiJMfLJMVIWbZ0JfN5m/nL/8PYg0BCmNMQpWcN83BnqEozBJT3s9NRq7VAIpRn4osUNQYY6fR569DXtxgWL2DcKTfHvXMJldGayMGkhR6lFKPzxALSeaWYaURD6iQ7Quh1aHhLyyePrJwQLRMcXXgoIkRiF9Dt9SDECvBR0PnLsy2dGOISvt09iqzh1l8+t3zY+UnWUQGSLciFDTzn9f3N6cpniczUlyghxXzrqbaqZ0hSBM5wQSPsnOuedcNtYLpUq8yuhW+F/mLCa9OixBtrSES0NkQqtjecRZ0R1TqKbkOyYESl+vFN2OpFz38YZkakNK31g2Pm83AUNt73MVf3EUIAxqj4xc9YA3O9q1XDqtw1bIVFvI7yyvTAE2USbwcWjDvNpbAidVfHknImjbIpRgpvFyb0nEDq0XWqfdwXVk7O9FpFP5qTaK3fb2/dpd/qm9f+ao2JncqHnxE/UKUOzxNh6n5xko3j99k0NXOQ6hwezJ8c1KaozszooCvqiUIyXfusNUImqqm3Fc=

@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np
 from scipy.spatial.distance import cdist
 import cvxpy as cp
@@ -52,9 +53,27 @@ def test_minimax_conditioning(m = 5, N = 200):
 	np.random.seed(0)
 	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
 
-	psdr.minimax_cluster(dom, N, verbose = True, maxiter =5, solver_opts = {'solver': 'ECOS', 'verbose': False})
+	psdr.minimax_cluster(dom, N, verbose = True, maxiter =5)
+
+#def test_minimax_parallel(m = 5, N = 10):
+#	import time
+#
+#	dom = psdr.BoxDomain(-np.ones(m), np.ones(m))
+#
+#	np.random.seed(0)
+#	t0 = time.time()
+#	X1 = psdr.minimax_cluster(dom, N, verbose = True, parallel = True, maxiter = 5)
+#	t1 = time.time()
+#	print("\n\t time parallel  ", t1-t0)
+#	t0 = time.time()
+#	X2 = psdr.minimax_cluster(dom, N, verbose = True, parallel = False, maxiter = 5)
+#	t1 = time.time()
+#	print("\n\t time sequential", t1-t0)
+#	
+#	assert np.all(np.isclose(X1, X2))
 
 if __name__ == '__main__':
 	#test_cq_center()
 	#test_minimax()
 	test_minimax_conditioning()
+#	test_minimax_parallel()

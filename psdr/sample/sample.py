@@ -11,7 +11,7 @@ import itertools
 from satyrn import picosat
 
 
-from ..geometry import voronoi_vertex 
+from ..geometry import voronoi_vertex_sample 
 from ..geometry import sample_sphere, unique_points, sample_simplex
 from ..domains import LinIneqDomain, ConvexHullDomain
 
