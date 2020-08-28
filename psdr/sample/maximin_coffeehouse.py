@@ -1,5 +1,5 @@
 import numpy as np
-from ..geometry import voronoi_vertex, cdist
+from ..geometry import voronoi_vertex, voronoi_vertex_sample, cdist
 from iterprinter import IterationPrinter
 
 
