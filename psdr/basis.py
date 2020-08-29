@@ -31,6 +31,13 @@ class Basis(object):
 
 def _full_index_set(n, d):
 	""" A helper function for index_set.
+	
+	Parameters
+	----------
+	n : int
+		degree of polynomial
+	d : int
+		number of variables, dimension
 	"""
 	if d == 1:
 		I = np.array([[n]])
