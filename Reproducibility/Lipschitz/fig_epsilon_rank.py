@@ -7,8 +7,6 @@ memory = Memory('.cache', verbose = False)
 fun = psdr.demos.Borehole()
 
 
-
-
 if False:
 	fun = psdr.demos.HartmannMHD()
 	X = fun.domain.sample_grid(4)
