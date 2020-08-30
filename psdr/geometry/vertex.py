@@ -17,6 +17,24 @@ from scipy.spatial.qhull import QhullError
 
 
 
+def voronoi_vertex_1d(domain, Xhat, L = None):
+	r""" One dimensional voronoi vertices
+
+	As Qhull only works on two or more dimensions, 
+	this code handles the simple, one-dimensional case
+	"""
+	assert len(domain) == 1, "Domain must be one-dimensional"
+	
+	lb = domain.corner(np.array([-1]))
+	ub = domain.corner(np.array([1]))
+	
+	X = np.sort(np.hstack([Xhat.flatten(), ub, lb]))
+	# mid point between X
+	V = 0.5*(X[1:] + X[:-1])
+	# add boundaries
+	V = np.hstack([lb, V, ub])
+	return V.reshape(-1,1)
+
 def voronoi_vertex(domain, Xhat, L = None):
 	r""" Construct the bounded Voronoi vertices on a domain 
 
@@ -28,8 +46,11 @@ def voronoi_vertex(domain, Xhat, L = None):
 	This approach may offer some speedup, but I trust Q-hull more than my own implementation.
 
 	"""
-
+	if len(domain) == 1:
+		return voronoi_vertex_1d(domain, Xhat)
+	
 	assert np.all(domain.isinside(Xhat))
+
 
 	if L is None:
 		L = np.eye(len(domain))
