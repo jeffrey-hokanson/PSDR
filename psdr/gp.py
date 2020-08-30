@@ -140,7 +140,7 @@ class GaussianProcess(BaseFunction):
 			nugget = 5*np.finfo(float).eps
 		self.nugget = nugget
 
-		if structure is 'scalar_mult':
+		if structure == 'scalar_mult':
 			assert Lfixed is not None, "Must specify 'Lfixed' to use scalar_mult"
 			self.Lfixed = Lfixed
 
