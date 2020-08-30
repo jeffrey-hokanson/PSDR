@@ -3,8 +3,10 @@ import psdr, psdr.demos
 from psdr.pgf import PGF
 import seaborn as sns
 
-funs = [psdr.demos.OTLCircuit()]
-names = ['OTLCircuit']
+funs = [psdr.demos.OTLCircuit(), 
+		psdr.demos.Borehole(),
+		psdr.demos.WingWeight()]
+names = ['OTLCircuit', 'Borehole', 'WingWeight']
 
 algs = [lambda dom, M, L: psdr.random_sample(dom, M), 
 		lambda dom, M, L: psdr.latin_hypercube_maximin(dom, M, maxiter = 1),
@@ -12,14 +14,19 @@ algs = [lambda dom, M, L: psdr.random_sample(dom, M),
 		]
 alg_names = ['random', 'LHS', 'minimax']
 # Number of repetitions
-Ms = [100, 100, 10]
+Ms = [100,100, 10]
+#Ms = [1,1,1]
+
 
 Nsamp = 20
 
 for fun, name in zip(funs, names):
 	# Estimate the Lipschitz matrix
 	np.random.seed(0)
-	X = fun.domain.sample(1000)
+	X = np.vstack([
+		fun.domain.sample(1000),
+		fun.domain.sample_grid(2)
+		])
 	grads = fun.grad(X)
 	
 	lip = psdr.LipschitzMatrix(verbose = True, reltol = 1e-7, abstol = 1e-7, feastol = 1e-7)
@@ -28,7 +35,7 @@ for fun, name in zip(funs, names):
 	L = lip.L
 	
 	# Samples to use when estimating dispersion
-	X0 = psdr.maximin_coffeehouse(fun.domain, 200, L = L, N0 = 10)
+	X0 = psdr.maximin_coffeehouse(fun.domain, 5000, L = L, N0 = 1)
 
 	# Now perform designs
 	for alg, alg_name, M in zip(algs, alg_names, Ms):
