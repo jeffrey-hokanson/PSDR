@@ -18,6 +18,7 @@ if False:
 fun = psdr.demos.OTLCircuit()
 
 np.random.seed(0)
+
 @memory.cache
 def generate_X(fun, M):
 	np.random.seed(0)
@@ -30,7 +31,20 @@ def generate_X(fun, M):
 	X = psdr.minimax_lloyd(fun.domain, M, L = L, verbose = True)
 	return X
 
-X = generate_X(fun, 200)
+@memory.cache
+def generate_X_maximin(fun, M):
+	np.random.seed(0)
+	X = fun.domain.sample(1000)
+	grads = fun.grad(X)
+	lip = psdr.LipschitzMatrix(verbose = True, abstol = 1e-7, reltol = 1e-7, feastol = 1e-7)
+	lip.fit(grads = grads)
+	L = lip.L
+
+	X0 = psdr.maximin_coffeehouse(fun.domain, M, L = L, verbose =True)		
+	X = psdr.maximin_block(fun.domain, M, L = L, verbose = True, Xhat = X0)
+	return X
+
+X = generate_X_maximin(fun, 200)
 fX = fun(X)
 
 print(len(fX))
@@ -52,6 +66,8 @@ lam1 = np.zeros(epsilon.shape)
 lam2 = np.zeros(epsilon.shape)
 lam3 = np.zeros(epsilon.shape)
 lam4 = np.zeros(epsilon.shape)
+lam5 = np.zeros(epsilon.shape)
+lam6 = np.zeros(epsilon.shape)
 
 
 for k, eps in enumerate(epsilon):
@@ -64,6 +80,8 @@ for k, eps in enumerate(epsilon):
 	lam2[k] = ew[1]
 	lam3[k] = ew[2]
 	lam4[k] = ew[3]
+	lam5[k] = ew[4]
+	lam6[k] = ew[5]
 	print(f"=====> epsilon {eps:8.2e}, rank {rank[k]:2d}, obj {obj[k]:10.5e}") 
 
 pgf = PGF()
@@ -74,4 +92,6 @@ pgf.add('lam1', lam1)
 pgf.add('lam2', lam2)
 pgf.add('lam3', lam3)
 pgf.add('lam4', lam4)
+pgf.add('lam5', lam5)
+pgf.add('lam6', lam6)
 pgf.write('data/fig_epsilon_rank.dat')
