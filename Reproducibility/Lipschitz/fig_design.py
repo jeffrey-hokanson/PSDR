@@ -35,7 +35,7 @@ for fun, name in zip(funs, names):
 	L = lip.L
 	
 	# Samples to use when estimating dispersion
-	X0 = psdr.maximin_coffeehouse(fun.domain, 5000, L = L, N0 = 1)
+	X0 = psdr.maximin_coffeehouse(fun.domain, 5000, L = L, N0 = 10)
 
 	# Now perform designs
 	for alg, alg_name, M in zip(algs, alg_names, Ms):
