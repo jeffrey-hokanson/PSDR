@@ -140,7 +140,7 @@ class GaussianProcess(BaseFunction):
 			nugget = 5*np.finfo(float).eps
 		self.nugget = nugget
 
-		if structure is 'scalar_mult':
+		if structure == 'scalar_mult':
 			assert Lfixed is not None, "Must specify 'Lfixed' to use scalar_mult"
 			self.Lfixed = Lfixed
 
@@ -360,6 +360,7 @@ class GaussianProcess(BaseFunction):
 		self.L = self._make_L(ell)
 		self.alpha, self.beta = self._log_marginal_likelihood(ell, 
 			return_obj = False, return_grad = False, return_alpha_beta = True)
+		self._ell = ell
 
 	def eval(self, Xnew, return_cov = False):
 		Y = np.dot(self.L, self.X.T).T

@@ -28,21 +28,25 @@ def _update_voronoi_sample(domain, Xhat, X0, L, M0):
 	"""
 
 	# Update the estimate Voronoi vertices
-	X0 = voronoi_vertex_sample(domain, Xhat, X0, L = L)
-	I = unique_points(X0)
-	V = np.zeros((M0, len(domain)))
-
-	k = np.sum(I)
-	V[:k] = X0[I]
-
-	# Perform one step of trying to fill missing data
-	V[k:] = domain.sample(M0 - k)
-	V[k:] = voronoi_vertex_sample(domain, Xhat, V[k:], L = L)
+	V = voronoi_vertex_sample(domain, Xhat, X0, L = L)
 	
-	I = unique_points(V)
+	# Remove duplicates
+	V = V[unique_points(V)]
+
+	# we need to ensure every node has at least one voronoi vertex associated with it
+	D = cdist(Xhat, V, L =L)
+	d = np.min(D, axis = 0)
+	for k in range(len(Xhat)):
+		I = np.isclose(D[k], d)
+		if np.sum(I) < len(domain):
+			# Generate perturbations of nearby point
+			X0 = np.outer(np.ones(2*len(domain)), Xhat[k])  + 1e-7*np.random.randn(2*len(domain), len(domain))
+			# This pushes these points to nearby bounded Voronoi vertices
+			Vnew = voronoi_vertex_sample(domain, Xhat, X0, L = L)
+			V = np.vstack([V, Vnew])
 
 	# Remove duplicates
-	return V[I]
+	return V[unique_points(V)]
 
 
 def _update_voronoi_full(domain, Xhat, X0, L, M0):
