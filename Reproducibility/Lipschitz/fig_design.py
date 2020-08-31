@@ -16,15 +16,10 @@ algs = [lambda dom, M, L: psdr.random_sample(dom, M),
 		lambda dom, M, L: psdr.minimax_lloyd(dom, M, L = L)	
 		]
 alg_names = ['random', 'LHS', 'minimax']
+
+
 # Number of repetitions
 Ms = [100,100, 10]
-#Ms = [1,1,1]
-
-#funs = funs[0:1]
-#names = names[0:1]
-#algs = algs[2:]
-#alg_names = alg_names[2:]
-#Ms = Ms[2:]
 
 Nsamp = 20
 
@@ -47,6 +42,9 @@ for fun, name in zip(funs, names):
 	# Samples to use when estimating dispersion
 	#X0 = psdr.maximin_coffeehouse(fun.domain, 5000, L = L, N0 = 50)
 	X0 = np.vstack([psdr.random_sample(fun.domain, 5000), fun.domain.sample_grid(2)])
+	
+	plt.clf()	
+	
 	# Now perform designs
 	for alg, alg_name, M in zip(algs, alg_names, Ms):
 		dispersion = []
@@ -58,7 +56,6 @@ for fun, name in zip(funs, names):
 			dispersion.append(dist)
 			print(f'{alg_name:20s} : {i:4d} dispersion {dist:10.5e}')
 	
-		fig = plt.figure()
 		ax = sns.swarmplot(dispersion)
 		x, y = np.array(ax.collections[-1].get_offsets()).T
 		pgf = PGF()
