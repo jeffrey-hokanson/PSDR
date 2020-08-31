@@ -9,6 +9,8 @@ funs = [psdr.demos.OTLCircuit(),
 		psdr.demos.WingWeight()]
 names = ['OTLCircuit', 'Borehole', 'WingWeight']
 
+
+
 algs = [lambda dom, M, L: psdr.random_sample(dom, M), 
 		lambda dom, M, L: psdr.latin_hypercube_maximin(dom, M, maxiter = 1),
 		lambda dom, M, L: psdr.minimax_lloyd(dom, M, L = L)	
@@ -18,6 +20,11 @@ alg_names = ['random', 'LHS', 'minimax']
 Ms = [100,100, 10]
 #Ms = [1,1,1]
 
+#funs = funs[0:1]
+#names = names[0:1]
+#algs = algs[2:]
+#alg_names = alg_names[2:]
+#Ms = Ms[2:]
 
 Nsamp = 20
 
@@ -35,6 +42,8 @@ for fun, name in zip(funs, names):
 
 	L = lip.L
 	
+	plt.clf()	
+	
 	# Samples to use when estimating dispersion
 	#X0 = psdr.maximin_coffeehouse(fun.domain, 5000, L = L, N0 = 50)
 	X0 = np.vstack([psdr.random_sample(fun.domain, 5000), fun.domain.sample_grid(2)])
@@ -51,9 +60,8 @@ for fun, name in zip(funs, names):
 	
 		fig = plt.figure()
 		ax = sns.swarmplot(dispersion)
-		x, y = np.array(ax.collections[0].get_offsets()).T
+		x, y = np.array(ax.collections[-1].get_offsets()).T
 		pgf = PGF()
 		pgf.add('x', x)
 		pgf.add('y', y)
 		pgf.write(f'data/fig_design_{name}_{alg_name}.dat')	
-		plt.clf()	
