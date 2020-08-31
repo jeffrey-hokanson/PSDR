@@ -2,6 +2,7 @@ import numpy as np
 import psdr, psdr.demos
 from psdr.pgf import PGF
 import seaborn as sns
+import matplotlib.pyplot as plt
 
 funs = [psdr.demos.OTLCircuit(), 
 		psdr.demos.Borehole(),
@@ -35,8 +36,8 @@ for fun, name in zip(funs, names):
 	L = lip.L
 	
 	# Samples to use when estimating dispersion
-	X0 = psdr.maximin_coffeehouse(fun.domain, 5000, L = L, N0 = 1)
-
+	#X0 = psdr.maximin_coffeehouse(fun.domain, 5000, L = L, N0 = 50)
+	X0 = np.vstack([psdr.random_sample(fun.domain, 5000), fun.domain.sample_grid(2)])
 	# Now perform designs
 	for alg, alg_name, M in zip(algs, alg_names, Ms):
 		dispersion = []
@@ -44,14 +45,15 @@ for fun, name in zip(funs, names):
 		for i in range(M):
 			np.random.seed(i)
 			X = alg(fun.domain, Nsamp, L)
-			dist = psdr.fill_distance_estimate(fun.domain, X, L = L, X0 = X0) 
+			dist = psdr.fill_distance_estimate(fun.domain, X, L = L, X0 = np.copy(X0)) 
 			dispersion.append(dist)
 			print(f'{alg_name:20s} : {i:4d} dispersion {dist:10.5e}')
 	
+		fig = plt.figure()
 		ax = sns.swarmplot(dispersion)
 		x, y = np.array(ax.collections[0].get_offsets()).T
 		pgf = PGF()
 		pgf.add('x', x)
 		pgf.add('y', y)
 		pgf.write(f'data/fig_design_{name}_{alg_name}.dat')	
-		
+		plt.clf()	
