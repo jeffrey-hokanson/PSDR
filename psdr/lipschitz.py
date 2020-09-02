@@ -400,7 +400,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			lb = np.maximum(lb, fx - dist)
 			ub = np.minimum(ub, fx + dist)
 		
-		return lb, ub
+		if self.epsilon is None:
+			return lb, ub
+		else:
+			return lb - self.epsilon, ub + self.epsilon
 	
 	def uncertainty_domain(self, X, fX, domain, Nsamp = int(1e2), verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
 		r""" Compute the uncertainty associated with a set inside the domain
