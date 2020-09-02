@@ -2,7 +2,7 @@ import numpy as np
 import psdr
 import psdr.demos
 from psdr.lipschitz_approx import *
-
+from scipy.linalg import subspace_angles
 import pytest
 
 
@@ -25,7 +25,7 @@ def test_lipschitz_approx(norm, epsilon):
 	X = fun.domain.sample(50)
 	fX = fun(X)
 
-	# Implement for 
+	# Implement for multiple ranks 
 	for i in range(len(fun.domain)):
 		U = lip.U[:,:-i]
 		LUU = lip.L @ U @ U.T
@@ -59,6 +59,16 @@ def test_lipschitz_approx_class():
 	err = np.max(np.abs(fX[:,0] - y))
 	assert err< 1e-9
 	
+	# Check identification of active subspace
+	for i in range(1,len(fun.domain)):
+		U = lip.U[:,:-i]
+		LUU = lip.L @ U @ U.T
+		lipapprox = LipschitzApproximation(LUU)
+		print(U.shape)
+		print(lipapprox.U.shape)
+		ang = subspace_angles(U, lipapprox.U)
+		print(ang)
+		assert np.max(ang) < 1e-7, "Did not correctly identify active subspace"	
 
 if __name__ == '__main__':
 	#test_lipschitz_approx(1, 0)
