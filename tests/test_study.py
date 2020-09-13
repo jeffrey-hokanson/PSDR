@@ -1,7 +1,7 @@
 import numpy as np
 import psdr, psdr.demos
 
-def test_subspace_convergence()
+def test_subspace_convergence():
 	mego = psdr.ActiveSubspace()
 	Ms = np.logspace(0, 4, 10)
 	fun = psdr.demos.Borehole()
