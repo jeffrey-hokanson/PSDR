@@ -5,6 +5,7 @@ from .function import *
 from .subspace import *
 from .coord import *
 from .lipschitz import *
+from .lipschitz_approx import *
 from .lipschitz_partial import *
 from .gp import * 
 from .sample import *
@@ -26,3 +27,6 @@ from .minimax import *
 from .gn import *
 
 from .nonlin import *
+
+
+from .study import *
