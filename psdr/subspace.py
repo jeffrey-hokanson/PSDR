@@ -330,9 +330,10 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 			weights = np.ones(N)/N
 			
 		self._weights = np.array(weights)
-		self._U, self._s, VT = np.linalg.svd(np.sqrt(self._weights)*self._grads.T)
-	
-		self._C = self._U.dot(np.diag(self._s**2).dot(self._U.T))
+		self._U, self._s, VT = scipy.linalg.svd(np.sqrt(self._weights)*self._grads.T)
+		# Pad s with zeros if we don't have as many gradient samples as dimension of the space
+		self._s = np.hstack([self._s, np.zeros(self._dimension - len(self._s))])
+		self._C = self._U @ np.diag(self._s**2) @ self._U.T
 
 		# Fix +/- scaling so average gradient is positive	
 		self._U = self._fix_subspace_signs_grads(self._U, self._grads)		
