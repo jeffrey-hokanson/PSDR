@@ -5,6 +5,8 @@ from iterprinter import IterationPrinter
 from ..geometry import voronoi_vertex, voronoi_vertex_sample, unique_points, cdist
 from .maximin_coffeehouse import maximin_coffeehouse
 from .maximin import maximin_block
+from .minimax import minimax_design_1d
+
 
 def _update_voronoi_sample(domain, Xhat, X0, L, M0):
 	r""" Use randomized sampling to identify a subset of the bounded Voronoi vertices
@@ -62,6 +64,11 @@ def minimax_lloyd(domain, M, L = None, maxiter = 100, Xhat = None, verbose = Tru
 	
 	SD96.	
 	"""
+	# Terminate early if we have a simple case
+	try:
+		return minimax_design_1d(domain, M, L = L)
+	except AssertionError:
+		pass
 
 	if full is None:
 		if len(domain) < 3:
