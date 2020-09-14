@@ -9,6 +9,24 @@ from .util import low_rank_L
 from .initial import initial_sample
 
 
+
+def maximin_design_1d(domain, N, L = None):
+	if L is None:
+		assert len(domain) == 1, "If no L matrix specified, need a 1-d domain"
+		L = np.array([1])
+	else:
+		L = np.atleast_2d(L)
+		assert L.shape[0] == 1, "must provide a 1 by m Lipschitz matrix"
+
+	c1 = domain.corner(L.flatten())
+	c2 = domain.corner(-L.flatten())
+
+	avec = np.linspace(0,1,N)
+	X = np.array([a*c1 + (1-a)*c2 for a in avec]) 
+	return X 
+
+
+
 def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500, Xhat = None):
 	r""" Construct a maximin design by block coordinate descent
 

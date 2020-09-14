@@ -10,6 +10,41 @@ def _score_maximin(X):
 	min_dist = np.min(D, axis = 0)
 	return tuple(np.sort(min_dist))
 
+def latin_hypercube_sample(domain, N):
+	r""" Generate a random Latin hypercube sample
+
+	Parameters
+	----------
+	domain: Domain
+		Domain on which to construct the design
+	N: int
+		Number of points
+
+	Returns
+	-------
+	X: np.array (N, len(domain))
+		Points inside the domain
+	"""
+	N = int(N)
+
+	if domain.is_box_domain:
+		return _latin_hypercube_sample_box(domain, N)
+	else:
+		from .projection import projection_sample 
+		return projection_sample(domain, N, None, maxiter = 1, _lhs = True) 
+
+def _latin_hypercube_sample_box(domain, N):
+	
+	# Coordinates along each axis we'll be sampling at
+	xs = []
+	for i in range(len(domain)):
+		xi = np.linspace(domain.norm_lb[i], domain.norm_ub[i], N + 1)
+		xi = np.random.permutation((xi[1:]+xi[0:-1])/2.)
+		xs.append(xi)
+	
+	return np.vstack(xs).T
+	
+
 
 def latin_hypercube_maximin(domain, N, maxiter = 1000):
 	r""" Construct a maximin distance Latin hypercube design

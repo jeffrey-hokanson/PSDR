@@ -20,12 +20,14 @@ install_requires += [
 	'scipy>=1.1.0',
 	]
 
+test_requires = ['pytest']
+
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='psdr',
-	version = '0.3.7',
+	version = '0.3.8',
 	description = 'Parameter Space Dimension Reduction Toolbox',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -34,6 +36,7 @@ setup(name='psdr',
 	url = 'https://github.com/jeffrey-hokanson/PSDR',
 	packages = ['psdr', 'psdr.demos', 'psdr.domains', 'psdr.sample', 'psdr.geometry'],
 	install_requires = install_requires,
+	test_requires = test_requires,
 	classifiers = [
 		'Development Status :: 4 - Beta',
 		'Intended Audience :: Science/Research',
