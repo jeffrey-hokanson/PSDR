@@ -27,7 +27,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='psdr',
-	version = '0.3.7',
+	version = '0.3.8',
 	description = 'Parameter Space Dimension Reduction Toolbox',
     long_description=long_description,
     long_description_content_type="text/markdown",
