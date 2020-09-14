@@ -24,7 +24,7 @@ def build_minimax_design(domain, M, L, seed):
 
 @memory.cache
 def design_dispersion(X, domain, L):
-	X0 = domain.sample_grid(5)
+	X0 = domain.sample_grid(6)
 	dist = psdr.fill_distance_estimate(domain, X, L = L, X0 = X0) 
 	return dist
 
