@@ -48,7 +48,7 @@ def test_lipschitz_approx_class():
 	lip.fit(grads = fun.grad(X))
 	
 		
-	lipapprox = LipschitzApproximation(lip.L)
+	lipapprox = LipschitzApproximation(lip.L, fun.domain)
 	X = fun.domain.sample(40)
 	fX = fun(X)
 	#fX += 0.1*np.random.randn(*fX.shape)
@@ -63,7 +63,7 @@ def test_lipschitz_approx_class():
 	for i in range(1,len(fun.domain)):
 		U = lip.U[:,:-i]
 		LUU = lip.L @ U @ U.T
-		lipapprox = LipschitzApproximation(LUU)
+		lipapprox = LipschitzApproximation(LUU, fun.domain)
 		print(U.shape)
 		print(lipapprox.U.shape)
 		ang = subspace_angles(U, lipapprox.U)
