@@ -7,9 +7,9 @@ def initialize_subspace(X = None, fX = None, grads = None, n_grads = 100):
 	r""" Construct an initial estimate of the desired subspace 
 	"""
 
-	ngrads = max(n_grads, X.shape[1])
 
 	X, fX, grads = check_sample_inputs(X, fX, grads)
+	ngrads = max(n_grads, X.shape[1])
 	# If we don't have enough grads and we have enough samples to estimate gradients
 	if len(grads) < n_grads and X.shape[0] >= X.shape[1]+1:
 		# Pick a random subset to estimate the gradient at
