@@ -27,8 +27,14 @@ test_requires = ['pytest']
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+ns = {}
+with open('psdr/version.py') as f:
+	exec(f.read(), ns)
+
+version = ns['__version__']
+
 setup(name='psdr',
-	version = '0.3.8',
+	version = version,
 	description = 'Parameter Space Dimension Reduction Toolbox',
     long_description=long_description,
     long_description_content_type="text/markdown",

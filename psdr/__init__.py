@@ -1,3 +1,4 @@
+from .version import __version__
 from .exceptions import *
 from .domains import *
 from .basis import *
@@ -10,6 +11,7 @@ from .lipschitz_partial import *
 from .gp import * 
 from .sample import *
 from .polyridge import *
+from .polyridge_vec import *
 from .poly import *
 from .opg import *
 from .local_linear import *
