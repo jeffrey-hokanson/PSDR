@@ -13,6 +13,7 @@ install_requires = [
 		'sobol_seq',
 		'satyrn>=0.3.2',
 		'iterprinter',
+		'polyrat',
 	]
 
 install_requires += [
