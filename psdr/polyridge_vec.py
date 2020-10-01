@@ -9,6 +9,10 @@ from .gn import gauss_newton
 from .initialization import initialize_subspace
 
 
+__all__ = [
+	'polynomial_ridge_approximation',
+]
+
 def _grassmann_trajectory(U, Delta, t):
 	# See HC18, eq. 23
 	Y, s, ZT = scipy.linalg.svd(Delta, full_matrices = False, lapack_driver = 'gesvd')
