@@ -1,6 +1,7 @@
 """ Vector-valued output polynomial ridge approximation
 
 """
+from itertools import product
 import numpy as np
 import scipy.linalg
 from polyrat import *
@@ -86,6 +87,33 @@ def _varpro_jacobian(U, X, fX, Basis, degree):
 	return np.vstack(Js)
 
 
+def _varpro_residual_fixed(U, X, fX, Basis, degree, Uf, Uc):
+	r"""
+	Parameters
+	----------
+	Uf: 
+		Basis for the fixed component
+	Uc:
+		Orthogonal complement of Uc
+	"""
+	
+	UU = np.hstack([Uf, Uc @ U])
+	return _varpro_residual(UU, X, fX, Basis, degree)
+
+
+def _varpro_jacobian_fixed(U, X, fX, Basis, degree, Uf, Uc):
+	UU = np.hstack([Uf, Uc @ U])
+
+	J = _varpro_jacobian(UU, X, fX, Basis, degree)
+	# reshape and truncate portion that is fixed
+	J = J.reshape(J.shape[0], UU.shape[0], UU.shape[1])[:,:,Uf.shape[1]:]
+	# Apply chain rule, multiplying by Uc
+	JJ = np.einsum('ijk,jl->ilk',J, Uc)
+	# Reshape and return
+	return JJ.reshape(JJ.shape[0], -1)
+
+
+
 def polynomial_ridge_approximation(X, fX, dimension, degree, fixed_subspace = None, U0 = None, Basis = LegendrePolynomialBasis, **kwargs):
 	r"""
 
@@ -99,31 +127,53 @@ def polynomial_ridge_approximation(X, fX, dimension, degree, fixed_subspace = No
 		The number of dimensions in the resulting ridge approximation
 	degree: int
 		The degree of the polynomial approximation
-	fixed_subspace: None or np.array (m,n)
-		
+	fixed_subspace: None or np.array (m,nf)
+		A subspace to be included in the resulting approximation
 	U0: None or np.array(m, dimension)
 		
 	"""
 
+	# TODO: Dimension checks
+
 	M, m = X.shape
-	n = dimension
 	fX = np.atleast_2d(fX)
 
 	if U0 is None:
 		A = np.hstack([initialize_subspace(X = X, fX = fXi) for fXi in fX.T]) 
-		print(A)
 		U0, _, _ = scipy.linalg.svd(A, full_matrices = False, compute_uv = True)
 		U0 = U0[:, :dimension] 
 
-	residual = lambda u: _varpro_residual(u.reshape(m,n), X, fX, Basis, degree)	
-	jacobian = lambda u: _varpro_jacobian(u.reshape(m,n), X, fX, Basis, degree)	
-	trajectory = lambda u, d, t: _grassmann_trajectory(u.reshape(m,n), d.reshape(m,n), t)
-	gnsolver = lambda J, r: _gn_solver(J, r, n)
+	if fixed_subspace is None:
+		n = dimension
+		residual = lambda u: _varpro_residual(u.reshape(m,n), X, fX, Basis, degree)	
+		jacobian = lambda u: _varpro_jacobian(u.reshape(m,n), X, fX, Basis, degree)	
+		trajectory = lambda u, d, t: _grassmann_trajectory(u.reshape(m,n), d.reshape(m,n), t)
+		gnsolver = lambda J, r: _gn_solver(J, r, n)
+	else:
+		nf = fixed_subspace.shape[1]
+		n = dimension - nf 
+		Q, _ = np.linalg.qr(fixed_subspace, mode = 'complete')
+		Uf = Q[:,:nf]
+		Uc = Q[:,nf:]
+		mm = Uc.shape[1]
+
+		residual = lambda u: _varpro_residual_fixed(u.reshape(mm,n), X, fX, Basis, degree, Uf, Uc )	
+		jacobian = lambda u: _varpro_jacobian_fixed(u.reshape(mm,n), X, fX, Basis, degree, Uf, Uc)	
+		trajectory = lambda u, d, t: _grassmann_trajectory(u.reshape(mm,n), d.reshape(mm,n), t)
+		gnsolver = lambda J, r: _gn_solver(J, r, n)
+		
+		# Restrict to the lower-dimensional subspace
+		U0, _, _ = scipy.linalg.svd(Uc.T @ U0, full_matrices = False, compute_uv = True)
+		U0 = U0[:, :n]
 
 	u0 = U0.flatten()
 	u, info = gauss_newton(residual, jacobian, u0,
 		trajectory = trajectory, gnsolver = gnsolver, **kwargs) 
 
-	U = u.reshape(m,n)
+	if fixed_subspace is None:
+		U = u.reshape(m,n)
+	else:
+		U = np.hstack([Uf, Uc @ u.reshape(mm,n)])
+		
 	return U
 
