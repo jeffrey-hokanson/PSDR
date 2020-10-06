@@ -14,3 +14,4 @@ from .sample import *
 from .poisson import *
 from .maximin_coffeehouse import *
 from .minimax_scale import *
+from .stretch import *
