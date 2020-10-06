@@ -83,7 +83,6 @@ class EuclideanDomain(Domain):
 			try:
 				# Try to find at least one point inside the domain
 				c = self.corner(np.ones(len(self)))
-				print(c)
 				self._empty = False
 			except EmptyDomainException:
 				# Corner actually sets this value, but we do it here again for clairity
