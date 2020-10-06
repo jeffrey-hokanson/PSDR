@@ -90,7 +90,7 @@ def minimax_lloyd(domain, M, L = None, maxiter = 100, Xhat = None, verbose = Tru
 		if verbose: print(10*'='+" Building Coffeehouse Design " + 10*'=')
 		Xhat = maximin_coffeehouse(domain, M, L, verbose = verbose)
 		if verbose: print('\n'+10*'='+" Building Maximin Design " + 10*'=')
-		Xhat = maximin_block(domain, M, L = L, maxiter = 50, verbose =verbose, Xhat = Xhat)
+		Xhat = maximin_block(domain, M, L = L, maxiter = 50, verbose =verbose, X0 = Xhat)
 		# The Shrinkage suggested by Pro17 hasn't been demonstrated to be useful with this initialization, so we avoid it
 		if verbose: print('\n'+10*'='+" Building Minimax Design " + 10*'=')
 
