@@ -238,7 +238,7 @@ class EuclideanDomain(Domain):
 			
 		D = self._unnormalize_der() 	
 		LD = L.dot(D)
-		obj = cp.norm(LD*x_norm - LD.dot(x0_norm))
+		obj = cp.norm(LD @ x_norm - LD.dot(x0_norm))
 
 		problem = cp.Problem(cp.Minimize(obj), constraints)
 		problem.solve(**kwargs)
@@ -305,7 +305,7 @@ class EuclideanDomain(Domain):
 		
 		# p.T @ x
 		if len(self) > 1:
-			obj = x_norm.__rmatmul__(D.dot(p).reshape(1,-1))
+			obj = D.dot(p).reshape(1,-1) @ x_norm
 		else:
 			obj = x_norm*float(D.dot(p))
 
@@ -383,7 +383,7 @@ class EuclideanDomain(Domain):
 		c = self._center()	
 			
 		# \| A x - b\|_2 
-		obj = cp.norm(x_norm.__rmatmul__(A.dot(D)) - b - A.dot(c) )
+		obj = cp.norm( (A @ D) @ x_norm - b - (A @ c) )
 		constraints = self._build_constraints_norm(x_norm)
 		problem = cp.Problem(cp.Minimize(obj), constraints)
 		problem.solve(**kwargs)
