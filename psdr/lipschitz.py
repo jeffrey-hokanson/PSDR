@@ -23,7 +23,7 @@ import time
 from .misc import merge
 from .subspace import SubspaceBasedDimensionReduction
 from .coord import CoordinateBasedDimensionReduction
-from .sample import initial_sample
+from .sample import initial_sample, maximin_coffeehouse
 from .geometry import voronoi_vertex_sample
 from .geometry import unique_points
 from .minimax import minimax
@@ -400,7 +400,10 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 			lb = np.maximum(lb, fx - dist)
 			ub = np.minimum(ub, fx + dist)
 		
-		return lb, ub
+		if self.epsilon is None:
+			return lb, ub
+		else:
+			return lb - self.epsilon, ub + self.epsilon
 	
 	def uncertainty_domain(self, X, fX, domain, Nsamp = int(1e2), verbose = False, progress = False, tqdm_kwargs = {}, **kwargs):
 		r""" Compute the uncertainty associated with a set inside the domain
@@ -447,8 +450,9 @@ class LipschitzMatrix(SubspaceBasedDimensionReduction):
 		fX = fX.flatten()
 	
 		# Force these to be far apart
-		X0 = initial_sample(domain, self.L, Nsamp = Nsamp) 
-		X0 = voronoi_vertex_sample(domain, X, X0, L = self.L, randomize = False)
+		#X0 = initial_sample(domain, self.L, Nsamp = Nsamp) 
+		X0 = maximin_coffeehouse(domain, Nsamp, L = self.L, N0 = 50)  
+		#X0 = voronoi_vertex_sample(domain, X, X0, L = self.L, randomize = False)
 
 		# Remove duplicates
 		I = unique_points(X0)

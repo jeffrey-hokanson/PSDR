@@ -5,6 +5,8 @@ from iterprinter import IterationPrinter
 from ..geometry import voronoi_vertex, voronoi_vertex_sample, unique_points, cdist
 from .maximin_coffeehouse import maximin_coffeehouse
 from .maximin import maximin_block
+from .minimax import minimax_design_1d
+
 
 def _update_voronoi_sample(domain, Xhat, X0, L, M0):
 	r""" Use randomized sampling to identify a subset of the bounded Voronoi vertices
@@ -62,6 +64,11 @@ def minimax_lloyd(domain, M, L = None, maxiter = 100, Xhat = None, verbose = Tru
 	
 	SD96.	
 	"""
+	# Terminate early if we have a simple case
+	try:
+		return minimax_design_1d(domain, M, L = L)
+	except AssertionError:
+		pass
 
 	if full is None:
 		if len(domain) < 3:
@@ -83,7 +90,7 @@ def minimax_lloyd(domain, M, L = None, maxiter = 100, Xhat = None, verbose = Tru
 		if verbose: print(10*'='+" Building Coffeehouse Design " + 10*'=')
 		Xhat = maximin_coffeehouse(domain, M, L, verbose = verbose)
 		if verbose: print('\n'+10*'='+" Building Maximin Design " + 10*'=')
-		Xhat = maximin_block(domain, M, L = L, maxiter = 50, verbose =verbose, Xhat = Xhat)
+		Xhat = maximin_block(domain, M, L = L, maxiter = 50, verbose =verbose, X0 = Xhat)
 		# The Shrinkage suggested by Pro17 hasn't been demonstrated to be useful with this initialization, so we avoid it
 		if verbose: print('\n'+10*'='+" Building Minimax Design " + 10*'=')
 

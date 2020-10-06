@@ -36,50 +36,46 @@ for fun, name in zip([gg, otl, piston, borehole, wing],['golinski', 'otl', 'pist
 	gradX = fun.grad(X)
 
 	lip_mat = psdr.LipschitzMatrix()
+	lip_mat.fit(grads = gradX)
 	lip_con = psdr.LipschitzConstant()
-	
-	for lip, lip_name in zip([lip_mat, lip_con], ['mat', 'con']):
-		lip.fit(grads = gradX)
-
-		if lip_name == 'mat':
-			U = lip.U.copy()
-	
-		# Now perform sequential sampling 
-		samp = psdr.SequentialMaximinSampler(fun, lip.L)
-		samp.sample(M, verbose = True)
+	lip_con.fit(grads = gradX)
 		
-		# Compute error bounds
-		lb, ub = lip.uncertainty(samp.X, samp.fX, Xg)
+	# scale by function variation
+	fXg = fun(Xg)
+	#uncertain = (ub - lb)/(np.max(fXg) - np.min(fXg))
+	rnge = np.max(fXg) - np.min(fXg) 
 
-		# scale by function variation
-		fXg = fun(Xg)
-		#uncertain = (ub - lb)/(np.max(fXg) - np.min(fXg))
-		uncertain = ub - lb	
-		rnge = np.max(fXg) - np.min(fXg) 
+	X_iso = psdr.minimax_lloyd(fun.domain, M)
+	X_lip = psdr.minimax_lloyd(fun.domain, M, L = lip_mat.L)
+	
 
-		p = np.percentile(uncertain, [0,25,50, 75,100])
-		print(p)
-		pgf = PGF()
-		for i, t in enumerate([0,25, 50, 75, 100]):
-			pgf.add('p%d' % t, [p[i]])
-		pgf.add('range', [rnge])
-		pgf.write('data/tab_sample_%s_%s_uncertainty.dat' % (name, lip_name) ) 	
+	# Isotropic sampling/ scalar Lipschitz	
+	lb, ub = lip_con.uncertainty(X_iso, fun(X_iso), Xg)
+	p = np.percentile(ub - lb, [0,25,50, 75,100])
+	print(p)
+	pgf = PGF()
+	for i, t in enumerate([0,25, 50, 75, 100]):
+		pgf.add('p%d' % t, [p[i]])
+	pgf.add('range', [rnge])
+	pgf.write('data/tab_sample_%s_scalar_isotropic_uncertainty.dat' % (name) ) 	
+	
 
-		if name == 'otl':	
-			Nsamp = 64	
-			lip.shadow_plot(samp.X[:Nsamp], samp.fX[:Nsamp], ax = None, 
-				U = U, dim = 1, pgfname = 'data/tab_sample_%s_%s_shadow.dat' % (name, lip_name) ) 
-
-			if False:	
-				print("computing shadow uncertainty")
-				lip.shadow_uncertainty(fun.domain, samp.X[:Nsamp], samp.fX[:Nsamp], 
-					pgfname = 'data/tab_sample_%s_%s_shadow_uncertainty.dat' % (name, lip_name), 
-					progress = 2, ngrid = 100, U = U[:,0])
-
-			if False and lip_name == 'con':
-				# The actual envelope is indepent of the Lipschitz matrix/constant 
-				Xg2 = fun.domain.sample_grid(8)
-				fXg2 = fun(Xg2)
-				print("computing envelope")
-				lip.shadow_envelope(Xg2, fXg2, ax = None, 
-					pgfname = 'data/tab_sample_%s_envelope.dat' % (name, ), U = U[:,0])
+	# Isotropic sampling/ matrix Lipschitz	
+	lb, ub = lip_mat.uncertainty(X_iso, fun(X_iso), Xg)
+	p = np.percentile(ub - lb, [0,25,50, 75,100])
+	print(p)
+	pgf = PGF()
+	for i, t in enumerate([0,25, 50, 75, 100]):
+		pgf.add('p%d' % t, [p[i]])
+	pgf.add('range', [rnge])
+	pgf.write('data/tab_sample_%s_matrix_isotropic_uncertainty.dat' % (name) ) 	
+	
+	# Isotropic sampling/ matrix Lipschitz	
+	lb, ub = lip_mat.uncertainty(X_lip, fun(X_lip), Xg)
+	p = np.percentile(ub - lb, [0,25,50, 75,100])
+	print(p)
+	pgf = PGF()
+	for i, t in enumerate([0,25, 50, 75, 100]):
+		pgf.add('p%d' % t, [p[i]])
+	pgf.add('range', [rnge])
+	pgf.write('data/tab_sample_%s_matrix_lipschitz_uncertainty.dat' % (name) ) 	

@@ -1,3 +1,4 @@
+from copy import deepcopy
 
 TOL = 1e-5
 
@@ -13,6 +14,9 @@ DEFAULT_CVXPY_KWARGS = {
 class Domain(object):
 	r""" Abstract base class for arbitary domain shapes
 	"""
+	
+	def copy(self):
+		return deepcopy(self)
 	
 	################################################################################
 	# Note that the following properities of the domain really should be determined 

@@ -9,7 +9,25 @@ from .util import low_rank_L
 from .initial import initial_sample
 
 
-def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500, Xhat = None):
+
+def maximin_design_1d(domain, N, L = None):
+	if L is None:
+		assert len(domain) == 1, "If no L matrix specified, need a 1-d domain"
+		L = np.array([1])
+	else:
+		L = np.atleast_2d(L)
+		assert L.shape[0] == 1, "must provide a 1 by m Lipschitz matrix"
+
+	c1 = domain.corner(L.flatten())
+	c2 = domain.corner(-L.flatten())
+
+	avec = np.linspace(0,1,N)
+	X = np.array([a*c1 + (1-a)*c2 for a in avec]) 
+	return X 
+
+
+
+def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500, X0 = None):
 	r""" Construct a maximin design by block coordinate descent
 
 
@@ -46,7 +64,8 @@ def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter
 		If True, print convergence information
 	maxiter: int; optional 
 		Maximum number of iterations of block coordinate descent
-
+	X0: None or array-like
+		Initial points for the maximin design	
 
 	References
 	----------
@@ -67,10 +86,10 @@ def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter
 		c2 = domain.corner(-L.flatten())
 		return np.vstack([(1-alpha)*c1 + c2*alpha for alpha in np.linspace(0,1, Nsamp)]) 	
 
-	if Xhat is None:
+	if X0 is None:
 		X = initial_sample(domain, L, Nsamp)
 	else:
-		X = Xhat
+		X = np.array(X0)
 
 	if verbose:
 		printer = IterationPrinter(it = '4d', maximin = '16.8e', dx = '10.3e')

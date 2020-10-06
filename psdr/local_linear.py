@@ -19,10 +19,23 @@ def _compute_p1(M, perplexity):
 	"""
 	#res = root_scalar(lambda x: np.log(min(np.sqrt(2*M), perplexity)) - 2*(1 - x)*np.log(M/(2*(1 - x))), bracket = [3./4,1 - 1e-14],)
 	#p1 = res.root
-	# Instead we solve in terms of 2*(1-p1)
-	res = root_scalar(lambda x: x*np.log(M) - xlogy(x,x) - np.log(min(np.sqrt(2*M), perplexity)),
-		bracket = [0, 0.5])
-	p1 = 1. - res.root/2.
+	# Instead we solve in terms of x = 2*(1-p1)
+	# x * log(N/x) = x * log(N) - x*log(x)
+	# and xlogy(x, x) = x * log(x)
+	fun = lambda x: x * np.log(M) - xlogy(x, x) - np.log(np.min([np.sqrt(2*M), perplexity]))
+
+	try:
+		res = root_scalar(fun, bracket = [0, 0.5])
+		x = res.root
+	except ValueError:
+		if np.isclose(fun(0.5), 0):
+			x = 0.5
+		elif np.isclose(fun(0), 0):
+			x = 0
+		else:
+			raise ValueError
+ 
+	p1 = 1. - x/2.
 	return p1
 
 

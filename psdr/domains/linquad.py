@@ -286,9 +286,9 @@ class LinQuadDomain(EuclideanDomain):
 
 		for L, y, rho in zip(self.Ls_norm, self.ys_norm, self.rhos_norm):
 			if len(L) > 1:
-				constraints.append( cp.norm(x_norm.__rmatmul__(L) - L.dot(y)) <= rho )
+				constraints.append( cp.norm( L @ x_norm - L @ y) <= rho )
 			elif len(L) == 1:
-				constraints.append( cp.norm(L*x_norm - L.dot(y)) <= rho)
+				constraints.append( cp.norm(L @ x_norm - L @ y) <= rho)
 
 		return constraints
 	
@@ -314,9 +314,9 @@ class LinQuadDomain(EuclideanDomain):
 
 		for L, y, rho in zip(self.Ls, self.ys, self.rhos):
 			if len(L) > 1:
-				constraints.append( cp.norm(x.__rmatmul__(L) - L.dot(y)) <= rho )
+				constraints.append( cp.norm(L @ x - L.dot(y)) <= rho )
 			elif len(L) == 1:
-				constraints.append( cp.norm(L*x - L.dot(y)) <= rho)
+				constraints.append( cp.norm(L @ x - L.dot(y)) <= rho)
 
 		return constraints
 	

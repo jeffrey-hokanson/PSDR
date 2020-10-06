@@ -111,9 +111,9 @@ class LinIneqDomain(LinQuadDomain):
 		r = cp.Variable(1)
 		x = cp.Variable(len(self))
 			
-		constraints = [x.__rmatmul__(A) + normA * r <= b]
+		constraints = [A @ x + normA * r <= b]
 		if len(self.A_eq) > 0:
-			constraints += [x.__rmatmul__(self.A_eq) == self.b_eq]	
+			constraints += [A_eq @ x == self.b_eq]	
 
 		problem = cp.Problem(cp.Maximize(r), constraints)
 		problem.solve(**self.kwargs)

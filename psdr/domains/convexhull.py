@@ -137,13 +137,13 @@ class ConvexHullDomain(LinQuadDomain):
 	def _build_constraints(self, x):
 		
 		alpha = cp.Variable(len(self.X), name = 'alpha')
-		constraints = [x_norm == alpha.__rmatmul__(self._X.T), alpha >=0, cp.sum(alpha) == 1]
+		constraints = [x_norm == self._X.T @ alpha,  alpha >=0, cp.sum(alpha) == 1]
 		constraints += LinQuadDomain._build_constraints(self, x_norm)
 		return constraints
 		
 	def _build_constraints_norm(self, x_norm):
 		alpha = cp.Variable(len(self.X), name = 'alpha')
-		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
+		constraints = [x_norm == self._X.T @ alpha, alpha >=0, cp.sum(alpha) == 1]
 		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
 		return constraints
 	
@@ -196,7 +196,7 @@ class ConvexHullDomain(LinQuadDomain):
 			self._extent_p_norm = cp.Parameter(len(self))
 			self._extent_obj = cp.Maximize(self._extent_beta)
 			self._extent_constraints = [
-					self._extent_alpha.__rmatmul__(self._X_norm.T) == self._extent_beta * self._extent_p_norm + self._extent_x_norm,
+					self._X_norm.T @ self._extent_alpha == self._extent_beta * self._extent_p_norm + self._extent_x_norm,
 					self._extent_alpha >=0, 
 					cp.sum(self._extent_alpha) == 1,
 					]
