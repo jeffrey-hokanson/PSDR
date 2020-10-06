@@ -27,7 +27,7 @@ def maximin_design_1d(domain, N, L = None):
 
 
 
-def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500, Xhat = None):
+def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter = 500, X0 = None):
 	r""" Construct a maximin design by block coordinate descent
 
 
@@ -64,7 +64,8 @@ def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter
 		If True, print convergence information
 	maxiter: int; optional 
 		Maximum number of iterations of block coordinate descent
-
+	X0: None or array-like
+		Initial points for the maximin design	
 
 	References
 	----------
@@ -85,10 +86,10 @@ def maximin_block(domain, Nsamp, L = None, xtol = 1e-6, verbose = False, maxiter
 		c2 = domain.corner(-L.flatten())
 		return np.vstack([(1-alpha)*c1 + c2*alpha for alpha in np.linspace(0,1, Nsamp)]) 	
 
-	if Xhat is None:
+	if X0 is None:
 		X = initial_sample(domain, L, Nsamp)
 	else:
-		X = Xhat
+		X = np.array(X0)
 
 	if verbose:
 		printer = IterationPrinter(it = '4d', maximin = '16.8e', dx = '10.3e')
