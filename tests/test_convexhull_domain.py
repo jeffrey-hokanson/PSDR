@@ -69,3 +69,6 @@ def test_constraints(m=3):
 	X = hull.sample(100)
 	assert np.all(dom_con.isinside(X))
 
+
+if __name__ == '__main__':
+	test_sphere()

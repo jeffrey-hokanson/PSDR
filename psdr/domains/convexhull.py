@@ -137,13 +137,13 @@ class ConvexHullDomain(LinQuadDomain):
 	def _build_constraints(self, x):
 		
 		alpha = cp.Variable(len(self.X), name = 'alpha')
-		constraints = [x_norm == self._X.T @ alpha,  alpha >=0, cp.sum(alpha) == 1]
-		constraints += LinQuadDomain._build_constraints(self, x_norm)
+		constraints = [x == self._X.T @ alpha,  alpha >=0, cp.sum(alpha) == 1]
+		constraints += LinQuadDomain._build_constraints(self, x)
 		return constraints
 		
 	def _build_constraints_norm(self, x_norm):
 		alpha = cp.Variable(len(self.X), name = 'alpha')
-		constraints = [x_norm == self._X.T @ alpha, alpha >=0, cp.sum(alpha) == 1]
+		constraints = [x_norm == self._X_norm.T @ alpha, alpha >=0, cp.sum(alpha) == 1]
 		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
 		return constraints
 	

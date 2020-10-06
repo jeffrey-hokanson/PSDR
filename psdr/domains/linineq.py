@@ -113,7 +113,7 @@ class LinIneqDomain(LinQuadDomain):
 			
 		constraints = [A @ x + normA * r <= b]
 		if len(self.A_eq) > 0:
-			constraints += [A_eq @ x == self.b_eq]	
+			constraints += [self.A_eq @ x == self.b_eq]	
 
 		problem = cp.Problem(cp.Maximize(r), constraints)
 		problem.solve(**self.kwargs)
