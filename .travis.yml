@@ -14,9 +14,8 @@ language: python
 services:
 - docker
 
-#before_install:
-#- pip3 install -U --only-binary=numpy --only-binary=scipy numpy scipy scs osqp cvxopt
-#  cvxpy
+before_install:
+- pip3 install -U --only-binary=numpy --only-binary=scipy numpy scipy
 
 install:
 - pip3 install -U pytest pytest-cov coveralls
