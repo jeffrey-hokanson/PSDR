@@ -18,7 +18,7 @@ except ImportError:
 from .domain import TOL, DEFAULT_CVXPY_KWARGS
 from .linquad import LinQuadDomain
 from .box import BoxDomain
-from ..misc import merge, cached_property
+from ..misc import merge
 from ..geometry import unique_points
 from .euclidean import TOL
 
