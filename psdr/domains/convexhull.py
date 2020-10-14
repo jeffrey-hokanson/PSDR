@@ -65,6 +65,37 @@ def _hull_to_linineq(X):
 	return A, b, A_eq, b_eq, vertices
 
 
+class _Extent:
+	def __init__(self, domain):
+
+		self.domain = domain
+		self.alpha = cp.Variable(len(domain.X), nonneg = True) # Convex combination parameters
+		self.beta = cp.Variable()           # step length
+		self.x_norm = cp.Parameter(len(domain)) # starting point in the domain
+		self.p_norm = cp.Parameter(len(domain)) # direction in the domain
+	
+		self.obj = cp.Maximize(self.beta)
+		self.constraints = [
+			self.domain._X_norm.T @ self.alpha == self.p_norm * self.beta + self.x_norm,
+			cp.sum(self.alpha) == 1
+		] 
+		self.constraints += LinQuadDomain._build_constraints_norm(domain, self.x_norm) 
+		
+		self.prob = cp.Problem(self.obj, self.constraints)
+
+	def __call__(self, x, p, **kwargs):
+		kwargs['warm_start'] = False
+		self.x_norm.value = self.domain.normalize(x)
+		self.p_norm.value = self.domain.normalize(x+p)-self.domain.normalize(x)
+
+		#self.prob.solve(verbose = True)
+		self.prob.solve(**merge(self.domain.kwargs, kwargs))
+		try:
+			return float(self.beta.value)
+		except Exception as e:
+			print(e)
+			return 0
+
 class ConvexHullDomain(LinQuadDomain):
 	r"""Define a domain that is the interior of a convex hull of points.
 
@@ -134,6 +165,9 @@ class ConvexHullDomain(LinQuadDomain):
 		
 		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
 
+		self._extent = _Extent(self) 
+
+
 	def _is_box_domain(self):
 		return False
 
@@ -165,21 +199,6 @@ class ConvexHullDomain(LinQuadDomain):
 				Ls = self.Ls, ys = self.ys, rhos = self.rhos)
 		return dom
 
-#		if len(self) > 1:
-#			hull = ConvexHull(self._X) 
-#			vertices = self._X[hull.vertices]
-#			A = hull.equations[:,:-1]
-#			b = -hull.equations[:,-1]
-#			dom_hull = LinQuadDomain(A = A, b = b, names = self.names, **kwargs)
-#			dom_hull.vertices = np.copy(self._X[hull.vertices])
-#			dom = dom_hull.add_constraints(A = self.A, b = self.b, A_eq = self.A_eq, b_eq = self.b_eq,
-#				Ls = self.Ls, ys = self.ys, rhos = self.rhos)
-#		else:
-#			lb = self.corner([-1])
-#			ub = self.corner([1])
-#			dom = BoxDomain(lb, ub, names = self.names, **kwargs)
-#
-#		return dom
 
 	def coefficients(self, x, **kwargs):
 		r""" Find the coefficients of the convex combination of elements in the space yielding x
@@ -239,36 +258,6 @@ class ConvexHullDomain(LinQuadDomain):
 		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
 		return constraints
 	
-	
-	def _extent(self, x, p, **kwargs):
-		# NB: We setup cached description of this problem because it is used repeatedly
-		# when hit and run sampling this domain
-		kwargs['warm_start'] = True
-		if not hasattr(self, '_extent_alpha'):
-			self._extent_alpha = cp.Variable(len(self._X))	# convex combination parameters
-			self._extent_beta = cp.Variable(1)				# Step length
-			self._extent_x_norm = cp.Parameter(len(self))	# starting point inside the domain
-			self._extent_p_norm = cp.Parameter(len(self))
-			self._extent_obj = cp.Maximize(self._extent_beta)
-			self._extent_constraints = [
-					self._X_norm.T @ self._extent_alpha == self._extent_beta * self._extent_p_norm + self._extent_x_norm,
-					self._extent_alpha >=0, 
-					cp.sum(self._extent_alpha) == 1,
-					]
-			#self._extent_constraints += self._build_constraints_norm(self._extent_x_norm)
-			self._extent_constraints += LinQuadDomain._build_constraints_norm(self, self._extent_x_norm)
-			self._extent_prob = cp.Problem(self._extent_obj, self._extent_constraints)
-		
-		self._extent_x_norm.value = self.normalize(x)
-		self._extent_p_norm.value = self.normalize(x+p)-self.normalize(x)
-		self._extent_prob.solve(**merge(self.kwargs, kwargs))
-		try:
-			return float(self._extent_beta.value)
-		except:
-			# If we can't solve the problem, we are outside the domain or cannot move futher;
-			# hence we return 0
-			return 0.		
-
 	def _isinside(self, X, tol = TOL):
 
 		# Check that the points are in the convex hull
@@ -310,6 +299,7 @@ class ConvexHullDomain(LinQuadDomain):
 
 		return ConvexHullDomain(self.X, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq,
 			Ls = Ls, ys = ys, rhos = rhos, names = self.names, tol = self.tol, **self.kwargs)  
+
 
 
 	@cached_property

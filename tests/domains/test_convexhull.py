@@ -78,8 +78,8 @@ def test_to_linineq_1d():
 	dom = psdr.ConvexHullDomain(X)
 	dom2 = dom.to_linineq()
 
-	assert np.all(np.isclose(dom2.lb, -1))
-	assert np.all(np.isclose(dom2.ub, 1))
+	assert np.all(np.isclose(dom2.corner(-1), -1))
+	assert np.all(np.isclose(dom2.corner(1), 1))
 
 def test_tensor():
 	X = [[1,1], [1,-1], [-1,1], [-1,-1]]
