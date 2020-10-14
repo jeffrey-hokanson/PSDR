@@ -5,6 +5,7 @@ from .initial import initial_sample
 from .maximin_coffeehouse import maximin_coffeehouse 
 from ..geometry import voronoi_vertex_sample, cdist
 from cvxpy.error import SolverError
+from ..exceptions import EmptyDomainException
 
 def _maximin_block_candidate(domain, Xf, L):
 	r"""
@@ -42,8 +43,19 @@ def stretch_sample_domain(domain, X, Ls, verbose = False):
 	it = 0	
 	while len(Ls) > 0:
 		# Compute candidate points and distances
-		xd = [list(_maximin_block_candidate(domain, X, L)) + [L, k] for k, L in enumerate(Ls)]
-
+		xd = []
+		for k, L in enumerate(Ls):
+			try:
+				X, d = _maximin_block_candidate(domain, X, L)
+			except SolverError:
+				pass
+			xd.append( list([X, d, L, k]))
+		#xd = [list(_maximin_block_candidate(domain, X, L)) + [L, k] for k, L in enumerate(Ls)]
+		if len(xd) == 0:
+			break
+		#for x, d, L, k in xd:
+		#	print(f'{k:2d} dist {d:8.2e}')
+		
 		# Find the largest distance
 		x, d, L, k = max(xd, key = lambda l:l[1])
 		# Remove this L from the list
@@ -53,21 +65,21 @@ def stretch_sample_domain(domain, X, Ls, verbose = False):
 		# Try to add the new constraint
 		domain_new = domain.add_constraints(A_eq = L, b_eq = L @ x)
 
-	
-		# If we have an empty domain, stop and return the existing domain
-		# otherwise continue
 		try:
-			if domain_new.is_empty: 	break
-			else: domain = domain_new
-		except SolverError:
-			break
-
+			# ensure we'll be able to sample from the new domain
+			domain_new.sample(1)
+			# If we're a point, we can stop
+			if domain_new.is_point:
+				return domain_new 
+		except (SolverError, ValueError, EmptyDomainException):
+			# If either of these two error, return the previous working domain
+			return domain
+	
+		# Update the domain
+		domain = domain_new	
 		it += 1
 		if verbose:
 			print(f'iter {it:2d}, domain size {len(domain)}, eq constraints {len(domain.A_eq)}')
-
-		# If we have more constraints than the dimension of the space, stop
-		if len(domain.A_eq) > len(domain): break
 
 	return domain
 
