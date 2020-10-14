@@ -86,12 +86,17 @@ class EuclideanDomain(Domain):
 			return False
 		except EmptyDomainException:
 			return True
+		except UnboundedDomainException:
+			return False
 
 		
 	@cached_property
 	def is_point(self):
 		try:
-			U = ortho_group.rvs(len(self))
+			if len(self) > 1:
+				U = ortho_group.rvs(len(self))
+			else:
+				U = np.ones((1,1))
 
 			for u in U:
 				x1 = self.corner(u)
@@ -100,7 +105,6 @@ class EuclideanDomain(Domain):
 					return False
 
 			return True
-
 		except EmptyDomainException:
 			return False
 		except UnboundedDomainException:
@@ -284,16 +288,16 @@ class EuclideanDomain(Domain):
 		
 		problem.solve(**kwargs)
 		if problem.status in ['infeasible']:
-			self._empty = True
-			self._unbounded = False
-			self._point = False
+			#self._empty = True
+			#self._unbounded = False
+			#self._point = False
 			raise EmptyDomainException	
 		# For some reason, if no constraints are provided CVXPY doesn't note
 		# the domain is unbounded
 		elif problem.status in ['unbounded'] or len(constraints) == 0:
-			self._unbounded = True
-			self._empty = False
-			self._point = False
+			#self._unbounded = True
+			#self._empty = False
+			#self._point = False
 			raise UnboundedDomainException
 		elif problem.status not in ['optimal', 'optimal_inaccurate']:
 			raise SolverError("CVXPY exited with status '%s'" % problem.status)
@@ -675,7 +679,7 @@ class EuclideanDomain(Domain):
 			# Orthogonalize against equality constarints constraints
 			p = p - Qeq @ (Qeq.T @ p)
 			# check that the direction isn't hitting a constraint
-			if self.extent(x, p) > 0:
+			if x is None or self.extent(x, p) > 0:
 				break
 		return p	
 
@@ -825,7 +829,10 @@ class EuclideanDomain(Domain):
 		# at the center of the domain.
 
 		# Generate random orthogonal directions to sample
-		U = ortho_group.rvs(len(self))
+		if len(self) > 1:
+			U = ortho_group.rvs(len(self))
+		else:
+			U = np.ones((1,1))
 		X = []
 		for i in range(len(self)):
 			X += [self.corner(U[:,i])]
@@ -856,7 +863,7 @@ class EuclideanDomain(Domain):
 			# Get the current location of where the hit and run sampler is
 			x0 = self._hit_and_run_state
 			if x0 is None: raise AttributeError
-		except (AttributeError,):
+		except AttributeError:
 		
 			try:
 				# The simpliest and inexpensive approach is to start hit and run
@@ -866,7 +873,7 @@ class EuclideanDomain(Domain):
 	
 				# TODO: chebyshev_center breaks when running test_lipschitz_sample yielding a SolverError
 				# It really shouldn't error
-			except (NotImplementedError):
+			except (AttributeError, NotImplementedError):
 				x0 = self._corner_center()
 			self._hit_and_run_state = x0
 		

@@ -22,6 +22,49 @@ from ..misc import merge
 from ..geometry import unique_points
 from .euclidean import TOL
 
+
+
+
+def _hull_to_linineq(X):
+	r"""
+	"""
+	if X.shape[0] == 1:
+		A = None
+		b = None
+		vertices = X
+		A_eq = np.eye(X.shape[1])
+		b_eq = X.flatten()
+		return A, b, A_eq, b_eq, vertices
+
+	# Find a low-dimensional subspace on which this data lives
+	Xc = np.mean(X, axis = 0)
+	Xdiff = (X.T - Xc.reshape(-1,1)).T
+	U, s, VT = scipy.linalg.svd(Xdiff, full_matrices = False)
+	I = np.isclose(s, 0)
+	Q, _ = scipy.linalg.qr(VT[~I].T, mode = 'full')
+	dim = np.sum(~I)
+	# component where coordinates change
+	Qpar = Q[:,0:dim]
+	# orthogonal complement
+	Qperp = Q[:, dim:]
+
+	Y = X @ Qpar
+	if Y.shape[1] > 1:
+		hull = ConvexHull(Y)
+		A = hull.equations[:,:-1] @ Qpar.T
+		b = -hull.equations[:,-1]
+		vertices = X[hull.vertices]
+	else:
+		# this is an interval which is not handled by Qhull
+		A = np.array([1, -1]).reshape(2,1) @ Qpar.T
+		b = np.array([np.max(Y), -np.min(Y)])
+		vertices = np.array([X[np.argmax(Y)], X[np.argmin(Y)]])
+	
+	A_eq = Qperp.T
+	b_eq = np.mean( X @ Qperp, axis = 0)
+	return A, b, A_eq, b_eq, vertices
+
+
 class ConvexHullDomain(LinQuadDomain):
 	r"""Define a domain that is the interior of a convex hull of points.
 
@@ -114,20 +157,29 @@ class ConvexHullDomain(LinQuadDomain):
 		r""" Convert the domain into a LinIneqDomain
 
 		"""
-		if len(self) > 1:
-			hull = ConvexHull(self._X) 
-			A = hull.equations[:,:-1]
-			b = -hull.equations[:,-1]
-			dom_hull = LinQuadDomain(A = A, b = b, names = self.names, **kwargs)
-			dom_hull.vertices = np.copy(self._X[hull.vertices])
-			dom = dom_hull.add_constraints(A = self.A, b = self.b, A_eq = self.A_eq, b_eq = self.b_eq,
+		A, b, A_eq, b_eq, vertices = _hull_to_linineq(self._X)
+		dom_hull = LinQuadDomain(A = A, b = b, A_eq = A_eq, b_eq = b_eq, names = self.names, **kwargs)
+		dom_hull.vertices = np.copy(vertices)
+		# Add back in non-hull constraints
+		dom = dom_hull.add_constraints(A = self.A, b = self.b, A_eq = self.A_eq, b_eq = self.b_eq,
 				Ls = self.Ls, ys = self.ys, rhos = self.rhos)
-		else:
-			lb = self.corner([-1])
-			ub = self.corner([1])
-			dom = BoxDomain(lb, ub, names = self.names, **kwargs)
-
 		return dom
+
+#		if len(self) > 1:
+#			hull = ConvexHull(self._X) 
+#			vertices = self._X[hull.vertices]
+#			A = hull.equations[:,:-1]
+#			b = -hull.equations[:,-1]
+#			dom_hull = LinQuadDomain(A = A, b = b, names = self.names, **kwargs)
+#			dom_hull.vertices = np.copy(self._X[hull.vertices])
+#			dom = dom_hull.add_constraints(A = self.A, b = self.b, A_eq = self.A_eq, b_eq = self.b_eq,
+#				Ls = self.Ls, ys = self.ys, rhos = self.rhos)
+#		else:
+#			lb = self.corner([-1])
+#			ub = self.corner([1])
+#			dom = BoxDomain(lb, ub, names = self.names, **kwargs)
+#
+#		return dom
 
 	def coefficients(self, x, **kwargs):
 		r""" Find the coefficients of the convex combination of elements in the space yielding x

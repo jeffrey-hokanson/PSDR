@@ -4,6 +4,26 @@ import scipy.linalg
 from scipy.linalg import orth
 import pytest
 
+from psdr.domains.convexhull import _hull_to_linineq
+
+
+@pytest.mark.parametrize("M", [1,2,3,4,5,6,7,8,9,10])
+@pytest.mark.parametrize("m", [1,2,3,4])
+def test_hull_to_ineq(M, m):
+	np.random.seed(0)
+	X = np.random.randn(M,m)
+	dom_hull = psdr.ConvexHullDomain(X)
+	dom_linineq = dom_hull.to_linineq()
+
+	for it in range(10):
+		if M > 1:
+			# Hit and run will error out with a point domain
+			x = dom_hull._hit_and_run()
+		else:
+			x = dom_hull.sample()
+		assert dom_linineq.isinside(x)
+
+
 def test_sample():
 	np.random.seed(0)
 	m = 4
@@ -107,4 +127,5 @@ def test_A_eq_deficient(m, nullspace_dim):
 if __name__ == '__main__':
 	#test_sample()
 	#test_A_eq(4, 2)
-	test_A_eq_deficient(4, 0)
+	#test_A_eq_deficient(4, 0)
+	test_hull_to_ineq(1, 4)
