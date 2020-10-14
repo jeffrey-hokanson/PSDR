@@ -21,7 +21,9 @@ install_requires += [
 	'scipy>=1.1.0',
 	]
 
-if sys.version[1] < 8:
+try:
+	from funtools import cached_property
+except ImportError:
 	install_requires += ['backports.cached-property']
 
 test_requires = ['pytest']
