@@ -1,5 +1,3 @@
-from __future__ import division, print_function
-
 import numpy as np
 import scipy
 
@@ -66,10 +64,17 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	cs = np.array([domain.corner(U @ z) for z in zs])
 	# Multiply by the low-rank Lipschitz matrix 
 	Lcs = (L @ cs.T).T
+	# Remove duplicates (although done in ConvexHullDomain, we need these unique points to reconstruct the points 
+	I = unique_points(Lcs)
+	cs = cs[I]
+	Lcs = Lcs[I]
+
+	print("Corners", cs)
+	print("L @ corners", Lcs)
 
 	# Create a domain using these points
 	Ldom = ConvexHullDomain(Lcs)
-
+	# Determine which points were used
 	# Sample from this domain
 	Y = Ldom.sample(Nsamp)
 
@@ -78,7 +83,7 @@ def initial_sample(domain, L, Nsamp = int(1e2), Nboundary = 50):
 	for i, y in enumerate(Y):
 		# Determine the combination coefficients for these samples
 		alpha = Ldom.coefficients(y)
-		X[i] = cs.T.dot(alpha)
+		X[i] = cs.T @ alpha
 
 	return X	
 
