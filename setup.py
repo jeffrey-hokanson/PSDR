@@ -21,6 +21,9 @@ install_requires += [
 	'scipy>=1.1.0',
 	]
 
+if sys.version[1] < 8:
+	install_requires += ['backports.cached-property']
+
 test_requires = ['pytest']
 
 
