@@ -87,30 +87,16 @@ class LinIneqDomain(LinQuadDomain):
 		m, n = self.A.shape
 
 		# Merge the bound constraints into A
-		A = [self.A]
-		b = [self.b]
-		for i in range(n):
-			ei = np.zeros(n)
-			ei[i] = 1
-			# Upper bound
-			if np.isfinite(self.ub[i]):
-				A.append(ei)
-				b.append(self.ub[i])
-			# Lower bound
-			if np.isfinite(self.lb[i]):
-				A.append(-ei)
-				b.append(-self.lb[i])
+		A = self.A_aug
+		b = self.b_aug
 
-		A = np.vstack(A)
-		b = np.hstack(b)
-		
 		# See p.4-19 https://see.stanford.edu/materials/lsocoee364a/04ConvexOptimizationProblems.pdf
 		# 
 		normA = np.sqrt( np.sum( np.power(A, 2), axis=1 ) ).reshape((A.shape[0], ))
 		
 		r = cp.Variable(1)
 		x = cp.Variable(len(self))
-			
+		
 		constraints = [A @ x + normA * r <= b]
 		if len(self.A_eq) > 0:
 			constraints += [self.A_eq @ x == self.b_eq]	
