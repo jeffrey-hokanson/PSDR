@@ -5,7 +5,7 @@ from setuptools import setup
 install_requires = [
 		'numpy>=1.15', 
 		'redis',
-		'cvxpy',
+		'cvxpy<=1.0.31',
 		'cvxopt',
 		'tqdm',
 		'dask',
