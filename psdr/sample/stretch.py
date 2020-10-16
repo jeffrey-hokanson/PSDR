@@ -47,7 +47,7 @@ def stretch_sample_domain(domain, X, Ls, verbose = False):
 		for k, L in enumerate(Ls):
 			try:
 				X, d = _maximin_block_candidate(domain, X, L)
-			except SolverError:
+			except (SolverError, EmptyDomainException):
 				pass
 			xd.append( list([X, d, L, k]))
 		#xd = [list(_maximin_block_candidate(domain, X, L)) + [L, k] for k, L in enumerate(Ls)]
