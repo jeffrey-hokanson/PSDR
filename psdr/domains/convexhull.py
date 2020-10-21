@@ -3,15 +3,98 @@ from __future__ import division
 import numpy as np
 import cvxpy as cp
 
+import scipy.linalg
+from scipy.linalg import orth
 from scipy.optimize import nnls
 from scipy.spatial import ConvexHull
 
+from functools import lru_cache
+
+try:
+	from functools import cached_property
+except ImportError:
+	from backports.cached_property import cached_property
 
 from .domain import TOL, DEFAULT_CVXPY_KWARGS
 from .linquad import LinQuadDomain
 from .box import BoxDomain
 from ..misc import merge
+from ..geometry import unique_points
+from .euclidean import TOL
 
+
+
+
+def _hull_to_linineq(X):
+	r"""
+	"""
+	if X.shape[0] == 1:
+		A = None
+		b = None
+		vertices = X
+		A_eq = np.eye(X.shape[1])
+		b_eq = X.flatten()
+		return A, b, A_eq, b_eq, vertices
+
+	# Find a low-dimensional subspace on which this data lives
+	Xc = np.mean(X, axis = 0)
+	Xdiff = (X.T - Xc.reshape(-1,1)).T
+	U, s, VT = scipy.linalg.svd(Xdiff, full_matrices = False)
+	I = np.isclose(s, 0)
+	Q, _ = scipy.linalg.qr(VT[~I].T, mode = 'full')
+	dim = np.sum(~I)
+	# component where coordinates change
+	Qpar = Q[:,0:dim]
+	# orthogonal complement
+	Qperp = Q[:, dim:]
+
+	Y = X @ Qpar
+	if Y.shape[1] > 1:
+		hull = ConvexHull(Y)
+		A = hull.equations[:,:-1] @ Qpar.T
+		b = -hull.equations[:,-1]
+		vertices = X[hull.vertices]
+	else:
+		# this is an interval which is not handled by Qhull
+		A = np.array([1, -1]).reshape(2,1) @ Qpar.T
+		b = np.array([np.max(Y), -np.min(Y)])
+		vertices = np.array([X[np.argmax(Y)], X[np.argmin(Y)]])
+	
+	A_eq = Qperp.T
+	b_eq = np.mean( X @ Qperp, axis = 0)
+	return A, b, A_eq, b_eq, vertices
+
+
+class _Extent:
+	def __init__(self, domain):
+
+		self.domain = domain
+		self.alpha = cp.Variable(len(domain.X), nonneg = True) # Convex combination parameters
+		self.beta = cp.Variable()           # step length
+		self.x_norm = cp.Parameter(len(domain)) # starting point in the domain
+		self.p_norm = cp.Parameter(len(domain)) # direction in the domain
+	
+		self.obj = cp.Maximize(self.beta)
+		self.constraints = [
+			self.domain._X_norm.T @ self.alpha == self.p_norm * self.beta + self.x_norm,
+			cp.sum(self.alpha) == 1
+		] 
+		self.constraints += LinQuadDomain._build_constraints_norm(domain, self.x_norm) 
+		
+		self.prob = cp.Problem(self.obj, self.constraints)
+
+	def __call__(self, x, p, **kwargs):
+		kwargs['warm_start'] = False
+		self.x_norm.value = self.domain.normalize(x)
+		self.p_norm.value = self.domain.normalize(x+p)-self.domain.normalize(x)
+
+		#self.prob.solve(verbose = True)
+		self.prob.solve(**merge(self.domain.kwargs, kwargs))
+		try:
+			return float(self.beta.value)
+		except Exception as e:
+			print(e)
+			return 0
 
 class ConvexHullDomain(LinQuadDomain):
 	r"""Define a domain that is the interior of a convex hull of points.
@@ -23,6 +106,8 @@ class ConvexHullDomain(LinQuadDomain):
 	
 		\mathcal{D} := \left\lbrace \sum_{i=1}^M \alpha_i x_i : \sum_{i=1}^M \alpha_i = 1, \ \alpha_i \ge 0 \right\rbrace \subset \mathbb{R}^m.
 
+	In additionally any linear equality, linear inequality, and quadratic inequality constraints can be included.
+	
 
 	Parameters
 	----------
@@ -54,14 +139,13 @@ class ConvexHullDomain(LinQuadDomain):
 
 	def __init__(self, X, A = None, b = None, lb = None, ub = None, 
 		A_eq = None, b_eq = None, Ls = None, ys = None, rhos = None,
-		names = None, **kwargs):
+		names = None, tol = TOL, **kwargs):
 
-		self._X = np.copy(X)
-		if len(self._X.shape) == 1:
-			self._X = self._X.reshape(-1,1)
-	
+		X = np.atleast_2d(X)
+		I = unique_points(X)
+		self._X = np.copy(X[I])
 		self._init_names(names)
-		
+		self.tol = tol
 
 		# Start setting default values
 		self._lb = self._init_lb(lb)
@@ -69,16 +153,20 @@ class ConvexHullDomain(LinQuadDomain):
 		self._A, self._b = self._init_ineq(A, b)
 		self._A_eq, self._b_eq = self._init_eq(A_eq, b_eq)	
 		self._Ls, self._ys, self._rhos = self._init_quad(Ls, ys, rhos)
+		
+		# TODO: should we consider reducing dimension via rotation
+		# if the points are colinear ?
 
 		# Setup the lower and upper bounds to improve conditioning
 		# when solving LPs associated with domain features
-		# TODO: should we consider reducing dimension via rotation
-		# if the points are 
 		self._norm_lb = np.min(self._X, axis = 0)
 		self._norm_ub = np.max(self._X, axis = 0)
-		self._X_norm = self.normalize(X)
+		self._X_norm = self.normalize(self.X)
 		
 		self.kwargs = merge(DEFAULT_CVXPY_KWARGS, kwargs)
+
+		self._extent = _Extent(self) 
+
 
 	def _is_box_domain(self):
 		return False
@@ -95,24 +183,22 @@ class ConvexHullDomain(LinQuadDomain):
 		ret += ">"
 		return ret
 
+	def chebyshev_center(self):
+		raise NotImplementedError
+
+	@lru_cache(maxsize = None)
 	def to_linineq(self, **kwargs):
 		r""" Convert the domain into a LinIneqDomain
 
 		"""
-		if len(self) > 1:
-			hull = ConvexHull(self._X) 
-			A = hull.equations[:,:-1]
-			b = -hull.equations[:,-1]
-			dom_hull = LinQuadDomain(A = A, b = b, names = self.names, **kwargs)
-			dom_hull.vertices = np.copy(self._X[hull.vertices])
-			dom = dom_hull.add_constraints(A = self.A, b = self.b, A_eq = self.A_eq, b_eq = self.b_eq,
+		A, b, A_eq, b_eq, vertices = _hull_to_linineq(self._X)
+		dom_hull = LinQuadDomain(A = A, b = b, A_eq = A_eq, b_eq = b_eq, names = self.names, **kwargs)
+		dom_hull.vertices = np.copy(vertices)
+		# Add back in non-hull constraints
+		dom = dom_hull.add_constraints(A = self.A, b = self.b, A_eq = self.A_eq, b_eq = self.b_eq,
 				Ls = self.Ls, ys = self.ys, rhos = self.rhos)
-		else:
-			lb = self.corner([-1])
-			ub = self.corner([1])
-			dom = BoxDomain(lb, ub, names = self.names, **kwargs)
-
 		return dom
+
 
 	def coefficients(self, x, **kwargs):
 		r""" Find the coefficients of the convex combination of elements in the space yielding x
@@ -122,8 +208,6 @@ class ConvexHullDomain(LinQuadDomain):
 		A = np.vstack([self._X_norm.T, np.ones( (1,len(self._X_norm)) )])
 		b = np.hstack([x_norm, 1])
 		alpha, rnorm = nnls(A, b)
-		#print('rnorm', rnorm)
-		#assert rnorm < 1e-5, "Point x must be inside the domain"
 		return alpha
 
 	@property
@@ -134,90 +218,51 @@ class ConvexHullDomain(LinQuadDomain):
 		return self._X.shape[1]
 
 
+	def _sample(self, draw = 1):
+		if len(self.X) == 1:
+			return np.outer(np.ones(draw), self.X)
+
+		try:
+			# Try a quicker method to sample from the domain if there are only two points
+			assert len(self._X) == 2
+			alphas = np.random.uniform(0,1, size = draw)
+			X = np.vstack([self._X[0] * alpha + self._X[1]*(1-alpha) for alpha in alphas])
+			# These points automatically satisfy the convex combination constraint
+			# We then check if the remaining constraints are satisfied
+			# if not, we error out and revert to hit and run sampling
+			assert np.all(self._isinside_bounds(X))
+			assert np.all(self._isinside_ineq(X))
+			assert np.all(self._isinside_eq(X))
+			assert np.all(self._isinside_quad(X))
+			return X
+		except AssertionError:
+			pass
+
+		if len(self) <= 3:
+			dom = self.to_linineq()
+			return dom.sample(draw) 
+		else:
+				
+			return super(ConvexHullDomain, self)._sample(draw = draw)
+
 	def _build_constraints(self, x):
 		
 		alpha = cp.Variable(len(self.X), name = 'alpha')
-		constraints = [x_norm == self._X.T @ alpha,  alpha >=0, cp.sum(alpha) == 1]
-		constraints += LinQuadDomain._build_constraints(self, x_norm)
+		constraints = [x == alpha @ self._X.T,  alpha >=0, cp.sum(alpha) == 1]
+		constraints += LinQuadDomain._build_constraints(self, x)
 		return constraints
 		
 	def _build_constraints_norm(self, x_norm):
-		alpha = cp.Variable(len(self.X), name = 'alpha')
-		constraints = [x_norm == self._X.T @ alpha, alpha >=0, cp.sum(alpha) == 1]
+		alpha = cp.Variable(len(self._X_norm), name = 'alpha')
+		constraints = [x_norm == alpha @ self._X_norm, alpha >=0, cp.sum(alpha) == 1]
 		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
 		return constraints
 	
-#	def _closest_point(self, x0, L = None, **kwargs):
-#
-#		if self.isinside(x0):
-#			return np.copy(x0)
-#
-#		if L is None:
-#			L = np.eye(len(self))
-#			
-#		D = self._unnormalize_der() 	
-#		LD = L.dot(D)
-#		
-#		m = len(self)
-#		x0_norm = self.normalize(x0)
-#		x_norm = cp.Variable(m)					# Point inside the domain
-#		alpha = cp.Variable(len(self._X))		# convex combination parameters
-#		
-#		obj = cp.Minimize(cp.norm(LD*x_norm - LD.dot(x0_norm) ))
-#		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
-#		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
-#		#constraints += self._build_constraints_norm(x_norm)
-#	
-#		prob = cp.Problem(obj, constraints)
-#		prob.solve(**merge(self.kwargs, kwargs))
-#
-#		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
-#	
-#	def _corner(self, p, **kwargs):
-#		D = self._unnormalize_der()
-#		x_norm = cp.Variable(len(self))			# Point inside the domain
-#		alpha = cp.Variable(len(self._X))		# convex combination parameters
-#		obj = cp.Maximize(x_norm.__rmatmul__( D.dot(p)))
-#		constraints = [x_norm == alpha.__rmatmul__(self._X_norm.T), alpha >=0, cp.sum(alpha) == 1]
-#		#constraints += self._build_constraints_norm(x_norm)
-#		constraints += LinQuadDomain._build_constraints_norm(self, x_norm)
-#		prob = cp.Problem(obj, constraints)
-#		prob.solve(**merge(self.kwargs, kwargs))
-#		return self.unnormalize(np.array(x_norm.value).reshape(len(self)))
-	
-	def _extent(self, x, p, **kwargs):
-		# NB: We setup cached description of this problem because it is used repeatedly
-		# when hit and run sampling this domain
-		kwargs['warm_start'] = True
-		if not hasattr(self, '_extent_alpha'):
-			self._extent_alpha = cp.Variable(len(self._X))	# convex combination parameters
-			self._extent_beta = cp.Variable(1)				# Step length
-			self._extent_x_norm = cp.Parameter(len(self))	# starting point inside the domain
-			self._extent_p_norm = cp.Parameter(len(self))
-			self._extent_obj = cp.Maximize(self._extent_beta)
-			self._extent_constraints = [
-					self._X_norm.T @ self._extent_alpha == self._extent_beta * self._extent_p_norm + self._extent_x_norm,
-					self._extent_alpha >=0, 
-					cp.sum(self._extent_alpha) == 1,
-					]
-			#self._extent_constraints += self._build_constraints_norm(self._extent_x_norm)
-			self._extent_constraints += LinQuadDomain._build_constraints_norm(self, self._extent_x_norm)
-			self._extent_prob = cp.Problem(self._extent_obj, self._extent_constraints)
-		
-		self._extent_x_norm.value = self.normalize(x)
-		self._extent_p_norm.value = self.normalize(x+p)-self.normalize(x)
-		self._extent_prob.solve(**merge(self.kwargs, kwargs))
-		try:
-			return float(self._extent_beta.value)
-		except:
-			# If we can't solve the problem, we are outside the domain or cannot move futher;
-			# hence we return 0
-			return 0.		
-
 	def _isinside(self, X, tol = TOL):
 
 		# Check that the points are in the convex hull
 		inside = np.zeros(X.shape[0], dtype = np.bool)
+		
 		for i, xi in enumerate(X):
 			alpha = self.coefficients(xi)
 			rnorm = np.linalg.norm( xi - self._X.T.dot(alpha))
@@ -230,3 +275,52 @@ class ConvexHullDomain(LinQuadDomain):
 		inside &= self._isinside_quad(X, tol = tol)
 
 		return inside
+
+	def add_constraints(self, A = None, b = None, lb = None, ub = None, A_eq = None, b_eq = None,
+		Ls = None, ys = None, rhos = None):
+		lb = self._init_lb(lb)
+		ub = self._init_ub(ub)
+		A, b = self._init_ineq(A, b)
+		A_eq, b_eq = self._init_eq(A_eq, b_eq)
+		Ls, ys, rhos = self._init_quad(Ls, ys, rhos)
+		
+		A = np.vstack([self.A, A])
+		b = np.hstack([self.b, b])
+		
+		lb = np.maximum(lb, self.lb)
+		ub = np.minimum(ub, self.ub)
+
+		A_eq = np.vstack([self.A_eq, A_eq])
+		b_eq = np.hstack([self.b_eq, b_eq])
+		
+		Ls = self.Ls + Ls
+		ys = self.ys + ys
+		rhos = self.rhos + rhos
+
+		return ConvexHullDomain(self.X, A = A, b = b, lb = lb, ub = ub, A_eq = A_eq, b_eq = b_eq,
+			Ls = Ls, ys = ys, rhos = rhos, names = self.names, tol = self.tol, **self.kwargs)  
+
+
+
+	@cached_property
+	def _A_eq_basis(self):
+		try: 
+			if len(self.A_eq) == 0: raise AttributeError
+			Qeq = orth(self.A_eq.T)
+		except AttributeError:
+			Qeq = np.zeros((len(self),0))
+		
+		# Check if points are colinear; if so add the corresponding equality constraint	
+		Xc = np.mean(self.X, axis = 0)
+		Xdiff = (self.X.T - Xc.reshape(-1,1)).T
+		U, s, VT = scipy.linalg.svd(Xdiff, full_matrices = False)
+		
+		I = np.isclose(s, 0)
+		if np.sum(I) > 0:
+			# Find an orthogonal basis for the nullspace of the nonzero right singular vectors
+			# (we do this to avoid computing a full singular value decomposition as there may be many 
+			# points defining the convex hull domain)
+			Q, _ = scipy.linalg.qr(VT[~I].T, mode = 'full')
+			Q = Q[:, np.sum(~I):]
+			Qeq = orth(np.hstack([Qeq, Q]))
+		return Qeq	

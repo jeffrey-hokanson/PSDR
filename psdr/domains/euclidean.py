@@ -1,5 +1,3 @@
-from __future__ import print_function, division
-
 import numpy as np
 
 from scipy.stats import ortho_group
@@ -7,6 +5,13 @@ from scipy.linalg import orth
 from scipy.spatial.distance import pdist
 
 from functools import lru_cache
+
+
+try:
+	from functools import cached_property
+except ImportError:
+	from backports.cached_property import cached_property
+
 
 import cvxpy as cp
 
@@ -70,88 +75,56 @@ class EuclideanDomain(Domain):
 		return self._dimension
 
 
-
-
 	
-	@property
+	@cached_property
 	def is_empty(self):
 		r""" Returns True if there are no points in the domain
 		"""
-		try:
-			return self._empty
-		except AttributeError:
-			try:
-				# Try to find at least one point inside the domain
-				c = self.corner(np.ones(len(self)))
-				self._empty = False
-			except EmptyDomainException:
-				# Corner actually sets this value, but we do it here again for clairity
-				self._empty = True
-				self._unbounded = False
-				self._point = False
+		try: 
+			# Try to find at least one point inside the domain
+			c = self.corner(np.ones(len(self)), verbose = False)
+			return False
+		except EmptyDomainException:
+			return True
+		except UnboundedDomainException:
+			return False
 
-			except UnboundedDomainException:
-				self._unbounded = True
-				self._point = False
-				self._empty = False
-			
-			return self._empty
 		
-	@property
+	@cached_property
 	def is_point(self):
 		try:
-			return self._point
-		except AttributeError:
-			try:
+			if len(self) > 1:
 				U = ortho_group.rvs(len(self))
+			else:
+				U = np.ones((1,1))
 
-				for u in U:
-					x1 = self.corner(u)
-					x2 = self.corner(-u)
-					if not np.all(np.isclose(x1, x2)):
-						self._point = False
-						return self._point
+			for u in U:
+				x1 = self.corner(u)
+				x2 = self.corner(-u)
+				if not np.all(np.isclose(x1, x2)):
+					return False
 
-				self._point = True				
-				self._empty = False
-				self._unbounded = False
+			return True
+		except EmptyDomainException:
+			return False
+		except UnboundedDomainException:
+			return False
 
-			except EmptyDomainException:
-				self._empty = True
-				self._point = False
-
-			except UnboundedDomainException:
-				self._empty = False
-				self._point = False
-				self._unbounded = True
-				
-			return self._point
-
-	@property
+	@cached_property
 	def is_unbounded(self):
 		try:
-			return self._unbounded
-		except AttributeError:
-			try: 
-				U = ortho_group.rvs(len(self))
-				self._point = True
-				for u in U:
-					x1 = self.corner(u)
-					x2 = self.corner(-u)
-					if not np.all(np.isclose(x1,x2)):
-						self._point = False
-				self._unbounded = False
-			except UnboundedDomainException:
-				self._unbounded = True
-				self._point = False
-				self._empty = False
-			except EmptyDomainException:
-				self._unbounded = False
-				self._point = False
-				self._empty = True
-				
-			return self._unbounded
-	
+			U = ortho_group.rvs(len(self))
+			for u in U:
+				x1 = self.corner(u)
+				x2 = self.corner(-u)
+			#	if not np.all(np.isclose(x1,x2)):
+			#		self._point = False
+			return False
+		except UnboundedDomainException:
+			return True
+		except EmptyDomainException:
+			return False
+
 
 	################################################################################
 	# Primative operations on the domain
@@ -315,16 +288,16 @@ class EuclideanDomain(Domain):
 		
 		problem.solve(**kwargs)
 		if problem.status in ['infeasible']:
-			self._empty = True
-			self._unbounded = False
-			self._point = False
+			#self._empty = True
+			#self._unbounded = False
+			#self._point = False
 			raise EmptyDomainException	
 		# For some reason, if no constraints are provided CVXPY doesn't note
 		# the domain is unbounded
 		elif problem.status in ['unbounded'] or len(constraints) == 0:
-			self._unbounded = True
-			self._empty = False
-			self._point = False
+			#self._unbounded = True
+			#self._empty = False
+			#self._point = False
 			raise UnboundedDomainException
 		elif problem.status not in ['optimal', 'optimal_inaccurate']:
 			raise SolverError("CVXPY exited with status '%s'" % problem.status)
@@ -704,8 +677,9 @@ class EuclideanDomain(Domain):
 			# Generate a random direction inside 
 			p = np.random.normal(size = (len(self),))
 			# Orthogonalize against equality constarints constraints
-			p = p - Qeq.dot(Qeq.T.dot(p))
-			if self.extent(x, p) > 0:
+			p = p - Qeq @ (Qeq.T @ p)
+			# check that the direction isn't hitting a constraint
+			if x is None or self.extent(x, p) > 0:
 				break
 		return p	
 
@@ -838,18 +812,46 @@ class EuclideanDomain(Domain):
 		return vol	
 
 
-	@property
+	@cached_property
 	def _A_eq_basis(self):
-		try:
-			return self._A_eq_basis_
+		r""" This contains an orthogonal basis for the directions that are *not* allowed to be moved along
+		"""
+		try: 
+			if len(self.A_eq) == 0: raise AttributeError
+			Qeq = orth(self.A_eq.T)
 		except AttributeError:
-			try: 
-				if len(self.A_eq) == 0: raise AttributeError
-				Qeq = orth(self.A_eq.T)
-			except AttributeError:
-				Qeq = np.zeros((len(self),0))
-			self._A_eq_basis_ = Qeq
-		return self._A_eq_basis_
+			Qeq = np.zeros((len(self),0))
+		return Qeq
+
+
+	def _corner_center(self):
+		# Otherwise we pick points on the boundary and then initialize
+		# at the center of the domain.
+
+		# Generate random orthogonal directions to sample
+		if len(self) > 1:
+			U = ortho_group.rvs(len(self))
+		else:
+			U = np.ones((1,1))
+		X = []
+		for i in range(len(self)):
+			X += [self.corner(U[:,i])]
+			X += [self.corner(-U[:,i])]
+			if i >= 3 and not np.isclose(np.max(pdist(X)),0):
+				# If we have collected enough points and these
+				# are distinct, stop
+				break
+			
+		# If we still only have effectively one point, we are a point domain	
+		if np.isclose(np.max(pdist(X)),0) and len(X) == 2*len(self):
+			self._point = True
+		else:
+			self._point = False
+
+		# Take the mean
+		x0 = sum(X)/len(X)
+		x0 = self.closest_point(x0)
+		return x0
 
 	def _hit_and_run(self, _recurse = 2):
 		r"""Hit-and-run sampling for the domain
@@ -871,34 +873,11 @@ class EuclideanDomain(Domain):
 	
 				# TODO: chebyshev_center breaks when running test_lipschitz_sample yielding a SolverError
 				# It really shouldn't error
-	
-			except (AttributeError, SolverError):
-				# Otherwise we pick points on the boundary and then initialize
-				# at the center of the domain.
-
-				# Generate random orthogonal directions to sample
-				U = ortho_group.rvs(len(self))
-				X = []
-				for i in range(len(self)):
-					X += [self.corner(U[:,i])]
-					X += [self.corner(-U[:,i])]
-					if i >= 3 and not np.isclose(np.max(pdist(X)),0):
-						# If we have collected enough points and these
-						# are distinct, stop
-						break
-					
-				# If we still only have effectively one point, we are a point domain	
-				if np.isclose(np.max(pdist(X)),0) and len(X) == 2*len(self):
-					self._point = True
-				else:
-					self._point = False
-
-				# Take the mean
-				x0 = sum(X)/len(X)
-				x0 = self.closest_point(x0)
-			
+			except (AttributeError, NotImplementedError):
+				x0 = self._corner_center()
 			self._hit_and_run_state = x0
-			
+		
+		
 		# If we are point domain, there is no need go any further
 		if self.is_point:
 			return self._hit_and_run_state.copy()

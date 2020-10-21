@@ -82,6 +82,6 @@ def test_stretch_sample_uniform(m,n):
 			assert pvalue > 1e-3
 
 if __name__ == '__main__':
-	#test_stretch_sample()
-	test_stretch_sample_uniform(5, 1)
-	test_stretch_sample_uniform(5, 2)
+	test_stretch_sample(5, [3, 3])
+	#test_stretch_sample_uniform(5, 1)
+	#test_stretch_sample_uniform(5, 2)

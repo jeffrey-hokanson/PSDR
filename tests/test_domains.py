@@ -49,3 +49,7 @@ def test_convex_hull():
 	
 	x = np.random.randn(5,1)
 	dom = psdr.ConvexHullDomain(x)
+
+
+if __name__ == '__main__':
+	test_box()

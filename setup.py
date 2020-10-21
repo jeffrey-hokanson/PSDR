@@ -5,7 +5,7 @@ from setuptools import setup
 install_requires = [
 		'numpy>=1.15', 
 		'redis',
-		'cvxpy',
+		'cvxpy<=1.0.31',
 		'cvxopt',
 		'tqdm',
 		'dask',
@@ -20,6 +20,11 @@ install_requires += [
 	'matplotlib',
 	'scipy>=1.1.0',
 	]
+
+try:
+	from funtools import cached_property
+except ImportError:
+	install_requires += ['backports.cached-property']
 
 test_requires = ['pytest']
 
