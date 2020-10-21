@@ -78,7 +78,7 @@ class MULTIF(Function):
 
 	""" 
 	def __init__(self, truncate = 1e-7, level = 0, su2_maxiter = 5000, workdir = None,
-		keep_data = False, verbose = False, dask_client = None):
+		dask_client = None, **kwargs):
 		self.design_domain_app = buildDesignDomain(output = 'none', solver = 'CVXOPT')
 		self.design_domain_norm = self.design_domain_app.normalized_domain()
 		self.design_domain = self.design_domain_norm		
@@ -88,7 +88,7 @@ class MULTIF(Function):
 		self.random_domain = self.random_domain_norm		
 
 		domain = self.design_domain_app * self.random_domain_app
-		Function.__init__(self, multif, domain, vectorized = False, dask_client = dask_client)
+		Function.__init__(self, multif, domain, vectorized = False, dask_client = dask_client, kwargs = kwargs )
 
 	def __str__(self):
 		return "<MULTI-F Function>"
