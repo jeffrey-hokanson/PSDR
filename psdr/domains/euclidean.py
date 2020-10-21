@@ -944,13 +944,13 @@ class EuclideanDomain(Domain):
 	def b_eq(self): return np.zeros((0,))
 
 	@property
-	def Ls(self): return ()
+	def Ls(self): return []
 
 	@property
-	def ys(self): return ()
+	def ys(self): return []
 	
 	@property
-	def rhos(self): return ()
+	def rhos(self): return []
 	
 	@property
 	def lb_norm(self):

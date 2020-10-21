@@ -159,3 +159,31 @@ class TensorProductDomain(EuclideanDomain):
 	@property
 	def b_eq(self):
 		return np.concatenate([dom.b_eq for dom in self.domains])
+
+	def add_constraints(self, *args, **kwargs):
+		if self.is_linquad_domain:
+			from .linquad import LinQuadDomain
+			return LinQuadDomain.add_constraints(self, *args, **kwargs)
+		else:
+			raise NotImplementedError
+
+	def _init_lb(self, *args, **kwargs):
+		from .linquad import LinQuadDomain
+		return LinQuadDomain._init_lb(self, *args, **kwargs)
+	
+	def _init_ub(self, *args, **kwargs):
+		from .linquad import LinQuadDomain
+		return LinQuadDomain._init_ub(self, *args, **kwargs)
+	
+	def _init_ineq(self, *args, **kwargs):
+		from .linquad import LinQuadDomain
+		return LinQuadDomain._init_ineq(self, *args, **kwargs)
+	
+	def _init_eq(self, *args, **kwargs):
+		from .linquad import LinQuadDomain
+		return LinQuadDomain._init_eq(self, *args, **kwargs)
+
+	def _init_quad(self, *args, **kwargs):
+		from .linquad import LinQuadDomain
+		return LinQuadDomain._init_quad(self, *args, **kwargs)
+
