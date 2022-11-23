@@ -1,12 +1,47 @@
-from psdr.demos import GolinskiGearbox
+from __future__ import print_function
+from psdr.demos import GolinskiGearbox, Borehole, OTLCircuit, Piston, RobotArm, WingWeight, NowackiBeam, HartmannMHD
 from checkder import check_derivative
+import numpy as np
 
 def test_grad():
 	
+	borehole = Borehole()
 	gb = GolinskiGearbox()
+	otl = OTLCircuit()
+	piston = Piston()
+	robotarm = RobotArm()
+	wing = WingWeight()
+	beam = NowackiBeam()
+	mhd = HartmannMHD()
 	
-	for fun in [gb]:
-		x = fun.sample(1)
+	for fun in [borehole, gb, otl, piston, robotarm, wing, beam, mhd]:
+		x = fun.domain.sample(1)
 		grad = lambda x: fun.grad(x).T
-		assert check_derivative(x, fun, grad) < 1e-7	
+		print(fun(x))
+		print(grad(x))
+		assert check_derivative(x, fun, grad) < 1e-7*np.linalg.norm(grad(x), np.inf)
 
+def test_golinski():
+	fun = GolinskiGearbox()
+	X = fun.domain.sample(2)
+	fX = fun(X)
+	assert fX.shape[0] == 2
+
+	
+	grads = fun.grad(X)
+	for x, grad in zip(X, grads):
+		assert np.all(np.isclose(grad, fun.grad(x)))
+
+	fX, grads = fun(X, return_grad = True)
+	for x, grad in zip(X, grads):
+		assert np.all(np.isclose(grad, fun.grad(x)))
+
+	# Turn of vectorization
+	fun2 = GolinskiGearbox()
+	fun2.vectorized = False
+		
+	assert np.all(fun.grad(X) == fun2.grad(X))
+	assert np.all(fun.grad(X) == fun2(X, return_grad = True)[1])
+
+if __name__ == '__main__':
+	test_golinski()

@@ -2,6 +2,7 @@
 from __future__ import print_function
 import matplotlib as mpl
 from matplotlib.path import Path
+from copy import deepcopy
 
 class PGF:
 	def __init__(self):
@@ -12,7 +13,7 @@ class PGF:
 		if len(self.columns) > 1:
 			assert len(self.columns[0]) == len(column)
 
-		self.columns.append(column)
+		self.columns.append(deepcopy(column))
 		self.column_names.append(name)
 
 	def keys(self):

@@ -5,9 +5,11 @@ API Documentation
    domain 
    basis
    function
-   pools
+   geometry
    samplers
    subspace
+   coord
+   local_linear
    surrogate
    opt
    demos

@@ -22,6 +22,8 @@ class OpenAeroStruct(Function):
 		domain = build_oas_design_domain() * build_oas_robust_domain() * build_oas_random_domain()
 		Function.__init__(self, oas_func, domain, vectorized = True)
 
+	def __str__(self):
+		return "<Open Aero Struct Function>"
 
 def build_oas_design_domain(n_cp = 3):
 	# Twist
@@ -46,7 +48,7 @@ def build_oas_random_domain():
 	return TensorProductDomain([E,G,rho])
 
 
-def oas_func(x, version = 'v1', workdir = None, verbose = False):
+def oas_func(x, version = 'v1', workdir = None, verbose = False, keep_data = False):
 	r"""
 
 
@@ -71,10 +73,9 @@ def oas_func(x, version = 'v1', workdir = None, verbose = False):
 
 	# Copy the inputs to a file
 	np.savetxt(workdir + '/my.input', x, fmt = '%.15e')
-	
 	call = "docker run -t --rm --mount type=bind,source='%s',target='/workdir' jeffreyhokanson/oas:%s /workdir/my.input" % (workdir, version)
 	args = shlex.split(call)
-	with open(workdir + '/output.log', 'a') as log:
+	with open(workdir + '/output.log', 'ab') as log:
 		p = Popen(args, stdout = PIPE, stderr = STDOUT)
 		while True:
 			# Read output from pipe
@@ -93,15 +94,9 @@ def oas_func(x, version = 'v1', workdir = None, verbose = False):
 
 	Y = np.loadtxt(workdir + '/my.output')
 
-	#shutil.rmtree(workdir) 
+	if not keep_data:
+		shutil.rmtree(workdir) 
 	return Y	
 	
 
 
-
-if __name__ == '__main__':
-	oas = OpenAeroStruct()
-	X = oas.sample(10)
-	print(oas.domain_app.names)
-	Y = oas(X)	
-	print(Y)

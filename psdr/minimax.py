@@ -1,9 +1,11 @@
+
+from __future__ import print_function
 import numpy as np
 import cvxpy as cp
 import warnings
 
-from domains import Domain, UnboundedDomain
-from gn import trajectory_linear, linesearch_armijo
+from .domains import UnboundedDomain
+from .gn import trajectory_linear, linesearch_armijo
 
 
 __all__ = ['minimax',
@@ -107,12 +109,13 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 
 	if domain is None:
 		domain = UnboundedDomain(len(x0))
+	
+	#assert isinstance(domain, Domain), "Must provide a domain for the space"
+	assert domain.isinside(x0), "Starting point must be inside the domain"
 
 	if search_constraints is None:
 		search_constraints = lambda x, p: []
 
-	assert isinstance(domain, Domain), "Must provide a domain for the space"
-	assert domain.isinside(x0), "Starting point must be inside the domain"
 
 	if 'solver' not in kwargs:
 		kwargs['solver'] = 'ECOS'
@@ -123,11 +126,15 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 	fx = np.array(f(x))
 	t = np.max(fx)	
 	if verbose:
-		print 'iter |     objective     |  norm px |  bt step | TR radius |'
-		print '-----|-------------------|----------|----------|-----------|'
-		print '%4d | %+14.10e |          |          |           |' % (0, t) 
+		print('iter |     objective     |  norm px |  bt step | TR radius |')
+		print('-----|-------------------|----------|----------|-----------|')
+		print('%4d | %+14.10e |          |          |           |' % (0, t) )
 
-	Delta = 1.
+	if trust_region:
+		Delta = 1.
+	else:
+		Delta = np.nan
+
 	for it in range(maxiter):
 		gradx = np.array(f.grad(x))
 
@@ -144,21 +151,25 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 		constraints += search_constraints(x, px)
 
 		# Append constraints from the domain
-		constraints += domain._build_constraints(px - x)
+		constraints += domain._build_constraints(x + px)
 
-		with warnings.catch_warnings():
-			warnings.simplefilter('ignore', PendingDeprecationWarning)
+		#with warnings.catch_warnings():
+		#	warnings.simplefilter('ignore', PendingDeprecationWarning)
+
+		try:
 			problem = cp.Problem(cp.Minimize(pt), constraints)
 			problem.solve(**kwargs)
+		except cp.error.SolverError:
+			break
 
 		if problem.status in ['infeasible', 'unbounded']:
 			raise Exception(problem.status)
 	
 		px = px.value
 		pt = pt.value	
-		
+	
 		if pt > 0:
-			print "No progress made on step"
+			if verbose: print("No progress made on step")
 			break
 
 		# Backtracking line search
@@ -192,7 +203,7 @@ def minimax(f, x0, domain = None, trajectory = trajectory_linear,
 			stop = True
 
 		if verbose:
-			print '%4d | %+14.10e | %8.2e | %8.2e |  %8.2e |' % (it+1, t, np.linalg.norm(px), alpha, Delta)
+			print('%4d | %+14.10e | %8.2e | %8.2e |  %8.2e |' % (it+1, t, np.linalg.norm(px), alpha, Delta))
 
 		if stop:
 			break

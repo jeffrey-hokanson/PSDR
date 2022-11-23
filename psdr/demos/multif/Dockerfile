@@ -36,6 +36,7 @@ RUN apt -y update && \
 		python-numpy \
 		python-scipy \
 		python-tk \
+		ssh \
 		swig \
 		tcl \
 		tcl-dev \
@@ -52,6 +53,19 @@ RUN apt -y update && \
 
 # Download all the sources here
 RUN mkdir -p /opt/local/build 
+
+# Open MPI (required for AEROS)
+ARG OMPI_VER=3.1.0 
+RUN mkdir -p /opt/local/build && \
+	cd /opt/local/build && \
+	#wget https://www.open-mpi.org/software/ompi/v3.1/downloads/openmpi-${OMPI_VER}.tar.bz2  && \
+	wget https://download.open-mpi.org/release/open-mpi/v3.1/openmpi-${OMPI_VER}.tar.bz2 && \
+	tar jxvf openmpi-${OMPI_VER}.tar.bz2 && \
+	cd openmpi-${OMPI_VER} && \
+	./configure --prefix=/usr/local && \
+	make -j4 && make install && ldconfig && \
+	cd && \
+	rm -r /opt/local/build 
 
 # Install OpenCascade
 ARG OC_VER=7.2.0
@@ -71,20 +85,6 @@ RUN mkdir -p /opt/local/build/opencascade && \
 	make install && \
 	cd  && \
 	rm -r /opt/local/build/opencascade*  
-
-
-# Open MPI (required for AEROS)
-ARG OMPI_VER=3.0.0 
-RUN mkdir -p /opt/local/build && \
-	cd /opt/local/build && \
-	wget https://www.open-mpi.org/software/ompi/v3.0/downloads/openmpi-${OMPI_VER}.tar.bz2  && \
-	tar jxvf openmpi-${OMPI_VER}.tar.bz2 && \
-	cd openmpi-${OMPI_VER} && \
-	./configure --prefix=/usr/local && \
-	make -j4 && make install && ldconfig && \
-	cd && \
-	rm -r /opt/local/build 
-
 
 # Install a more recent Eigen (required for AEROS)
 ARG EIGEN_VER=3.3.4 
@@ -127,7 +127,7 @@ RUN mkdir -p /opt/local/build && \
 
 # Download and install SU2
 # From branch nozzlethrust
-ARG SU2_VER=d7a5e54f8c1033846099b79c44fa5e66454e2877
+ARG SU2_VER=5415d6f94c1389e5686e3a94c2cad6e933b22ab8
 RUN mkdir -p /opt/local/build && \
 	cd /opt/local/build && \
 	git clone -v --progress -b darpa https://github.com/vmenier/SU2.git && \
@@ -136,15 +136,14 @@ RUN mkdir -p /opt/local/build && \
 	./preconfigure.py --prefix=/usr/local/SU2 \
 		--enable-mpi \
 		--enable-autodiff \
-		--with-cc=/usr/bin/mpicc \
-		--with-cxx=/usr/bin/mpiCC && \
-	make && make install && \
+		--with-cc=/usr/local/bin/mpicc \
+		--with-cxx=/usr/local/bin/mpiCC && \
+	make -j16 && make install && \
 	cd && rm -r /opt/local/build/SU2
 
 
 # Install AERO-S
-#ARG AEROS_VER=ee5e20dbb527362563e3b656773077c2f0c56607
-ARG AEROS_VER=cd773a5a236370c8cc779e14c9d8619ebb4ee3fc
+ARG AEROS_VER=5cc8140a9ed9a77fbc9bafc0b018977358d73d35
 RUN mkdir -p /opt/local/build && \
 	cd /opt/local/build && \
 	hg clone -v https://bitbucket.org/frg/aero-s -r ${AEROS_VER} && \
@@ -154,7 +153,7 @@ RUN mkdir -p /opt/local/build && \
 		-DCMAKE_PREFIX_PATH:PATH="/usr/local" \
 		-DCMAKE_INSTALL_PREFIX=/usr/local \
 		../aero-s && \
-	make && make install && \
+	make -j 16 && make install && \
 	cd / && rm -r /opt/local/build/aeros_build
 
 # Setup the enviornment for running MULTIF
@@ -170,9 +169,23 @@ RUN echo "export SU2_RUN=/usr/local/SU2/bin" >> /etc/bash.bashrc && \
 
 # Install MULTIF
 # ARG MULTIF_VER=develop
-ARG MULTIF_COMMIT=01df28006fb60cd69bec620b632d493ed489b07c
+ARG MULTIF_COMMIT=55aefe21ff3d3d86bdec98949002a8fb3d9e02eb
 RUN cd /opt/local/ && git clone -v  --progress https://github.com/vmenier/MULTIF.git && \
 	cd /opt/local/MULTIF/multif && \
 	git checkout $MULTIF_COMMIT && \	
 	python setup.py build_ext --inplace \
 		--include-dirs=/usr/local/include/gmsh:/opt/local/build/gmsh-${GMSH_VER}-source/:/usr/local/include/opencascade --library-dirs=/usr/local/lib
+
+
+RUN mkdir /workdir && chmod -R a+rw /workdir
+WORKDIR /workdir
+ENV SU2_RUN /usr/local/SU2/bin
+ENV SU2_HOME /opt/local/build/SU2/
+ENV MULTIF /opt/local/MULTIF/
+ENV PYTHONPATH $PYTHONPATH:$SU2_RUN:$MULTIF
+ENV PATH $PATH:/curc/slurm/blanca/current/bin:$SU2_RUN
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib
+RUN useradd -ms /bin/bash multif
+USER multif
+
+ENTRYPOINT ["python","/opt/local/MULTIF/runModel.py"]

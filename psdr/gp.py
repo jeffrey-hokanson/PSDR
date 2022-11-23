@@ -1,17 +1,19 @@
+from __future__ import print_function
 import numpy as np
 from scipy.spatial.distance import cdist, pdist, squareform
 import scipy.linalg
 from scipy.linalg import eigh, expm, logm
 from scipy.optimize import fmin_l_bfgs_b
+import scipy.optimize
 from itertools import product
 #from opt import check_gradient
-from basis import LegendreTensorBasis
-
+from .basis import LegendreTensorBasis
+from .function import BaseFunction
 __all__ = ['GaussianProcess']
 
 	
 	
-class GaussianProcess(object):
+class GaussianProcess(BaseFunction):
 	r""" Fits a Gaussian Process by maximizing the marginal likelihood
 
 	Given :math:`M` pairs of :math:`\mathbf{x}_i \in \mathbb{R}^m` and :math:`y_i \in \mathbb{R}`,
@@ -138,7 +140,7 @@ class GaussianProcess(object):
 			nugget = 5*np.finfo(float).eps
 		self.nugget = nugget
 
-		if structure is 'scalar_mult':
+		if structure == 'scalar_mult':
 			assert Lfixed is not None, "Must specify 'Lfixed' to use scalar_mult"
 			self.Lfixed = Lfixed
 
@@ -147,18 +149,27 @@ class GaussianProcess(object):
 		"""
 
 
-		if self.structure is 'const':
+		if self.structure == 'const':
 			return np.exp(ell)*np.eye(self.m)
-		elif self.structure is 'scalar_mult':
+		elif self.structure == 'scalar_mult':
 			return np.exp(ell)*self.Lfixed
-		elif self.structure is 'diag':
+		elif self.structure == 'diag':
 			return np.diag(np.exp(ell))	
-		elif self.structure is 'tril':
+		elif self.structure == 'tril':
 			# Construct the L matrix	
 			L = np.zeros((self.m*self.m,), dtype = ell.dtype)
 			L[self.tril_flat] = ell
 			L = L.reshape(self.m,self.m)
-			return scipy.linalg.expm(L) - np.eye(self.m)
+			
+			# This is a more numerically stable way to compute expm(L) - I
+			#Lexp = L.dot(scipy.linalg.expm(L))
+			
+			# JMH 8 Aug 2019: I'm less sure about the value of parameterizing as L*expm(L)
+			# Specifically, having the zero matrix easily accessible doesn't seem like a good thing
+			# and he gradient is more accurately computed using this form. 
+			Lexp = scipy.linalg.expm(L)
+			
+			return Lexp
 
 	def _log_marginal_likelihood(self, ell, X = None, y = None, return_obj = True, return_grad = False, return_alpha_beta = False):
 		
@@ -195,14 +206,19 @@ class GaussianProcess(object):
 		if return_alpha_beta:
 			return alpha, beta
 
-		ew, ev = scipy.linalg.eigh(K + self.nugget*np.eye(K.shape[0]))	
+		ew, ev = scipy.linalg.eigh(K + self.nugget*np.eye(K.shape[0]))
+		#if np.min(ew) <= 0:
+		#	bonus_regularization = -2*np.min(ew)+1e-14 
+		#	ew += bonus_regularization
+		#	K += bonus_regularization*np.eye(K.shape[0])
 
 		if return_obj:
 			# Should this be with yhat or y?
 			# yhat = y - np.dot(V, beta)
 			# Doesn't matter because alpha in nullspace of V.T
 			# RW06: (5.8)
-			obj = 0.5*np.dot(y, alpha) + 0.5*np.sum(np.log(ew))
+			with np.errstate(invalid = 'ignore'):
+				obj = 0.5*np.dot(y, alpha) + 0.5*np.sum(np.log(ew))
 			if not return_grad:
 				return obj
 		
@@ -217,7 +233,6 @@ class GaussianProcess(object):
 				# Approximation of the matrix exponential derivative [MH10]
 				h = 1e-10
 				dL = np.imag(self._make_L(ell + 1j*h*eidx))/h
-				#print "dL", dL
 				dY = np.dot(dL, X.T).T
 				for i in range(M):
 					# Evaluate the dot product
@@ -254,7 +269,7 @@ class GaussianProcess(object):
 			# Note flipped signs from RW06 eq. 5.9
 			grad[k] = 0.5*np.trace(Kinv_dK)
 			grad[k] -= 0.5*np.dot(alpha, np.dot(alpha, dK[:,:,k]))
-		
+
 		if return_obj and return_grad:
 			return obj, grad
 		if not return_obj:
@@ -288,8 +303,7 @@ class GaussianProcess(object):
 
 		# Cache Vandermonde matrix on sample points
 		if self.degree is not None:
-			self.basis = LegendreTensorBasis(X.shape[1], self.degree)
-			self.basis.set_scale(X)
+			self.basis = LegendreTensorBasis(self.degree, X = X)
 			self.V = self.basis.V(X)
 		else:
 			self.V = np.zeros((X.shape[0],0))
@@ -307,14 +321,14 @@ class GaussianProcess(object):
 			y[i] is the output at X[i]
 		"""
 		X = np.array(X)
-		y = np.array(y)
+		y = np.array(y).flatten()
 	
 		# Initialized cached values for fit
 		self._fit_init(X, y)	
 
 	
 		if L0 is None:
-			L0 = np.eye(m)
+			L0 = np.eye(self.m)
 
 		if self.structure == 'tril':
 			ell0 = np.array([L0[i,j] for i, j in self.tril_ij])
@@ -334,14 +348,21 @@ class GaussianProcess(object):
 
 
 	def _fit(self, ell0):
-		ell, obj, d = fmin_l_bfgs_b(self._obj, ell0, fprime = self._grad, disp = False)
+		# the implementation in l_bfgs_b seems flaky when we have invalid values
+		#ell, obj, d = fmin_l_bfgs_b(self._obj, ell0, fprime = self._grad, disp = True)
+		res = scipy.optimize.minimize(self._obj, 
+				ell0, 
+				jac = self._grad,
+				#method = 'L-BFGS-B',
+				#options = {'disp': True}, 
+			)
+		ell = res.x
 		self.L = self._make_L(ell)
 		self.alpha, self.beta = self._log_marginal_likelihood(ell, 
 			return_obj = False, return_grad = False, return_alpha_beta = True)
+		self._ell = ell
 
-			
-
-	def predict(self, Xnew, return_cov = False):
+	def eval(self, Xnew, return_cov = False):
 		Y = np.dot(self.L, self.X.T).T
 		Ynew = np.dot(self.L, Xnew.T).T
 		dij = cdist(Ynew, Y, 'sqeuclidean')	
@@ -364,22 +385,3 @@ class GaussianProcess(object):
 		else:
 			return fXnew
 
-if __name__ == '__main__':
-	m = 7
-	#np.random.seed(0)
-	X = np.random.randn(100,m)
-	#Xnew = np.linspace(-1,1,100).reshape(-1,1)
-	a = 2*np.ones(m)
-	y = np.dot(a.T, X.T).T**2 + 1
-
-	gp = GaussianProcess(degree = 1, structure = 'const')
-	gp.fit(X, y)
-	Xnew = np.random.randn(int(1e3),m)
-	gp.predict(Xnew)
-	#yhat, cov = gp.predict(Xnew, return_cov = True)
-	#print y
-	#print yhat
-	#print cov
-	#print y - gp.predict(X)
-	#print gp.beta
-	#print gp.L	

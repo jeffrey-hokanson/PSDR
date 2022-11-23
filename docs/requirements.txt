@@ -2,9 +2,11 @@ sphinx
 cloud_sptheme
 alabaster
 ipykernel
-git+https://github.com/spatialaudio/nbsphinx.git@master
+nbsphinx
+sphinx_rtd_theme
+jupyter
 numpydoc
-matplotlib==2.2.3
+matplotlib
 scipy>=1.1.0
 numpy>=1.15
 ecos
@@ -12,5 +14,10 @@ scs
 recommonmark
 fastcache
 cvxpy
-redis
-dill
+dask
+distributed
+tornado
+cvxopt
+tqdm
+sobol_seq
+pycosat

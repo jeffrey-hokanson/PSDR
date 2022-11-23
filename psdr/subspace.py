@@ -1,14 +1,29 @@
 # Subspace based dimension reduction techniques
 from __future__ import division, print_function
+
+import os
+# Necessary for running in headless enviornoments
+if 'DISPLAY' not in os.environ:
+	import matplotlib
+	matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+
 import numpy as np
 import scipy.linalg
-import matplotlib.pyplot as plt
-import cvxpy as cp
+import scipy.optimize
+import scipy.sparse
 
+
+import cvxpy as cp
+import cvxopt
+
+from .pgf import PGF
+from .domains.domain import DEFAULT_CVXPY_KWARGS
+from .misc import merge
 
 __all__ = ['SubspaceBasedDimensionReduction',
 	'ActiveSubspace', 
-	'LipschitzMatrix',
 	]
 
 class SubspaceBasedDimensionReduction(object):
@@ -33,7 +48,7 @@ class SubspaceBasedDimensionReduction(object):
 		raise NotImplementedError
 
 
-	def shadow_plot(self, X = None, fX = None, dim = 1, ax = None):
+	def shadow_plot(self, X = None, fX = None, dim = 1, U = None, ax = 'auto', pgfname = None):
 		r""" Draw a shadow plot
 
 
@@ -45,7 +60,9 @@ class SubspaceBasedDimensionReduction(object):
 			Values of function at sample points
 		dim: int, [1,2]
 			Dimension of shadow plot
-		ax: matplotlib.pyplot.axis
+		U: array-like (?,m); optional
+			Subspace onto which to project the data; defaults to the subspace identifed by this class
+		ax: 'auto', matplotlib.pyplot.axis, or None
 			Axis on which to draw the shadow plot
 
 		Returns
@@ -53,7 +70,7 @@ class SubspaceBasedDimensionReduction(object):
 		ax: matplotlib.pyplot.axis
 			Axis on which the plot is drawn
 		"""
-		if ax is None:
+		if ax == 'auto':
 			if dim == 1:
 				fig, ax = plt.subplots(figsize = (6,6))
 			else:
@@ -62,27 +79,152 @@ class SubspaceBasedDimensionReduction(object):
 	
 		if X is None:
 			X = self.X
+	
+		# Check dimensions
+		X = np.atleast_2d(X)
+		assert X.shape[1] == len(self), "Samples do not match dimension of space"	
+
+		if U is None:
+			U = self.U
+		else:
+			if len(U.shape) == 1:
+				U = U.reshape(len(self),1)
+			else:
+				assert U.shape[0] == len(self), "Dimensions do not match"
+
 		
 		if dim == 1:
-			ax.plot(X.dot(self.U[:,0]), fX, 'k.')
-			ax.set_xlabel(r'active coordinate $\mathbf{u}^\top \mathbf{x}$')
-			ax.set_ylabel(r'$f(\mathbf{x})$')
+			if ax is not None:
+				ax.plot(X.dot(U[:,0]), fX, 'k.')
+				ax.set_xlabel(r'active coordinate $\mathbf{u}^\top \mathbf{x}$')
+				ax.set_ylabel(r'$f(\mathbf{x})$')
+
+			if pgfname is not None:
+				pgf = PGF()
+				pgf.add('y', X.dot(U[:,0]))
+				pgf.add('fX', fX)
+				pgf.write(pgfname)
 
 		elif dim == 2:
-			Y = self.U[:,0:2].T.dot(X.T).T
-			sc = ax.scatter(Y[:,0], Y[:,1], c = fX.flatten(), s = 3)
-			ax.set_xlabel(r'active coordinate 1 $\mathbf{u}_1^\top \mathbf{x}$')
-			ax.set_ylabel(r'active coordinate 2 $\mathbf{u}_2^\top \mathbf{x}$')
+			Y = U[:,0:2].T.dot(X.T).T
+			
+			if ax is not None:
+				sc = ax.scatter(Y[:,0], Y[:,1], c = fX.flatten(), s = 3)
+				ax.set_xlabel(r'active coordinate 1 $\mathbf{u}_1^\top \mathbf{x}$')
+				ax.set_ylabel(r'active coordinate 2 $\mathbf{u}_2^\top \mathbf{x}$')
 
-			plt.colorbar(sc).set_label('f(x)')
+				plt.colorbar(sc).set_label('f(x)')
+			
+			if pgfname is not None:
+				pgf = PGF()
+				pgf.add('y1', Y[:,0])
+				pgf.add('y2', Y[:,1])
+				pgf.add('fX', fX.flatten())
+				pgf.write(pgfname)
 
 		else:
 			raise NotImplementedError		
 
 		return ax
 
+	def shadow_envelope(self, X, fX, ax = None, ngrid = None, pgfname = None, verbose = True, U = None, **kwargs):
+		r""" Draw a 1-d shadow plot of a large number of function samples
+
+		Returns
+		-------
+		y: np.ndarray
+			Projected coordinates
+		lb: np.ndarray
+			piecewise linear lower bound values
+		ub: np.ndarray
+			piecewise linear upper bound values
+		"""
+		if U is None:
+			U = self.U[:,0]		
+		else:
+			if len(U.shape) > 1:
+				U = U[:,0]
+
+		# Since this is for plotting purposes, we reduce accuracy to 3 digits	
+		solver_kwargs = {'verbose': verbose, 'solver': 'OSQP', 'eps_abs': 1e-3, 'eps_rel': 1e-3}				
+
+		X = np.array(X)
+		fX = np.array(fX)
+		assert len(X) == len(fX), "Number of inputs did not match number of outputs"
+		if len(fX.shape) > 1:
+			fX = fX.flatten()
+			assert len(fX) == len(X), "Expected fX to be a vector"
+
+		y = X.dot(U)
+		if ngrid is None:
+			# Determine the minimum number of bins
+			ngrid = 25
+			while True:
+				yy = np.linspace(np.min(y), np.max(y), ngrid)
+				h = yy[1] - yy[0]	
+				if ngrid == 3:
+					break 
+				# Make sure we have at least two entries in every bin:
+				items, counts = np.unique(np.floor( (y - yy[0])/h), return_counts = True)
+				# We ignore the last count of the bins as that is the right endpoint and will only ever have one
+				if (np.min(counts[:-1]) >= 5) and len(items) == ngrid:
+					break
+				else:
+					ngrid -= 1
+		else:
+			yy = np.linspace(np.min(y), np.max(y), ngrid)
+			h = yy[1] - yy[0]
+
+		h = float(h)
+
+		# Build the piecewise linear interpolation matrix
+		j = np.floor( (y - yy[0])/h ).astype(np.int)
+		row = []
+		col = []
+		val = []
+
+		# Points not at the right endpoint
+		row += np.arange(len(y)).tolist()
+		col += j.tolist()
+		val += ((  (yy[0]+ (j+1)*h) - y )/h).tolist()
+
+		# Points not at the right endpoint
+		I = (j != len(yy) - 1)
+		row += np.argwhere(I).flatten().tolist()
+		col += (j[I]+1).tolist()
+		val += ( (y[I] - (yy[0] + j[I]*h)  )/h).tolist()
+
+		A = scipy.sparse.coo_matrix((val, (row, col)), shape = (len(y), len(yy)))
+		A = cp.Constant(A)
+		ub = cp.Variable(len(yy))
+		#ub0 = [ max(max(fX[j == i]), max(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[max(fX[j == ngrid - 1])]
+		#ub.value = np.array(ub0).flatten()
+		prob = cp.Problem(cp.Minimize(cp.sum(ub)), [A*ub >= fX.flatten()])
+		prob.solve(**solver_kwargs)
+		ub = ub.value
+		
+		lb = cp.Variable(len(yy))
+		#lb0 = [ min(min(fX[j == i]), min(fX[j== i+1]))  for i in np.arange(0,ngrid-1)] +[min(fX[j == ngrid - 1])]
+		#lb.value = np.array(lb0).flatten()
+		prob = cp.Problem(cp.Maximize(cp.sum(lb)), [A*lb <= fX.flatten()])
+		prob.solve(**solver_kwargs)
+		lb = lb.value
+
+		if ax is not None:
+			ax.fill_between(yy, lb, ub, **kwargs) 
+
+		if pgfname is not None:
+			pgf = PGF()
+			pgf.add('y', yy)
+			pgf.add('lb', lb)
+			pgf.add('ub', ub)	
+			pgf.write(pgfname)
+		
+		return y, lb, ub
+
+
 	def _init_dim(self, X = None, grads = None):
-		if X is not None:
+		if X is not None and len(X) > 0:
 			self._dimension = len(X[0])
 		elif grads is not None:
 			self._dimension = len(grads[0])
@@ -105,9 +247,44 @@ class SubspaceBasedDimensionReduction(object):
 	def grads(self):
 		return np.zeros((0,len(self)))
 
+	def _fix_subspace_signs(self, U, X = None, fX = None, grads = None):
+		r""" Orient the subspace so that the average slope is positive
+
+		Since subspaces have no associated direction (they are invariant to a sign flip)
+		here we fix the sign such that the function is increasing on average along the direction
+		u_i.  This approach uses either gradient or sample information, with a preference for
+		gradient information if it is availible.
+		"""
+		if grads is not None and len(grads) > 0:
+			return self._fix_subspace_signs_grads(U, grads)
+		else:
+			return self._fix_subspace_signs_samps(U, X, fX)	
+
+	def _fix_subspace_signs_samps(self, U, X, fX):
+		sgn = np.zeros(len(U[0]))
+		for k in range(len(U[0])):
+			for i in range(len(X)):
+				for j in range(i+1, len(X)):
+					denom = U[:,k] @ (X[i] - X[j])
+					if np.abs(denom) > 0:
+						sgn[k] += (fX[i] - fX[j])/denom
+
+		# If the sign is zero, keep the current orientation
+		sgn[sgn == 0] = 1
+		return U.dot(np.diag(np.sign(sgn)))	
+
+	def _fix_subspace_signs_grads(self, U, grads):
+		return U.dot(np.diag(np.sign(np.mean(grads.dot(U), axis = 0))))
+
+	
+	def approximate_lipschitz(self, X = None, fX = None, grads = None,  dim = None):
+		r""" Approximate the Lipschitz matrix on the low-dimensional subspace
+		"""
+		raise NotImplementedError
+
 
 class ActiveSubspace(SubspaceBasedDimensionReduction):
-	r"""Computes the active subspace based on gradient samples
+	r"""Computes the active subspace gradient samples
 
 	Given the function :math:`f:\mathcal{D} \to \mathbb{R}`,
 	the active subspace is defined as the eigenvectors corresponding to the 
@@ -153,149 +330,44 @@ class ActiveSubspace(SubspaceBasedDimensionReduction):
 			weights = np.ones(N)/N
 			
 		self._weights = np.array(weights)
-		self._U, self._s, VT = np.linalg.svd(np.sqrt(self._weights)*self._grads.T)
-	
-		# TODO: Fix +/- scaling so average gradient is positive	
+		self._U, self._s, VT = scipy.linalg.svd(np.sqrt(self._weights)*self._grads.T)
+		# Pad s with zeros if we don't have as many gradient samples as dimension of the space
+		self._s = np.hstack([self._s, np.zeros(self._dimension - len(self._s))])
+		self._C = self._U @ np.diag(self._s**2) @ self._U.T
+
+		# Fix +/- scaling so average gradient is positive	
+		self._U = self._fix_subspace_signs_grads(self._U, self._grads)		
+
+
+	def fit_function(self, fun, N_gradients):
+		r""" Automatically estimate active subspace using a quadrature rule
+
+		Parameters
+		----------
+		fun: Function
+			function object for which to estimate the active subspace via the average outer-product of gradients
+		N_gradients: int
+			Maximum number of gradient samples to use 
+		"""
+		X, w = fun.domain.quadrature_rule(N_gradients)
+		grads = fun.grad(X)
+		self.fit(grads, w)
+			
 
 	@property
 	def U(self):
 		return np.copy(self._U)
+
+	@property
+	def C(self):
+		return self._C
+
+	@property
+	def singvals(self):
+		return self._s
 
 	# TODO: Plot of eigenvalues (with optional boostrapped estimate)
 
 	# TODO: Plot of eigenvector angles with bootstrapped replicates.
 
 
-class LipschitzMatrix(SubspaceBasedDimensionReduction):
-	r"""Constructs the subspace-based dimension reduction from the Lipschitz Matrix.
-
-	The Lipschitz matrix :math:`\mathbf{L} \in \mathbb{R}^{m \times m}` a matrix that 
-	acts analogously to the Lipschitz constant, defining a function class where
-
-	.. math::
-
-		\lbrace f: \mathbb{R}^m\to \mathbb{R}: |f(\mathbf{x}_1) - f(\mathbf{x}_2)| \le \|\mathbf{L}(\mathbf{x}_1 - \mathbf{x}_2\|_2 \rbrace.
-
-	In general we cannot determine the Lipschitz matrix analytically. 
-	Instead we seek to estimate it via the lower bound based on samples :math:`\lbrace \mathbf{x}_i, f(\mathbf{x}_i)\rbrace_i`
-	and/or gradients :math:`\lbrace \nabla f(\mathbf{x}_i)\rbrace_i`.
-	Here we do so by solving a semidefinite program for the symmetric positive definite matrix :math:`\mathbf{M} \in \mathbb{R}^{m\times m}`:
-
-	.. math::
-
-		\min_{\mathbf{M} \in \mathbb{S}^{m\times m}} & \ \text{Trace } \mathbf{M} \\
-		\text{such that} & \ |f(\mathbf{x}_i) - f(\mathbf{x}_j)|^2 \le (\mathbf{x}_i - \mathbf{x}_j)^\top \mathbf{M} (\mathbf{x}_i - \mathbf{x}_j) \\
-		& \ \nabla f(\mathbf{x}_k) \nabla f(\mathbf{x}_k)^\top \preceq \mathbf{M}
-
-	Parameters
-	----------
-	**kwargs: dict (optional)
-		Additional parameters to pass to cvxpy
-	"""
-	def __init__(self, **kwargs):
-		self._U = None
-		self._L = None
-		self.kwargs = kwargs
-
-	def fit(self, X = None, fX = None, grads = None):
-		r""" Find the Lipschitz matrix
-
-
-
-		Parameters
-		----------
-		X : array-like (N, m), optional
-			Input coordinates for function samples 
-		fX: array-like (N,), optional
-			Values of the function at X[i]
-		grads: array-like (N,m), optional
-			Gradients of the function evaluated anywhere	
-		"""
-		kwargs = self.kwargs
-		self._init_dim(X = X, grads = grads)
-
-		if X is not None and fX is not None:
-			N = len(X)
-			assert len(fX) == N, "Dimension of input and output does not match"
-			self._X = np.array(X).reshape(-1,m)
-			self._fX = np.array(fX).reshape(len(self._X))
-		elif X is None and fX is None:
-			self._X = np.zeros((0,len(self)))
-			self._fX = np.zeros((0,))
-		else:
-			raise AssertionError("X and fX must both be specified simultaneously or not specified")
-
-		if grads is not None:
-			self._grads = np.array(grads).reshape(-1,len(self))
-
-		self._build_lipschitz_matrix(**kwargs)
-
-		# Compute the important directions
-		self._U, _, _ = np.linalg.svd(self._M)
-
-		# Compute the Lipschitz matrix (lower triangular)
-		self._L = scipy.linalg.cholesky(self.M[::-1][:,::-1], lower = False)[::-1][:,::-1]
-
-	@property
-	def X(self): return self._X
-	
-	@property
-	def fX(self): return self._fX
-
-	@property
-	def grads(self): return self._grads
-
-	@property
-	def U(self): return np.copy(self._U)
-
-	@property
-	def M(self): 
-		r""" The symmetric positive definite solution to the semidefinite program
-		"""
-		return self._M
-
-	@property
-	def L(self): 
-		r""" The Lipschitz matrix estimate based on samples
-		"""
-		return self._L
-
-	def _build_lipschitz_matrix(self, **kwargs):
-		M = cp.Variable( (len(self), len(self)), PSD = True)
-		
-		# TODO: Implement normalization for function values/gradients for scaling purposes
-		constraints = []
-		
-		# Sample constraint	
-		for i in range(len(self.X)):
-			for j in range(i+1, len(self.X)):
-				lhs = (self.fX[i] - self.fX[j])**2
-				y = self.X[i] - self.X[j]
-				# y.T M y
-				rhs = M.__matmul__(y).__rmatmul(y.T)
-				constraints.append(lhs <= rhs)
-			
-		# gradient constraints
-		for g in self.grads:
-			constraints.append( np.outer(g,g) << M)
-
-		problem = cp.Problem(cp.Minimize(cp.norm(M, 'fro')), constraints)
-		problem.solve(**kwargs)
-		
-		self._M = np.array(M.value).reshape(len(self),len(self))
-				
-
-
-if __name__ == '__main__':
-	X = np.random.randn(10,4)
-	a = np.random.randn(4,)
-	a = np.ones(4,)
-	fX = np.dot(X, a).flatten()
-	grads = np.tile(a, (X.shape[0], 1))
-	lip = LipschitzMatrix(grads = grads)
-	print(lip.M)
-	print(lip.L)
-	lip.shadow_plot(X = X, fX = fX)
-	#act = ActiveSubspace(grads)
-	#act.shadow_plot(X, fX)
-	plt.show()

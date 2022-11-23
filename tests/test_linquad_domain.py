@@ -1,6 +1,7 @@
+from __future__ import print_function
 import numpy as np
-from psdr import LinQuadDomain, BoxDomain
-
+import psdr
+from psdr import LinQuadDomain, BoxDomain, EmptyDomainException
 
 def test_isinside():
 	m = 5
@@ -15,7 +16,7 @@ def test_isinside():
 
 	assert np.all(dom.isinside(0.5*X))
 	assert np.all(dom.isinside(X))
-	print dom.isinside(1.1*X)
+	print(dom.isinside(1.1*X))
 	assert np.all(~dom.isinside(1.1*X))
 
 
@@ -32,7 +33,7 @@ def test_extent_quad(m = 5):
 	x0 *= 0.1/np.linalg.norm(x0)
 	alpha = dom._extent_quad(x0, p)
 	norm = np.linalg.norm(L.dot(x0 + alpha*p - y))
-	print alpha, norm, rho
+	print(alpha, norm, rho)
 	assert np.isclose( norm, rho)
 
 	# Now a pathological case where the direction is in the nullspace of the metric 
@@ -75,14 +76,14 @@ def test_closest_point(m = 5):
 	x0 *= 5/np.linalg.norm(x0)
 
 	x = dom.closest_point(x0)
-	print "x0", x0/np.linalg.norm(x0)
-	print "x ", x
+	print("x0", x0/np.linalg.norm(x0))
+	print("x ", x)
 	assert np.all(np.isclose(x, x0/np.linalg.norm(x0)))
 
 	# Check when provided a L matrix	
 	x = dom.closest_point(x0, L = L)
-	print "x0", x0/np.linalg.norm(x0)
-	print "x ", x
+	print("x0", x0/np.linalg.norm(x0))
+	print("x ", x)
 	assert np.all(np.isclose(x, x0/np.linalg.norm(x0)))
 
 def test_constrained_least_squares(m = 5):
@@ -97,10 +98,21 @@ def test_constrained_least_squares(m = 5):
 
 	x1 = dom.closest_point(x0)
 	x2 = dom.constrained_least_squares(L, x0)
-	print "x1", x1
-	print "x2", x2
+	print("x1", x1)
+	print("x2", x2)
 	assert np.all(np.isclose(x1,x2))
 
+
+	# Test on an empty domain
+	A = np.ones((2,m))
+	A[1,:] *= -1
+	dom = LinQuadDomain(A = A, b = -np.ones(2), lb = -np.ones(m), ub = np.ones(m))
+	try:
+		dom.constrained_least_squares(np.random.randn(m, m), np.random.randn(m))
+		assert False, "Should have errored"
+	except EmptyDomainException:
+		pass 
+	#print(dom.sample())
 
 def test_sample(m = 5):
 	L = np.eye(m)
@@ -119,13 +131,19 @@ def test_bad_scaling():
 	lb = [-1, 1e7]
 	ub = [1, 2e7]
 	dom1 = BoxDomain(lb = lb, ub = ub)
-	dom2 = LinQuadDomain(lb = lb, ub = ub)
+	dom2 = LinQuadDomain(lb = lb, ub = ub, verbose = True)
 
 	
 	# Check quality of solution
 	p = np.ones(len(dom1))
+	# this calls an algebraic formula 
 	x1 = dom1.corner(p)
-	x2 = dom2.corner(p, verbose = True, solver = 'ECOS', abstol = 4e-10, reltol = 1e-14, feastol = 1e-14, max_iters = 500)
+	# whereas this calls a linear program
+	x2 = dom2.corner(p)
 	for x1_, x2_, lb_, ub_ in zip(x1, x2, dom2.lb, dom2.ub):
-		print "x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_)
-	assert np.all(np.isclose(x1,x2))	
+		print("x1:%+15.15e x2:%+15.15e delta:%+15.15e; lb: %+5.2e ub: %+5.2e" % (x1_, x2_, np.abs(x1_ - x2_), lb_, ub_))
+	assert np.all(np.isclose(x1,x2, rtol = 1e-4, atol = 1e-4))
+
+
+if __name__ == '__main__':
+	test_constrained_least_squares()	

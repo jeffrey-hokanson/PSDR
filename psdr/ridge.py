@@ -3,22 +3,22 @@
 
 import numpy as np
 
-from function import BaseFunction
-from subspace import SubspaceBasedDimensionReduction
+from .function import BaseFunction
+from .subspace import SubspaceBasedDimensionReduction
+from .pgf import PGF
 
 class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
-	
 	@property
 	def U(self):
 		return self._U
 
-	def shadow_plot(self, X = None, fX = None, dim = None, ax = None):
+	def shadow_plot(self, X = None, fX = None, dim = None, ax = 'auto', pgfname = None, **kwargs):
 		if dim is None:
 			dim = self.U.shape[1]
 		else:
 			assert dim == self.U.shape[1]
 
-		ax = SubspaceBasedDimensionReduction.shadow_plot(self, X, fX, dim, ax)
+		ax = SubspaceBasedDimensionReduction.shadow_plot(self, X = X, fX = fX, dim = dim, ax = ax, pgfname = pgfname)
 
 		# Draw the response surface
 		if dim == 1:
@@ -30,7 +30,16 @@ class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
 			Uxx = np.hstack([self.U*xxi for xxi in xx]).T
 			yy = self.eval(Uxx)
 
-			ax.plot(xx, yy, 'r-')
+			if ax is not None:
+				ax.plot(xx, yy, 'r-')
+
+			if pgfname is not None:	
+				pgfname2 = pgfname[:pgfname.rfind('.')] + '_response' + pgfname[pgfname.rfind('.'):]
+				pgf = PGF()
+				pgf.add('x', xx)
+				pgf.add('fx', yy )
+				pgf.write(pgfname2)
+					
 
 		elif dim == 2:	
 			Y = np.dot(self.U.T, X.T).T
@@ -56,27 +65,7 @@ class RidgeFunction(BaseFunction, SubspaceBasedDimensionReduction):
 
 		else: 
 			raise NotImplementedError("Cannot draw shadow plots in more than two dimensions")	
-		
+
+		return ax		
 
 
-#	def plot_pgf(self, base_name, X = None, y = None):
-#		if X is None or y is None:
-#			X = self.X
-#			y = self.y
-#
-#		if self.subspace_dimension == 1:
-#			Y = np.dot(self.U.T, X.T).flatten()
-#			lb = np.min(Y)
-#			ub = np.max(Y)
-#		
-#			pgf = PGF()
-#			pgf.add('Ux', Y.flatten())
-#			pgf.add('fx', y) 
-#			pgf.write('%s_data.dat' % base_name)
-#			
-#			xx = np.linspace(lb, ub, 100)
-#			XX = np.array([self.U.flatten()*x for x in xx])
-#			pgf = PGF()
-#			pgf.add('Ux', xx)
-#			pgf.add('predict', self.predict(XX))
-#			pgf.write('%s_fit.dat' % base_name)

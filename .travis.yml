@@ -1,23 +1,42 @@
+matrix:
+  include:
+  - os: linux
+    dist: focal
+    python: '3.8'
+env:
+- COVERALLS_PARALLEL=true
+
+notifications:
+  webhooks: https://coveralls.io/webhook
+
 language: python
 
-python: 
- - "2.7"
+services:
+- docker
 
-# https://stackoverflow.com/a/48185032
 before_install:
-# Currently there is an issue with 1.16 and SCS
- - pip install -U --only-binary=numpy, scipy numpy==1.15.4
+- pip3 install -U --only-binary=numpy --only-binary=scipy numpy scipy
 
 install:
- - pip install pytest
- - pip install pytest-cov
- - pip install coveralls
- - python setup.py install 
+- pip3 install -U pytest pytest-cov coveralls
+- python3 setup.py install
 
 script:
- - pip freeze --local 
- - pytest --cov=psdr tests/
+- pip3 freeze --local
+- docker pull jeffreyhokanson/oas:v1
+- docker pull jeffreyhokanson/multif:v25
+- docker pull jeffreyhokanson/naca0012
+- pytest --cov=psdr --cov-branch --cov-config=.coveragerc tests/
+
 after_success:
- - coveralls
+- coveralls
 
-
+deploy:
+  distributions: "sdist"
+  on:
+    branch: master
+    tags: true
+  provider: pypi
+  username: __token__
+  password:
+    secure: f9rJzIWu7WCVeCcKsONjAwU3e9zw1qDvHa9PJGeoL9dN9S3skW44lEuHtyE6BXl13ngribX5RTfMYUgjTVRBsn79qt7oOyjxhhHWwO+19mVfr4UgDitvwLpIyqXcLof7l4BwzKuB8W/JepcDpB25VJU65bqiiJMfLJMVIWbZ0JfN5m/nL/8PYg0BCmNMQpWcN83BnqEozBJT3s9NRq7VAIpRn4osUNQYY6fR569DXtxgWL2DcKTfHvXMJldGayMGkhR6lFKPzxALSeaWYaURD6iQ7Quh1aHhLyyePrJwQLRMcXXgoIkRiF9Dt9SDECvBR0PnLsy2dGOISvt09iqzh1l8+t3zY+UnWUQGSLciFDTzn9f3N6cpniczUlyghxXzrqbaqZ0hSBM5wQSPsnOuedcNtYLpUq8yuhW+F/mLCa9OixBtrSES0NkQqtjecRZ0R1TqKbkOyYESl+vFN2OpFz38YZkakNK31g2Pm83AUNt73MVf3EUIAxqj4xc9YA3O9q1XDqtw1bIVFvI7yyvTAE2USbwcWjDvNpbAidVfHknImjbIpRgpvFyb0nEDq0XWqfdwXVk7O9FpFP5qTaK3fb2/dpd/qm9f+ao2JncqHnxE/UKUOzxNh6n5xko3j99k0NXOQ6hwezJ8c1KaozszooCvqiUIyXfusNUImqqm3Fc=

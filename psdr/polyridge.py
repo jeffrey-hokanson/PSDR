@@ -3,18 +3,22 @@
 
 import numpy as np
 import scipy.linalg
+import scipy.special
 import cvxpy as cp
 import warnings
 from copy import deepcopy, copy
 
-from domains import Domain, BoxDomain
-from function import BaseFunction
-from subspace import SubspaceBasedDimensionReduction
-from ridge import RidgeFunction
-from basis import *
-from gn import gauss_newton 
-from minimax import minimax
-from seqlp import sequential_lp
+from .domains import Domain, BoxDomain
+from .function import BaseFunction
+from .subspace import SubspaceBasedDimensionReduction
+from .ridge import RidgeFunction
+from .basis import *
+from .gn import gauss_newton 
+from .seqlp import sequential_lp
+from .exceptions import UnderdeterminedException
+from .initialization import initialize_subspace
+from .poly import PolynomialFunction
+
 
 class PolynomialRidgeFunction(RidgeFunction):
 	r""" A polynomial ridge function
@@ -24,40 +28,28 @@ class PolynomialRidgeFunction(RidgeFunction):
 		self.coef = np.copy(coef)
 		self._U = np.array(U)
 		self.domain = None
-		self.scale = False
 
 	
-	def set_scale(self, X, U = None):
-		""" Set the normalization map
-		"""
-		if U is None: U = self.U
-
-		if self.scale:
-			Y = np.dot(U.T, X.T).T
-			self.basis.set_scale(Y)
-
 	def V(self, X, U = None):
 		if U is None: U = self.U
 		X = np.array(X)	
-		Y = U.T.dot(X.T).T
+		Y = (U.T @ X.T).T
 		return self.basis.V(Y)
 
 	def DV(self, X, U = None):
 		if U is None: U = self.U
 		
-		Y = U.T.dot(X.T).T
+		Y = (U.T @ X.T).T
 		return self.basis.DV(Y)
 
 	def DDV(self, X, U = None):
 		if U is None: U = self.U
-		Y = U.T.dot(X.T).T
+		Y = (U.T @ X.T).T
 		return self.basis.DDV(Y)
 
 	def eval(self, X):
-		if len(X.shape) == 1:
-			return self.V(X.reshape(1,-1)).dot(self.coef).reshape(1)
-		else:
-			return self.V(X).dot(self.coef)
+		Vc = self.V(X) @ self.coef
+		return Vc
 	
 	def grad(self, X):
 		if len(X.shape) == 1:
@@ -92,23 +84,10 @@ class PolynomialRidgeFunction(RidgeFunction):
 		else:
 			return DDf
 
-	def profile_grad(self, X):
-		r""" gradient of the profile function g
-		"""
-		DV = self.DV(X)
-		# Compute gradient on projected space
-		Df = np.tensordot(DV, self.coef, axes = (1,0))
-		return Df
-
-	def roots(self):
-		r""" Compute the roots of the polynomial
-		"""
-		raise NotImplementedError
-
-	def derivative_roots(self):
-		r""" Compute the roots of the derivative of the polynomial
-		"""
-		raise NotImplementedError
+	@property
+	def profile(self):
+		return PolynomialFunction(self.basis, self.coef)
+	
 
 
 ################################################################################
@@ -138,7 +117,7 @@ def inf_norm_fit(A, b):
 	with warnings.catch_warnings():
 		warnings.simplefilter('ignore', PendingDeprecationWarning)
 		x = cp.Variable(A.shape[1])
-		obj = cp.norm_inf(x.__rmatmul__(A) - b)
+		obj = cp.norm_inf(A @ x - b.flatten())
 		problem = cp.Problem(cp.Minimize(obj))
 		problem.solve(solver = 'ECOS')
 		return x.value
@@ -243,6 +222,9 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	bound: [None, 'lower', 'upper']
 		If 'lower' or 'upper' construct a lower or upper bound
 
+	rotate: bool
+		If True, rotate the U matrix to align to the active subspace with average increasing gradients
+
 	References
 	----------
 	.. [HC18] J. M. Hokanson and Paul G. Constantine. 
@@ -252,8 +234,10 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 	def __init__(self, degree, subspace_dimension, basis = 'legendre', 
 		norm = 2, n_init = 1, scale = True, keep_data = True, domain = None,
-		bound = None):
+		bound = None, rotate = True, **kwargs):
 
+		self.kwargs = kwargs
+		self.rotate = rotate
 		assert isinstance(degree, int)
 		assert degree >= 0
 		self.degree = degree
@@ -269,21 +253,21 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			self.subspace_dimension = 0
 
 		basis = basis.lower()
-		assert basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
+		assert basis in ['arnoldi', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
 		self.basis_name = copy(basis)
-
-		if basis == 'legendre':
-			self.basis = LegendreTensorBasis(self.subspace_dimension, self.degree) 
+		
+		if basis == 'arnoldi':
+			self.Basis = ArnoldiPolynomialBasis
+		elif basis == 'legendre':
+			self.Basis = LegendreTensorBasis
 		elif basis == 'monomial':
-			self.basis = MonomialTensorBasis(self.subspace_dimension, self.degree) 
+			self.Basis = MonomialTensorBasis 
 		elif basis == 'chebyshev':
-			self.basis = ChebyshevTensorBasis(self.subspace_dimension, self.degree) 
+			self.Basis = ChebyshevTensorBasis 
 		elif basis == 'laguerre':
-			self.basis = LaguerreTensorBasis(self.subspace_dimension, self.degree) 
+			self.Basis = LaguerreTensorBasis 
 		elif basis == 'hermite':
-			self.basis = HermiteTensorBasis(self.subspace_dimension, self.degree) 
-		else:
-			raise NotImplementedError
+			self.Basis = HermiteTensorBasis 
 
 		assert isinstance(keep_data, bool)
 		self.keep_data = keep_data
@@ -306,10 +290,22 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		self.bound = bound
 
 	def __len__(self):
-		return U.shape[0]
+		return self.U.shape[0]
+
+	def __str__(self):
+		return "<PolynomialRidgeApproximation degree %d, subspace dimension %d>" % (self.degree, self.subspace_dimension)
 
 
-	def fit(self, X, fX, U0 = None, **kwargs):
+	def fit_fixed_subspace(self, X, fX, U):
+		r"""
+
+		"""
+		assert U.shape[0] == X.shape[1], "U has %d rows, expected %d based on X" % (U.shape[0], X.shape[1])
+		assert U.shape[1] == self.subspace_dimension, "U has %d columns; expected %d" % (U.shape[1], self.subspace_dimension)
+		self._finish(X, fX, U)
+		
+
+	def fit(self, X, fX, U0 = None):
 		r""" Given samples, fit the polynomial ridge approximation.
 
 		Parameters
@@ -320,37 +316,51 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			Evaluations of the function at the samples
 		
 		"""
-		
+		kwargs = self.kwargs
+
 		X = np.array(X)
 		fX = np.array(fX).flatten()	
 
 		assert X.shape[0] == fX.shape[0], "Dimensions of input do not match"
 
+		# Check if we have enough data to make problem overdetermined
+		m = X.shape[1]
+		n = self.subspace_dimension
+		d = self.degree
+		n_param = scipy.special.comb(n+d, d)	# Polynomial contribution
+		n_param += m*n - (n*(n+1))//2			# Number of parameters in Grassmann manifold
+		if len(fX) < n_param:
+			mess = "A polynomial ridge approximation of degree %d and subspace dimension %d of a %d-dimensional function " % (d, n, m)
+			mess += "requires at least %d samples to not be underdetermined" % (n_param, )
+			raise UnderdeterminedException(mess) 	
 
-		# Check that U0 has the right shape
-		if U0 is not None:
-			U0 = np.array(U0)
-			assert U0.shape[0] == X.shape[1], "U0 has %d rows, expected %d based on X" % (U0.shape[0], X.shape[1])
-			assert U0.shape[1] == self.subspace_dimension, "U0 has %d columns; expected %d" % (U0.shape[1], self.subspace_dimension)
-			U0 = orth(U0)
-
+		# Special case where solution is convex and no iteration is required
 		if self.subspace_dimension == 1 and self.degree == 1:
-			# Special case where solution is convex and no iteration is required
 			self._U = self._fit_affine(X, fX)	
 			self.coef = self._fit_coef(X, fX, self._U)	
 			return 
+
+
+		if U0 is not None:
+			# Check that U0 has the right shape
+			U0 = np.array(U0)
+			assert U0.shape[0] == X.shape[1], "U0 has %d rows, expected %d based on X" % (U0.shape[0], X.shape[1])
+			assert U0.shape[1] == self.subspace_dimension, "U0 has %d columns; expected %d" % (U0.shape[1], self.subspace_dimension)
 		else:
-			# TODO Implement multiple initializations
-			if self.norm == 2 and self.bound == None:
-				return self._fit_varpro(X, fX, U0, **kwargs)
-			else:	
-				return self._fit_alternating(X, fX, U0, **kwargs)
+			U0 = initialize_subspace(X = X, fX = fX)[:,:self.subspace_dimension]
+			
+		# Orthogonalize just to make sure the starting value satisfies constraints	
+		U0 = orth(U0)
+			
+		# TODO Implement multiple initializations
+		if self.norm == 2 and self.bound == None:
+			return self._fit_varpro(X, fX, U0, **kwargs)
+		else:	
+			return self._fit_alternating(X, fX, U0, **kwargs)
 
 
 	################################################################################	
 	# Specialized Affine fits
-	################################################################################	
-	
 	def _fit_affine(self, X, fX):
 		r""" Solves the affine 
 		"""
@@ -379,22 +389,16 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U = b[0:-1].reshape(-1,1)
 		# Correct for transform 
 		U = dom._normalize_der().dot(U)
+		# Force to have unit norm
+		U /= np.linalg.norm(U)
 		return U	
-
-
-	def _init_U(self, X, fX):
-		U0 = self._fit_affine(X, fX)
-		if self.subspace_dimension > 1:
-			# TODO: Find something better than random for the other directions
-			U0 = np.hstack([U0, np.random.randn(X.shape[1], self.subspace_dimension-1)])
-		return U0
 
 	def _fit_coef(self, X, fX, U):
 		r""" Returns the linear coefficients
 		"""
-		#self._U = U
-		self.set_scale(X, U = U)
-		V = self.V(X, U = U)
+		Y = (U.T @ X.T).T
+		self.basis = self.Basis(self.degree, X = Y) 
+		V = self.basis.V(Y)
 		if self.bound is None:
 			if self.norm == 1:
 				c = one_norm_fit(V, fX)
@@ -408,10 +412,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			c = bound_fit(-V, -fX, norm = self.norm)
 		elif self.bound == 'upper':
 			c = bound_fit(V, fX, norm = self.norm)
-		else:
-			raise NotImplementedError		
-		
-		#print fX - V.dot(c) 
 		
 		return c
 	
@@ -419,24 +419,27 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		r""" Given final U, rotate and find coefficients
 		"""
 
+		Y = (U.T @ X.T).T
 		# Step 1: Apply active subspaces to the profile function at samples X
 		# to rotate onto the most important directions
-		if U.shape[1] > 1:
+		if U.shape[1] > 1 and self.rotate:
 			self._U = U
 			self.coef = self._fit_coef(X, fX, U)
-			grads = self.profile_grad(X)
-			Ur = scipy.linalg.svd(grads.T)[0]
-			U = U.dot(Ur)
+			grads = self.profile.grad(Y)
+			# We only need the short-form SVD
+			Ur = scipy.linalg.svd(grads.T, full_matrices = False)[0]
+			U = U @ Ur
 		
-		# Step 2: Flip signs such that average slope is positive in the coordinate directions
 		self._U = U
-		self.coef = self._fit_coef(X, fX, U)
-		grads = self.profile_grad(X)
-		self._U = U = U.dot(np.diag(np.sign(np.mean(grads, axis = 0))))
+
+		# Step 2: Flip signs such that average slope is positive in the coordinate directions
+		if self.rotate:
+			self.coef = self._fit_coef(X, fX, U)
+			grads = self.profile.grad(Y)
+			self._U = U = U.dot(np.diag(np.sign(np.mean(grads, axis = 0))))
 		
 		# Step 3: final fit	
 		self.coef = self._fit_coef(X, fX, U)
-		grads = self.profile_grad(X)
 
 	################################################################################	
 	# VarPro based solution for the 2-norm without bound constraints 
@@ -445,8 +448,15 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	def _varpro_residual(self, X, fX, U_flat):
 		U = U_flat.reshape(X.shape[1],-1)
 
-		V = self.V(X, U)
-		c = scipy.linalg.lstsq(V, fX)[0]
+		#V = self.V(X, U)
+		Y = (U.T @ X.T).T
+		self.basis = self.Basis(self.degree, Y)
+		V = self.basis.V(Y)
+		if self.basis_name == 'arnoldi':
+			# In this case, V is orthonormal
+			c = V.T @ fX
+		else:
+			c = scipy.linalg.lstsq(V, fX)[0].flatten()
 		r = fX - V.dot(c)
 		return r
 	
@@ -455,13 +465,24 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		M, m = X.shape
 		U = U_flat.reshape(X.shape[1],-1)
 		m, n = U.shape
-		
-		V = self.V(X, U)
-		c = scipy.linalg.lstsq(V, fX)[0].flatten()
-		r = fX - V.dot(c)
-		DV = self.DV(X, U)
 	
-		Y, s, ZT = scipy.linalg.svd(V, full_matrices = False) 
+		Y = (U.T @ X.T).T
+		self.basis = self.Basis(self.degree, Y)
+		V = self.basis.V(Y)
+		DV = self.basis.DV(Y)
+
+		if isinstance(self.basis, ArnoldiPolynomialBasis):
+			# In this case, V is orthonormal
+			c = V.T @ fX
+			Y = np.copy(V)
+			s = np.ones(V.shape[1])
+			ZT = np.eye(V.shape[1])
+		else:
+			c = scipy.linalg.lstsq(V, fX)[0].flatten()
+			Y, s, ZT = scipy.linalg.svd(V, full_matrices = False) 
+
+		r = fX - V.dot(c)
+	
 	
 		N = V.shape[1]
 		J1 = np.zeros((M,m,n))
@@ -493,12 +514,8 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		return U_new
 	
 	def _fit_varpro(self, X, fX, U0, **kwargs):
-		if U0 is None:
-			U0 = self._init_U(X, fX)	
 	
-		# Setup scaling	
-		self.set_scale(X, U = U0)
-		
+
 		def gn_solver(J_flat, r):
 			Y, s, ZT = scipy.linalg.svd(J_flat, full_matrices = False, lapack_driver = 'gesvd')
 			# Apply the pseudoinverse
@@ -507,9 +524,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			return Delta_flat, s[:-n**2]
 
 		def jacobian(U_flat):
-			# set the scaling
-			U = U_flat.reshape(X.shape[1],-1)
-			self.set_scale(X, U = U)
 			return self._varpro_jacobian(X, fX, U_flat)
 
 		def residual(U_flat):
@@ -537,8 +551,10 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		c = U_c[m*n:].reshape(N)
 		
 		# Construct basis
-		V = self.V(X, U)
-		res = V.dot(c) - fX
+		#V = self.V(X, U)
+		Y = (U.T @ X.T).T
+		V = self.basis.V(Y) 
+		res = V @ c - fX
 		return res
 
 	def _jacobian(self, X, fX, U_c):
@@ -549,16 +565,22 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		# Extract U and c
 		U = U_c[:m*n].reshape(m,n)
 		c = U_c[m*n:].reshape(N)
-		
+
+		# Re-initialize basis
+		Y = (U.T @ X.T).T
+		self.basis = self.Basis(self.degree, Y)
+		V = self.basis.V(Y)
+
 		# Derivative of V with respect to U with c fixed	
 		DVDUc = np.zeros((M,m,n))
-		DV = self.DV(X, U) 	# Size (M, N, n)
+		#DV = self.DV(X, U) 	# Size (M, N, n)
+		DV = self.basis.DV(Y)
 		for k in range(m):
 			for ell in range(n):
 				DVDUc[:,k,ell] = X[:,k]*np.dot(DV[:,:,ell], c)
 		
 		# Derivative with respect to linear component
-		V = self.V(X, U)
+		#V = self.V(X, U)
 
 		# Total Jacobian
 		jac = np.hstack([DVDUc.reshape(M,-1), V])
@@ -586,7 +608,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 
 		# Compute the step along the Geodesic	
 		Y, s, ZT = scipy.linalg.svd(Delta, full_matrices = False, lapack_driver = 'gesvd')
-		U_new= np.dot(np.dot(U,ZT.T), np.diag(np.cos(s*alpha))) + np.dot(Y, np.diag(np.sin(s*alpha)))
+		U_new = np.dot(np.dot(U,ZT.T), np.diag(np.cos(s*alpha))) + np.dot(Y, np.diag(np.sin(s*alpha)))
 
 		# TODO: align U and U_new to minimize Frobenius norm error 
 		# right the small step termination criteria is never triggering because U_new and U have different orientations
@@ -599,10 +621,6 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 	def _fit_alternating(self, X, fX, U0, **kwargs):
 		M, m = X.shape
 		n = self.subspace_dimension
-		N = len(self.basis.indices)
-		
-		if U0 is None:
-			U0 = self._init_U(X, fX)
 	
 		def residual(U_c):
 			r = self._residual(X, fX, U_c)
@@ -612,7 +630,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 			m = X.shape[1]
 			n = self.subspace_dimension
 			U = U_c[:m*n].reshape(m,n)
-			self.set_scale(X, U)
+			#self.set_scale(X, U)
 			J = self._jacobian(X, fX, U_c)
 			return J
 
@@ -620,7 +638,7 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		trajectory = lambda U_c, p, alpha: self._trajectory(X, fX, U_c, p, alpha)
 
 		# Initialize parameter values
-		self.set_scale(X, U0)
+		#self.set_scale(X, U0)
 		c0 = self._fit_coef(X, fX, U0)
 		U_c0 = np.hstack([U0.flatten(), c0])
 
@@ -651,30 +669,4 @@ class PolynomialRidgeApproximation(PolynomialRidgeFunction):
 		U = U_c[:m*n].reshape(m,n)
 		self._finish(X, fX, U)
 	
-
-if __name__ == '__main__':
-	import matplotlib.pyplot as plt
-
-	np.random.seed(3)
-	p = 3
-	m = 4
-	n = 1
-	M = 500
-
-	U = orth(np.random.randn(m,n))
-	coef = np.random.randn(len(LegendreTensorBasis(n,p)))
-	prf = PolynomialRidgeFunction(LegendreTensorBasis(n,p), coef, U)
-
-
-	X = np.random.randn(M,m)
-	fX = prf.eval(X) 
-	fX += 1*np.random.uniform(-1,1, size = fX.shape)
-
-	#U0 = orth(np.random.randn(m,n))
-	pra = PolynomialRidgeApproximation(degree = p, subspace_dimension  = n, norm = 1, bound = 'lower')
-	pra.fit(X, fX, verbose = True)
-	
-
-	pra.shadow_plot(X, fX)
-	plt.show()
 

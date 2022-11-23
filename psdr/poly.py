@@ -2,11 +2,16 @@
 """ Polynomial functions """
 # (c) 2019 Jeffrey M. Hokanson (jeffrey@hokanson.us)
 
+from __future__ import print_function
 import numpy as np
+import cvxpy as cp
 import scipy.linalg
+import cvxpy as cp
 from copy import copy
-from basis import *
-from function import BaseFunction
+from .basis import *
+from .function import BaseFunction
+
+from numpy.polynomial.legendre import legroots
 
 __all__ = ['PolynomialFunction', 'PolynomialApproximation']
 
@@ -35,14 +40,30 @@ def linear_fit(A, b, norm = 2, bound = None):
 		
 		# Now actually solve the problem
 		problem = cp.Problem(cp.Minimize(obj), constraint)
-		problem.solve(feastol = 1e-10, solver = cp.ECOS)
+		problem.solve(feastol = 1e-10, reltol = 1e-8, abstol = 1e-8, solver = cp.ECOS)
 		return x.value
 
 
 class PolynomialFunction(BaseFunction):
-	def __init__(self, dimension, degree, coef):
-		self.basis = LegendreTensorBasis(dimension, degree) 
-		self.coef = coef
+	r""" A polynomial function in a Legendre basis 	
+
+
+	Parameters
+	----------
+	dimension: int
+		Input dimension
+	degree: int
+		Degree of polynomial
+	coef: array-like
+		Coefficients of polynomial	
+	"""
+	def __init__(self, basis, coef):
+		self.basis = basis
+		self.coef = np.array(coef)
+
+	def roots(self):
+		return self.basis.roots(self.coef)	
+		
 
 	def V(self, X):	
 		return self.basis.V(X)
@@ -91,13 +112,28 @@ class PolynomialFunction(BaseFunction):
 	
 
 class PolynomialApproximation(PolynomialFunction):
+	r""" Construct a polynomial approximation
+
+	Parameters
+	----------
+	degree: int
+		Degree of polynomial
+	basis: ['arnold', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
+		Basis in which to express the polynomial
+	norm: [1, 2, np.inf]
+		Norm in which to find the approximation
+	bound: [None, 'lower', 'upper']
+		If None, construct approximation in the specified norm;
+		if 'lower' or 'upper', additionally enforce the constraint that
+		the approximation is below or above the measured samples	
+	"""
 	def __init__(self, degree, basis = 'legendre', norm = 2, bound = None):
 
 		degree = int(degree)
 		assert degree >= 0, "Degree must be positive"
 		self.degree = degree
 
-		assert basis in ['legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
+		assert basis in ['arnoldi', 'legendre', 'monomial', 'chebyshev', 'laguerre', 'hermite']
 		self.basis_name = copy(basis)
 
 		self.basis = None
@@ -113,31 +149,21 @@ class PolynomialApproximation(PolynomialFunction):
 		M, m = X.shape
 
 		# Since we don't know the input dimension until we get the data, we initialize the basis here
-		if self.basis_name == 'legendre':
-			self.basis = LegendreTensorBasis(m, self.degree) 
+		if self.basis_name == 'arnoldi':
+			self.basis = ArnoldiPolynomialBasis(self.degree, X = X) 
+		elif self.basis_name == 'legendre':
+			self.basis = LegendreTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'monomial':
-			self.basis = MonomialTensorBasis(m, self.degree) 
+			self.basis = MonomialTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'chebyshev':
-			self.basis = ChebyshevTensorBasis(m, self.degree) 
+			self.basis = ChebyshevTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'laguerre':
-			self.basis = LaguerreTensorBasis(m, self.degree) 
+			self.basis = LaguerreTensorBasis(self.degree, X = X) 
 		elif self.basis_name == 'hermite':
-			self.basis = HermiteTensorBasis(m, self.degree) 
-		else:
-			raise NotImplementedError
+			self.basis = HermiteTensorBasis(self.degree, X = X) 
 
-		# Scale the basis to the problem
-		self.basis.set_scale(X)
-		
+		# Construct Vandermonde matrix
 		V = self.basis.V(X)
 
 		self.coef = linear_fit(V, fX, norm = self.norm, bound = self.bound)
 
-if __name__ == '__main__':
-	X = np.random.randn(100, 5)
-	fX = np.random.randn(100,)
-
-	poly = PolynomialApproximation(degree = 2)
-	poly.fit(X, fX)
-	print poly.eval(X).shape
-	print poly.grad(X).shape

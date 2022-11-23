@@ -5,4 +5,5 @@ Tutorial
 .. toctree::
 
 	borehole
-
+	sweep
+	multiprocessing
